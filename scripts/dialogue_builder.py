@@ -362,12 +362,6 @@ def main():
         case = cases[case_idx % len(cases)]
         prompt = prompts[case_idx % len(prompts)]
         case_idx += 1
-        # try:
-        #     messages = generate_dialogue(path, df_dict, case, prompt)
-        #     all_dialogues.append({"messages": messages})
-        # except Exception as e:
-        #     print(f"生成第{i}条对话时出错: {e}")
-        #     continue
         try:
             messages = generate_dialogue(path, df_dict, case, prompt)
             all_dialogues.append({"messages": messages})
@@ -376,7 +370,6 @@ def main():
             print(f"生成第{i}条对话时出错，路径长度: {len(path)}, 案例索引: {case_idx}")
             traceback.print_exc()
             continue
-
         if (i+1) % 5000 == 0:
             print(f"已生成 {i+1}/{NUM_PATHS} 条对话")
 
