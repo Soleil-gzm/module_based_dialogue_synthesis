@@ -14,9 +14,9 @@ from pathlib import Path
 from datetime import datetime
 
 # ========== 配置参数（请根据实际路径修改）==========
-EXCEL_PATH = "data/对话模块分类 - 洋钱罐 - 1111.xlsx"
-PROB_PATH = "data/prob.xlsx"
-CASES_DIR = "data/cases_random"
+EXCEL_PATH = "datas/对话模块分类 - 洋钱罐 - 1111.xlsx"
+PROB_PATH = "datas/prob.xlsx"
+CASES_DIR = "datas/cases_random"
 OUTPUT_DIR = "output"
 NUM_PATHS = 40000            # 生成对话数量
 RANDOM_SEED = 42             # 随机种子，保证可复现
@@ -46,24 +46,31 @@ INSERT_NODES = {'资金困难', '用卡及征信', '放时间应对'}
 
 # ========== 辅助函数 ==========
 def load_sheets(excel_path):
-    """加载所有工作表，过滤 conditions 包含 S1|S2 的行，存储到 df_dict"""
+    """加载所有工作表，保留 conditions 包含 S1|S2 的行，存储到 df_dict"""
     df_dict = {}
     for sheet in MODULES:
         df = pd.read_excel(excel_path, sheet_name=sheet)
-        # 筛选 conditions 列包含 S1|S2 的行（注意 cell 可能是字符串或 nan）
+        # 筛选 conditions 列包含 S1|S2 的行
         mask = df['conditions(条件)'].apply(lambda x: isinstance(x, str) and 'S1|S2' in x)
         df_filtered = df[mask].copy()
-        # 去掉 human 列中包含 <随机金额> 或 <随机时间> 的行（博士原始逻辑）
+        # 去掉 human 列中包含 <随机金额> 或 <随机时间> 的行（原始逻辑）
         df_filtered = df_filtered[~df_filtered['human(客户)'].str.contains('<随机金额>|<随机时间>', na=False)]
         df_dict[sheet] = df_filtered
     return df_dict
 
+# def load_prob_matrix(prob_path, modules):
+#     """加载概率矩阵并标准化为 DataFrame，行列顺序与 modules 一致"""
+#     prob_df = pd.read_excel(prob_path, header=None, index_col=0)
+#     prob_df.columns = modules
+#     prob_df.index = modules
+#     # 转换为概率（除以100）
+#     prob_df = prob_df / 100.0
+#     return prob_df
+
 def load_prob_matrix(prob_path, modules):
-    """加载概率矩阵并标准化为 DataFrame，行列顺序与 modules 一致"""
-    prob_df = pd.read_excel(prob_path, header=None, index_col=0)
+    prob_df = pd.read_excel(prob_path, header=None)
     prob_df.columns = modules
     prob_df.index = modules
-    # 转换为概率（除以100）
     prob_df = prob_df / 100.0
     return prob_df
 
@@ -100,7 +107,7 @@ def parse_case_info(txt_path):
     return data
 
 def get_full_prompt(txt_path):
-    """读取整个 case 文件内容作为 system prompt 的后半部分"""
+    """读取整个 case 文件内容作为 system prompt 的后半部分，用于构造 system prompt。"""
     with open(txt_path, 'r', encoding='utf-8') as f:
         return f.read()
 
@@ -258,8 +265,8 @@ def generate_dialogue(path, df_dict, case, prompt_text):
         assistant_text = sample_utterance(row, False)
         # 对于特定模块，可能附加衔接施压话术
         if node in INSERT_NODES and pressure_idx < len(pressure_list):
-            # 博士原逻辑：没有继承关系时才附加，这里简化：只要当前行没有父且没有孩子？
-            # 保持博士逻辑：如果祖先或孩子为空，则附加
+            # 原逻辑：没有继承关系时才附加，这里简化：只要当前行没有父且没有孩子？
+            # 保持原逻辑：如果祖先或孩子为空，则附加
             if len(ancestors) == 0 and len(get_descendants(row['uid'], df_node)) == 0:
                 if random.random() < 0.7:
                     assistant_text += pressure_list[pressure_idx]
