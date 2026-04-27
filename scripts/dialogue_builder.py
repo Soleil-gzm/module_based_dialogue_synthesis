@@ -58,16 +58,8 @@ def load_sheets(excel_path):
         df_dict[sheet] = df_filtered
     return df_dict
 
-# def load_prob_matrix(prob_path, modules):
-#     """加载概率矩阵并标准化为 DataFrame，行列顺序与 modules 一致"""
-#     prob_df = pd.read_excel(prob_path, header=None, index_col=0)
-#     prob_df.columns = modules
-#     prob_df.index = modules
-#     # 转换为概率（除以100）
-#     prob_df = prob_df / 100.0
-#     return prob_df
-
 def load_prob_matrix(prob_path, modules):
+    """加载概率矩阵并标准化为 DataFrame，行列顺序与 modules 一致,prob.xlsx 是纯数值矩阵（无行列标签）"""
     prob_df = pd.read_excel(prob_path, header=None)
     prob_df.columns = modules
     prob_df.index = modules
@@ -111,15 +103,33 @@ def get_full_prompt(txt_path):
     with open(txt_path, 'r', encoding='utf-8') as f:
         return f.read()
 
+# def get_ancestors(uid, df):
+#     """递归获取所有祖先行（按从远祖到父的顺序）"""
+#     ancestors = []
+#     while True:
+#         parent_val = df.loc[df['uid'] == uid, 'parent(继承)'].values[0]
+#         if pd.isna(parent_val) or parent_val == 0:
+#             break
+#         parent_row = df[df['uid'] == parent_val].iloc[0]
+#         ancestors.append(parent_row)
+#         uid = parent_val
+#     return list(reversed(ancestors))
+
 def get_ancestors(uid, df):
-    """递归获取所有祖先行（按从远祖到父的顺序）"""
     ancestors = []
     while True:
-        parent_val = df.loc[df['uid'] == uid, 'parent(继承)'].values[0]
+        # 获取父行 uid
+        parent_series = df.loc[df['uid'] == uid, 'parent(继承)']
+        if parent_series.empty:
+            break
+        parent_val = parent_series.values[0]
         if pd.isna(parent_val) or parent_val == 0:
             break
-        parent_row = df[df['uid'] == parent_val].iloc[0]
-        ancestors.append(parent_row)
+        # 查找父行是否存在
+        parent_row = df[df['uid'] == parent_val]
+        if parent_row.empty:
+            break   # 父行被过滤，停止追溯
+        ancestors.append(parent_row.iloc[0])
         uid = parent_val
     return list(reversed(ancestors))
 
@@ -352,12 +362,21 @@ def main():
         case = cases[case_idx % len(cases)]
         prompt = prompts[case_idx % len(prompts)]
         case_idx += 1
+        # try:
+        #     messages = generate_dialogue(path, df_dict, case, prompt)
+        #     all_dialogues.append({"messages": messages})
+        # except Exception as e:
+        #     print(f"生成第{i}条对话时出错: {e}")
+        #     continue
         try:
             messages = generate_dialogue(path, df_dict, case, prompt)
             all_dialogues.append({"messages": messages})
         except Exception as e:
-            print(f"生成第{i}条对话时出错: {e}")
+            import traceback
+            print(f"生成第{i}条对话时出错，路径长度: {len(path)}, 案例索引: {case_idx}")
+            traceback.print_exc()
             continue
+
         if (i+1) % 5000 == 0:
             print(f"已生成 {i+1}/{NUM_PATHS} 条对话")
 
