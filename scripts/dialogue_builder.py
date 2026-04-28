@@ -307,7 +307,7 @@ def generate_dialogue(path, df_dict, case, prompt_text):
             if user_text or assistant_text:
                 turn_list.append((user_text, assistant_text))
 
- # 附加衔接施压话术（仅当无祖先且无后代时附加到当前行的 assistant 内容上）
+        # 附加衔接施压话术（仅当无祖先且无后代时附加到当前行的 assistant 内容上）
         if node in INSERT_NODES and pressure_idx < len(pressure_list):
             # 无祖先和无后代
             if len(ancestors) == 0 and len(descendant_chain) == 0:
@@ -338,6 +338,9 @@ def main():
     df_dict = load_sheets(EXCEL_PATH)
     print("加载概率矩阵...")
     prob_df = load_prob_matrix(PROB_PATH, MODULES)
+    # 路径缓存文件
+    PATHS_CACHE = "intermediate/all_paths.json"
+    os.makedirs(os.path.dirname(PATHS_CACHE), exist_ok=True)
 
     # 加载案例列表
     case_files = sorted([f for f in os.listdir(CASES_DIR) if f.endswith('.txt')])
@@ -349,36 +352,95 @@ def main():
         prompts.append(get_full_prompt(path))
     print(f"加载案例数量: {len(cases)}")
 
-    # 生成路径
+    # 生成路径（带缓存校验）
     print(f"生成 {NUM_PATHS} 条路径...")
-    all_paths = []
-    for _ in range(NUM_PATHS):
-        path = ["核实"]
-        counts = {mod: 0 for mod in MODULES}
-        counts["核实"] = 1
-        banned = set()
-        current = "核实"
-        while True:
-            probs = prob_df.loc[current].copy()
-            available = [m for m in MODULES if m not in banned]
-            if not available:
-                break
-            probs = probs[available]
-            if probs.sum() == 0:
-                break
-            probs /= probs.sum()
-            next_node = np.random.choice(available, p=probs)
-            path.append(next_node)
-            counts[next_node] += 1
-            max_repeat = MAX_REPEAT.get(next_node, 100)
-            if counts[next_node] >= max_repeat:
-                if next_node in SPECIAL_NODES:
-                    banned.add(next_node)
-                else:
+    cache_valid = False
+    all_paths = None
+
+    if os.path.exists(PATHS_CACHE):
+        with open(PATHS_CACHE, 'r', encoding='utf-8') as f:
+            cache_data = json.load(f)
+        # 校验种子和路径数量
+        if cache_data.get("seed") == RANDOM_SEED and cache_data.get("num_paths") == NUM_PATHS:
+            all_paths = cache_data["paths"]
+            cache_valid = True
+            print(f"从缓存加载路径成功，共 {len(all_paths)} 条（种子: {RANDOM_SEED}）")
+        else:
+            print(f"缓存文件中的种子或路径数量不匹配，将重新生成路径")
+            print(f"  缓存种子: {cache_data.get('seed')}, 当前种子: {RANDOM_SEED}")
+            print(f"  缓存数量: {cache_data.get('num_paths')}, 当前数量: {NUM_PATHS}")
+
+    if not cache_valid:
+        # 重新生成路径
+        all_paths = []
+        for _ in range(NUM_PATHS):
+            path = ["核实"]
+            counts = {mod: 0 for mod in MODULES}
+            counts["核实"] = 1
+            banned = set()
+            current = "核实"
+            while True:
+                probs = prob_df.loc[current].copy()
+                available = [m for m in MODULES if m not in banned]
+                if not available:
                     break
-            current = next_node
-        all_paths.append(path)
-    print(f"路径生成完成，共 {len(all_paths)} 条")
+                probs = probs[available]
+                if probs.sum() == 0:
+                    break
+                probs /= probs.sum()
+                next_node = np.random.choice(available, p=probs)
+                path.append(next_node)
+                counts[next_node] += 1
+                max_repeat = MAX_REPEAT.get(next_node, 100)
+                if counts[next_node] >= max_repeat:
+                    if next_node in SPECIAL_NODES:
+                        banned.add(next_node)
+                    else:
+                        break
+                current = next_node
+            all_paths.append(path)
+
+        # 保存到缓存（包含种子和数量）
+        cache_data = {
+            "seed": RANDOM_SEED,
+            "num_paths": NUM_PATHS,
+            "paths": all_paths
+        }
+        with open(PATHS_CACHE, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+        print(f"路径生成完成，共 {len(all_paths)} 条，已保存至 {PATHS_CACHE}（种子: {RANDOM_SEED}）")
+
+
+    # # 生成路径
+    # print(f"生成 {NUM_PATHS} 条路径...")
+    # all_paths = []
+    # for _ in range(NUM_PATHS):
+    #     path = ["核实"]
+    #     counts = {mod: 0 for mod in MODULES}
+    #     counts["核实"] = 1
+    #     banned = set()
+    #     current = "核实"
+    #     while True:
+    #         probs = prob_df.loc[current].copy()
+    #         available = [m for m in MODULES if m not in banned]
+    #         if not available:
+    #             break
+    #         probs = probs[available]
+    #         if probs.sum() == 0:
+    #             break
+    #         probs /= probs.sum()
+    #         next_node = np.random.choice(available, p=probs)
+    #         path.append(next_node)
+    #         counts[next_node] += 1
+    #         max_repeat = MAX_REPEAT.get(next_node, 100)
+    #         if counts[next_node] >= max_repeat:
+    #             if next_node in SPECIAL_NODES:
+    #                 banned.add(next_node)
+    #             else:
+    #                 break
+    #         current = next_node
+    #     all_paths.append(path)
+    # print(f"路径生成完成，共 {len(all_paths)} 条")
 
     # 生成对话
     print("开始生成对话...")
