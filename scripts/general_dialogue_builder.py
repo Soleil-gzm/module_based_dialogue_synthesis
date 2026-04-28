@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-多轮对话生成脚本（基于 Excel 模块和概率矩阵）
-支持通用电催话术模板，实现路径生成、话术采样、占位符替换、特殊规则处理。
+多轮对话生成脚本（通用电催话术模板）
+基于 Excel 模块和概率矩阵，按照业务规则生成对话路径并采样话术。
+支持自循环模块（A集）、循环模块（B集）、终止模块等特殊规则。
 """
 
 import os
@@ -12,7 +13,6 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import logging
-import sys
 
 # ========== 日志配置 ==========
 LOG_DIR = "logs"
@@ -38,17 +38,6 @@ NUM_PATHS = 40000                # 生成对话数量
 RANDOM_SEED = 42                 # 随机种子
 PATHS_CACHE = "intermediate/all_paths.json"   # 路径缓存文件
 
-# 场景集合
-A_SET = {
-    '通用原因', '否认办理业务', '工程款', '未发工资', '还错卡',
-    '生病住院', '破产', '失业', '他人用款', '忘记还款', '盗刷'
-}
-# 通用集合
-B_SET = {
-    '敷衍', '投诉处理', '信息问题', '不方便接电', '对抗', '没钱', '诉求', '承诺还款'
-}
-TERMINAL_NODES = {'承诺还款', '已还款'}
-
 # 模块列表（与 Excel 中的 sheet 名称一致）
 MODULES = [
     '身份确认', '告知', '信息核实', '三方', '转告', '承诺还款', '已还款', '敷衍',
@@ -57,33 +46,35 @@ MODULES = [
     '他人用款', '忘记还款', '盗刷'
 ]
 
+# 自循环模块集（A集）
+A_SET = {
+    '通用原因', '否认办理业务', '工程款', '未发工资', '还错卡',
+    '生病住院', '破产', '失业', '他人用款', '忘记还款', '盗刷'
+}
+
+# 循环模块集（B集）
+B_SET = {
+    '敷衍', '投诉处理', '信息问题', '不方便接电', '对抗', '没钱', '诉求', '承诺还款'
+}
+
+# 终止模块（进入后路径结束）
+TERMINAL_NODES = {'承诺还款', '已还款'}
+
 # 每个模块的最大重复次数
 MAX_REPEAT = {
-    '身份确认': 4, '告知': 1, '信息核实': 1, '三方': 1, '转告': 1, '承诺还款': 2,
-    '已还款': 1, '敷衍': 3, '投诉处理': 3, '信息问题': 3, '不方便接电': 2, '对抗': 4,
-    '没钱': 4, '诉求': 3, '通用原因': 4, '否认办理业务': 4, '工程款': 4, '未发工资': 4,
-    '还错卡': 4, '生病住院': 4, '破产': 4, '失业': 4, '他人用款': 4, '忘记还款': 4,
-    '盗刷': 4
+    '身份确认': 4, '告知': 1, '信息核实': 1, '三方': 1, '转告': 1,
+    '承诺还款': 2, '已还款': 1, '敷衍': 3, '投诉处理': 3, '信息问题': 3,
+    '不方便接电': 2, '对抗': 4, '没钱': 4, '诉求': 3, '通用原因': 4,
+    '否认办理业务': 4, '工程款': 4, '未发工资': 4, '还错卡': 4, '生病住院': 4,
+    '破产': 4, '失业': 4, '他人用款': 4, '忘记还款': 4, '盗刷': 4
 }
-
-# 特殊模块：达到最大次数后仅禁用该模块，不终止对话
-SPECIAL_NODES = {'信息问题'}
 
 # 可以附加衔接施压话术的模块（触发概率60%）
-INSERT_NODES = {
-    '失业', '破产', '生病住院', '还错卡', '未发工资', '工程款', '否认办理业务',
-    '通用原因', '他人用款', '忘记还款', '盗刷'
-}
+INSERT_NODES = {'失业', '破产', '生病住院', '未发工资', '工程款', '通用原因', '没钱'}
 PRESSURE_PROB = 0.6
 
-# 禁止相互跳转的模块集合（不能从一个跳转到另一个）
-FORBIDDEN_JUMP_SET = {
-    '失业', '破产', '生病住院', '还错卡', '未发工资', '工程款', '否认办理业务',
-    '通用原因', '他人用款', '忘记还款', '盗刷'
-}
-
-# 会终止路径的模块（到达后直接结束）
-TERMINAL_NODES = {'承诺还款', '已还款'}
+# 特殊模块：达到最大次数后仅禁用，不终止对话（只有信息问题）
+SPECIAL_NODES = {'信息问题'}
 
 # ========== 辅助函数 ==========
 def load_sheets(excel_path):
@@ -193,12 +184,9 @@ def matches_conditions(row, case):
     cond_str = row.get('conditions(条件)', '')
     if pd.isna(cond_str) or cond_str == '':
         return True
-    # 按 '|' 分割，每个子条件 (内部分组的 '&' 在后续处理)
-    # 简单实现：只要条件中包含 '逾期' 即通过，因为我们的数据都已预过滤
-    # 如果有更复杂条件（如 {随机金额}<{剩余总待还}），此处简化处理
+    # 简化为只要包含 '逾期' 即通过（所有预过滤的行都满足）
     if '逾期' in cond_str:
         return True
-    # 未知条件，默认通过
     return True
 
 def sample_utterance(row, is_human):
@@ -216,7 +204,6 @@ def fill_placeholders(text, case):
     """替换文本中的花括号占位符"""
     if not isinstance(text, str):
         return text
-    # 替换所有已知占位符
     replacements = {
         '{客服电话}': case.get('客服电话', ''),
         '{机构名称}': case.get('机构名称', ''),
@@ -242,15 +229,94 @@ def fill_placeholders(text, case):
         text = text.replace(k, v)
     return text
 
+def generate_path(prob_df, modules, max_repeat, terminal_nodes, a_set, b_set):
+    """
+    按照业务规则生成一条模块序列路径
+    """
+    path = ["身份确认"]
+    counts = {mod: 0 for mod in modules}
+    counts["身份确认"] = 1
+    banned = set()
+    selected_a = None        # 记录当前路径中出现的自循环模块（只能有一个）
+    current = "身份确认"
+    
+    while True:
+        # 根据当前节点类型确定合法下一节点候选集
+        if current == "身份确认":
+            candidates = ["告知", "三方"]
+        elif current == "告知":
+            # 告知不能转身份确认和转告
+            candidates = [m for m in modules if m not in ["身份确认", "转告"]]
+        elif current == "信息核实":
+            # 信息核实不能转告知、身份确认、三方、转告
+            candidates = [m for m in modules if m not in ["告知", "身份确认", "三方", "转告"]]
+        elif current in a_set:
+            # 自循环模块（A集）：允许自身 + B集
+            candidates = [current] + list(b_set)
+        elif current in b_set:
+            # 循环模块（B集）：允许 B集 + 如果已有选中的A，则允许返回那个A
+            candidates = list(b_set)
+            if selected_a is not None:
+                candidates.append(selected_a)
+        else:
+            # 其他模块（如三方、转告）按照全量模块（但排除已禁用的）
+            candidates = modules[:]
+        
+        # 移除已禁用的模块（达到最大次数）
+        candidates = [m for m in candidates if m not in banned]
+        # 移除可能违反“只能有一个自循环模块”的候选：如果已经选中了一个A，则不能选择其他A（除非是当前已有的selected_a）
+        if selected_a is not None:
+            candidates = [m for m in candidates if m not in a_set or m == selected_a]
+        
+        if not candidates:
+            break
+        
+        # 获取当前节点的概率向量
+        probs = prob_df.loc[current].copy()
+        # 只保留候选集中的模块
+        probs = probs[probs.index.isin(candidates)]
+        if probs.sum() == 0:
+            break
+        probs /= probs.sum()
+        next_node = np.random.choice(probs.index, p=probs)
+        
+        # 硬约束：已还款只能从告知或信息核实进入
+        if next_node == "已还款" and current not in ["告知", "信息核实"]:
+            continue
+        
+        # 如果本次选择了自循环模块，且当前还没有记录selected_a，则记录
+        if next_node in a_set and selected_a is None:
+            selected_a = next_node
+        
+        path.append(next_node)
+        counts[next_node] += 1
+        
+        # 检查最大重复次数
+        max_repeat_val = max_repeat.get(next_node, 100)
+        if counts[next_node] >= max_repeat_val:
+            if next_node in SPECIAL_NODES:
+                # 信息问题达到上限只禁用，路径不终止
+                banned.add(next_node)
+            else:
+                # 普通模块达到上限，终止路径
+                break
+        
+        # 如果遇到终止模块，结束路径
+        if next_node in terminal_nodes:
+            break
+        
+        current = next_node
+    
+    return path
+
 def generate_dialogue(path, df_dict, case, prompt_text):
-    """根据一条模块路径和一个案例，生成完整对话 messages，并处理特殊规则"""
+    """根据一条模块路径和一个案例，生成完整对话 messages"""
     messages = []
-    # 添加 system 消息
     sys_content = f"你是一个{case.get('抬头', '催收专员')}，请根据客户的情况，使用合适的话术与客户进行沟通，争取让客户承诺还款。\n" + prompt_text
     messages.append({"role": "system", "content": sys_content})
 
     node_counts = {}
-    # 加载衔接施压话术
+    # 加载衔接施压话术（三个备选）
     pressure_df = df_dict.get('链接施压话术', pd.DataFrame())
     pressure_list = []
     for repeat in [1, 2, 3]:
@@ -293,7 +359,7 @@ def generate_dialogue(path, df_dict, case, prompt_text):
             continue
         row = random.choice(valid_rows)
 
-        # 处理继承链
+        # 处理继承链：祖先 + 当前 + 后代
         turn_list = []
         ancestors = get_ancestors(row['uid'], df_node)
         for anc in ancestors:
@@ -330,80 +396,13 @@ def generate_dialogue(path, df_dict, case, prompt_text):
             if assistant_txt:
                 messages.append({"role": "assistant", "content": assistant_txt})
 
-        # 检查是否再见：如果当前行 '是否再见' == 1 且 repeat < MAX_REPEAT[node]（即未到最大次数），终止对话
-        if row.get('是否再见') == 1:
-            max_repeat = MAX_REPEAT.get(node, 999)
-            if repeat < max_repeat:
-                logger.debug(f"模块 {node} repeat={repeat} 遇到是否再见=1，提前终止对话")
-                break
+        # 检查是否再见：如果当前行 '是否再见' == 1 且 repeat < MAX_REPEAT[node]，终止对话
+        max_repeat_val = MAX_REPEAT.get(node, 999)
+        if row.get('是否再见') == 1 and repeat < max_repeat_val:
+            logger.debug(f"模块 {node} repeat={repeat} 遇到是否再见=1，提前终止对话")
+            break
 
     return messages
-
-def generate_path(prob_df, modules, max_repeat, terminal_nodes, a_set, b_set):
-    """
-    按照业务规则生成一条模块序列路径
-    """
-    path = ["身份确认"]
-    counts = {mod: 0 for mod in modules}
-    counts["身份确认"] = 1
-    banned = set()
-    current_a = None  # 记录当前路径中已出现的自循环模块
-    current = "身份确认"
-    
-    while True:
-        # 根据当前节点类型确定合法下一节点候选集
-        if current == "身份确认":
-            candidates = ["告知", "三方"]
-        elif current == "告知":
-            # 告知不能转身份确认和转告
-            candidates = [m for m in modules if m not in ["身份确认", "转告"]]
-        elif current == "信息核实":
-            # 信息核实不能转告知、身份确认、三方、转告
-            candidates = [m for m in modules if m not in ["告知", "身份确认", "三方", "转告"]]
-        elif current in a_set:
-            # 自循环模块：只允许自身或循环模块集中的模块跳转
-            if current_a is None:
-                current_a = current  # 记录首次出现的自循环模块
-            # 允许自身 + 循环模块集
-            candidates = [current] + list(b_set)
-        elif current in b_set:
-            # 循环模块集：允许循环模块之间互相跳转，也可以返回已有的自循环模块（如果有）
-            candidates = list(b_set)
-            if current_a is not None:
-                candidates.append(current_a)  # 只能返回原来的那个自循环模块
-        else:
-            # 其他模块（如三方、转告、已还款等）按照概率矩阵允许的目标决定
-            # 但已还款不应该出现在这里（应为终止节点），这里保留原逻辑全部允许
-            candidates = modules[:]
-        
-        # 移除已禁用的模块（达到最大次数）
-        candidates = [m for m in candidates if m not in banned]
-        if not candidates:
-            break
-        
-        # 获取当前节点的概率向量
-        probs = prob_df.loc[current].copy()
-        # 只保留候选集中的模块
-        probs = probs[probs.index.isin(candidates)]
-        if probs.sum() == 0:
-            break
-        probs /= probs.sum()
-        # 随机选择下一模块
-        next_node = np.random.choice(probs.index, p=probs)
-        
-        # 额外硬约束：从循环模块只能跳回已有的自循环模块，不能跳转到新的自循环模块（已在candidates中限制）
-        # 另外，从信息核实才能跳转至已还款
-        if next_node == "已还款" and current != "信息核实":
-            continue
-        # 如果遇到终止模块（承诺还款、已还款），添加后立即结束路径
-        path.append(next_node)
-        counts[next_node] += 1
-        if counts[next_node] >= max_repeat.get(next_node, 100):
-            banned.add(next_node)
-        if next_node in terminal_nodes:
-            break
-        current = next_node
-    return path
 
 def main():
     random.seed(RANDOM_SEED)
@@ -428,12 +427,13 @@ def main():
 
     # 生成或加载路径
     os.makedirs(os.path.dirname(PATHS_CACHE), exist_ok=True)
+    need_generate = True
+    all_paths = None
     if os.path.exists(PATHS_CACHE):
         with open(PATHS_CACHE, 'r', encoding='utf-8') as f:
             cache_data = json.load(f)
         if isinstance(cache_data, list):
             logger.info("检测到旧格式缓存，重新生成路径...")
-            need_generate = True
         else:
             if cache_data.get("seed") == RANDOM_SEED and cache_data.get("num_paths") == NUM_PATHS:
                 all_paths = cache_data["paths"]
@@ -441,47 +441,11 @@ def main():
                 need_generate = False
             else:
                 logger.info("缓存种子或数量不匹配，重新生成路径...")
-                need_generate = True
-    else:
-        need_generate = True
-
     if need_generate:
         logger.info(f"生成 {NUM_PATHS} 条路径...")
         all_paths = []
         for _ in range(NUM_PATHS):
             path = generate_path(prob_df, MODULES, MAX_REPEAT, TERMINAL_NODES, A_SET, B_SET)
-            counts = {mod: 0 for mod in MODULES}
-            all_paths.append(path)
-            # 保存缓存...
-            counts["身份确认"] = 1
-            banned = set()
-            current = "身份确认"
-            while True:
-                probs = prob_df.loc[current].copy()
-                available = [m for m in MODULES if m not in banned]
-                if not available:
-                    break
-                probs = probs[available]
-                if probs.sum() == 0:
-                    break
-                probs /= probs.sum()
-                next_node = np.random.choice(available, p=probs)
-
-                # 特殊规则：只有从信息核实才能转到已还款
-                if next_node == '已还款' and current != '信息核实':
-                    continue
-                # 禁止模块间跳转
-                if current in FORBIDDEN_JUMP_SET and next_node in FORBIDDEN_JUMP_SET:
-                    continue
-
-                path.append(next_node)
-                counts[next_node] += 1
-                max_repeat = MAX_REPEAT.get(next_node, 100)
-                if counts[next_node] >= max_repeat:
-                    banned.add(next_node)          # 达到次数后禁用，但不终止
-                if next_node in TERMINAL_NODES:     # 只有终止节点才结束路径
-                    break
-                current = next_node
             all_paths.append(path)
         # 保存缓存
         cache_data = {"seed": RANDOM_SEED, "num_paths": NUM_PATHS, "paths": all_paths}
@@ -499,7 +463,6 @@ def main():
         case_idx += 1
         try:
             messages = generate_dialogue(path, df_dict, case, prompt)
-            # 替换所有消息中的占位符
             for msg in messages:
                 if 'content' in msg:
                     msg['content'] = fill_placeholders(msg['content'], case)
