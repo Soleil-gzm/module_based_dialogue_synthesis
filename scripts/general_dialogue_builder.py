@@ -74,7 +74,7 @@ INSERT_NODES = {'失业', '破产', '生病住院', '未发工资', '工程款',
 PRESSURE_PROB = 0.6
 
 # 特殊模块：达到最大次数后仅禁用，不终止对话（只有信息问题）
-SPECIAL_NODES = {'信息问题'}
+# SPECIAL_NODES = {'信息问题'}
 
 # ========== 辅助函数 ==========
 def load_sheets(excel_path):
@@ -229,9 +229,98 @@ def fill_placeholders(text, case):
         text = text.replace(k, v)
     return text
 
+# def generate_path(prob_df, modules, max_repeat, terminal_nodes, a_set, b_set):
+#     """
+#     按照业务规则生成一条模块序列路径
+#     """
+#     path = ["身份确认"]
+#     counts = {mod: 0 for mod in modules}
+#     counts["身份确认"] = 1
+#     banned = set()
+#     selected_a = None        # 记录当前路径中出现的自循环模块（只能有一个）
+#     current = "身份确认"
+    
+#     while True:
+#         # 根据当前节点类型确定合法下一节点候选集
+#         if current == "身份确认":
+#             candidates = ["告知", "三方"]
+#         elif current == "告知":
+#             # 告知不能转身份确认和转告
+#             candidates = [m for m in modules if m not in ["身份确认", "转告"]]
+#         elif current == "信息核实":
+#             # 信息核实不能转告知、身份确认、三方、转告
+#             candidates = [m for m in modules if m not in ["告知", "身份确认", "三方", "转告"]]
+#         elif current in a_set:
+#             # 自循环模块（A集）：允许自身 + B集
+#             candidates = [current] + list(b_set)
+#         elif current in b_set:
+#             # 循环模块（B集）：允许 B集 + 如果已有选中的A，则允许返回那个A
+#             candidates = list(b_set)
+#             if selected_a is not None:
+#                 candidates.append(selected_a)
+#         else:
+#             # 其他模块（如三方、转告）按照全量模块（但排除已禁用的）
+#             candidates = modules[:]
+        
+#         # 移除已禁用的模块（达到最大次数）
+#         candidates = [m for m in candidates if m not in banned]
+#         # 移除可能违反“只能有一个自循环模块”的候选：如果已经选中了一个A，则不能选择其他A（除非是当前已有的selected_a）
+#         if selected_a is not None:
+#             candidates = [m for m in candidates if m not in a_set or m == selected_a]
+        
+#         if not candidates:
+#             break
+        
+#         # 获取当前节点的概率向量
+#         probs = prob_df.loc[current].copy()
+#         # 只保留候选集中的模块
+#         probs = probs[probs.index.isin(candidates)]
+#         if probs.sum() == 0:
+#             break
+#         probs /= probs.sum()
+#         next_node = np.random.choice(probs.index, p=probs)
+        
+#         # 硬约束：已还款只能从告知或信息核实进入
+#         if next_node == "已还款" and current not in ["告知", "信息核实"]:
+#             continue
+        
+#         # 如果本次选择了自循环模块，且当前还没有记录selected_a，则记录
+#         if next_node in a_set and selected_a is None:
+#             selected_a = next_node
+        
+#         path.append(next_node)
+#         counts[next_node] += 1
+        
+#         # 检查最大重复次数
+#         # max_repeat_val = max_repeat.get(next_node, 100)
+#         # if counts[next_node] >= max_repeat_val:
+#         #     if next_node in SPECIAL_NODES:
+#         #         # 信息问题达到上限只禁用，路径不终止
+#         #         banned.add(next_node)
+#         #     else:
+#         #         # 普通模块达到上限，终止路径
+#         #         break
+#         max_repeat_val = max_repeat.get(next_node, 100)
+#         if counts[next_node] >= max_repeat_val:
+#             banned.add(next_node)   # 无论什么模块，达标后只禁用，不终止
+#         # 然后继续，不要 break
+
+
+#         # 如果遇到终止模块，结束路径
+#         if next_node in terminal_nodes:
+#             break
+#         if len(path) == 1:
+#             logger.warning(f"生成的路径异常短: {path}")
+#         current = next_node
+    
+#     return path
+
 def generate_path(prob_df, modules, max_repeat, terminal_nodes, a_set, b_set):
     """
     按照业务规则生成一条模块序列路径
+    - 只有 terminal_nodes 中的模块（承诺还款、已还款）会终止路径
+    - 其他模块达到 max_repeat 后仅被禁用（不再进入），路径继续
+    - 当所有可能候选模块都被禁用或无可转移时，路径自然结束
     """
     path = ["身份确认"]
     counts = {mod: 0 for mod in modules}
@@ -239,9 +328,9 @@ def generate_path(prob_df, modules, max_repeat, terminal_nodes, a_set, b_set):
     banned = set()
     selected_a = None        # 记录当前路径中出现的自循环模块（只能有一个）
     current = "身份确认"
-    
+
     while True:
-        # 根据当前节点类型确定合法下一节点候选集
+        # 1. 根据当前节点类型确定合法下一节点候选集
         if current == "身份确认":
             candidates = ["告知", "三方"]
         elif current == "告知":
@@ -261,52 +350,51 @@ def generate_path(prob_df, modules, max_repeat, terminal_nodes, a_set, b_set):
         else:
             # 其他模块（如三方、转告）按照全量模块（但排除已禁用的）
             candidates = modules[:]
-        
-        # 移除已禁用的模块（达到最大次数）
+
+        # 2. 移除已禁用的模块（达到最大次数）
         candidates = [m for m in candidates if m not in banned]
-        # 移除可能违反“只能有一个自循环模块”的候选：如果已经选中了一个A，则不能选择其他A（除非是当前已有的selected_a）
+
+        # 3. 如果已经选中了一个自循环模块，则禁止选择其他自循环模块
         if selected_a is not None:
             candidates = [m for m in candidates if m not in a_set or m == selected_a]
-        
+
         if not candidates:
             break
-        
-        # 获取当前节点的概率向量
+
+        # 4. 获取当前节点的概率向量，并过滤到候选集
         probs = prob_df.loc[current].copy()
-        # 只保留候选集中的模块
         probs = probs[probs.index.isin(candidates)]
         if probs.sum() == 0:
             break
         probs /= probs.sum()
+
+        # 5. 随机选择下一模块
         next_node = np.random.choice(probs.index, p=probs)
-        
-        # 硬约束：已还款只能从告知或信息核实进入
+
+        # 6. 硬约束：已还款只能从告知或信息核实进入
         if next_node == "已还款" and current not in ["告知", "信息核实"]:
             continue
-        
-        # 如果本次选择了自循环模块，且当前还没有记录selected_a，则记录
+
+        # 7. 如果本次选择了自循环模块，且当前还没有记录 selected_a，则记录
         if next_node in a_set and selected_a is None:
             selected_a = next_node
-        
+
+        # 8. 加入路径，更新计数
         path.append(next_node)
         counts[next_node] += 1
-        
-        # 检查最大重复次数
+
+        # 9. 检查是否达到最大重复次数
         max_repeat_val = max_repeat.get(next_node, 100)
         if counts[next_node] >= max_repeat_val:
-            if next_node in SPECIAL_NODES:
-                # 信息问题达到上限只禁用，路径不终止
-                banned.add(next_node)
-            else:
-                # 普通模块达到上限，终止路径
-                break
-        
-        # 如果遇到终止模块，结束路径
+            banned.add(next_node)   # 达标后禁用，但不终止路径（除非是终止模块）
+
+        # 10. 只有终止模块才结束路径
         if next_node in terminal_nodes:
             break
-        
+
+        # 11. 继续
         current = next_node
-    
+
     return path
 
 def generate_dialogue(path, df_dict, case, prompt_text):
