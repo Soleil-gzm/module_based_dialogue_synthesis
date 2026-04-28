@@ -2,3 +2,4 @@ datas/
 .vscode/
 output/
 intermediate/
+logs/

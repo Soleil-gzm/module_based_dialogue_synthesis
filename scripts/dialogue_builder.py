@@ -12,23 +12,37 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
+import logging
 
 # ========== 调试与日志配置 ==========
-DEBUG_MODE = True   # 全局调试开关，可改为 False 关闭详细日志
+DEBUG_MODE = True   # 全局调试开关，为 True 时详细日志写入文件；控制台只显示 INFO 及以上
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 log_filename = os.path.join(LOG_DIR, f"dialogue_builder_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
 
-# 配置 logging：同时输出到控制台和文件
-logging.basicConfig(
-    level=logging.DEBUG if DEBUG_MODE else logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_filename, encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# 创建 logger
+logger = logging.getLogger('DialogueBuilder')
+logger.setLevel(logging.DEBUG)   # 总开关，允许所有级别
+
+# 文件处理器：记录所有 DEBUG 及以上信息
+fh = logging.FileHandler(log_filename, encoding='utf-8')
+fh.setLevel(logging.DEBUG)
+
+# 控制台处理器：只记录 INFO 及以上（不显示 DEBUG）
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)   # 控制台只显示 INFO 及以上（可改为 WARNING 更少）
+
+# 设置格式
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+fh.setFormatter(formatter)
+ch.setFormatter(formatter)
+
+# 添加处理器
+logger.addHandler(fh)
+logger.addHandler(ch)
+
+# 可选：关闭 propagate，避免重复输出
+logger.propagate = False
 
 # ========== 配置参数（请根据实际路径修改）==========
 EXCEL_PATH = "datas/对话模块分类 - 洋钱罐 - 1111.xlsx"
@@ -253,8 +267,123 @@ def fill_placeholders(text, case):
         text = text.replace('<随机时间>', f"{base_time}过后{random_hour}小时")
     return text
 
+# def generate_dialogue(path, df_dict, case, prompt_text):
+#     """根据一条模块路径和一个案例，生成完整对话 messages"""
+#     messages = []
+#     # 添加 system 消息
+#     sys_content = "你是一个洋钱罐的催收专员，请根据客户的情况，使用合适的话术与客户进行沟通，争取让客户承诺还款。\n" + prompt_text
+#     messages.append({"role": "system", "content": sys_content})
+
+#     # 记录每个模块已出现的次数
+#     node_counts = {}
+#     # 加载衔接施压话术（三个备选）
+#     pressure_df = df_dict.get('衔接施压话术', pd.DataFrame())
+#     pressure_list = []
+#     for repeat in [1, 2, 3]:
+#         if not pressure_df.empty:
+#             sub = pressure_df[pressure_df['repeat(次数)'].apply(
+#                 lambda x: str(repeat) in str(x).split('/') if pd.notna(x) else False)]
+#             if not sub.empty:
+#                 row = sub.sample(n=1).iloc[0]
+#                 assistant_opt = row['assistant(专员)']
+#                 if pd.notna(assistant_opt):
+#                     opt_list = [s.strip() for s in assistant_opt.split('/') if s.strip()]
+#                     if opt_list:
+#                         pressure_list.append(random.choice(opt_list))
+#                     else:
+#                         pressure_list.append('')
+#                 else:
+#                     pressure_list.append('')
+#             else:
+#                 pressure_list.append('')
+#         else:
+#             pressure_list.append('')
+#     pressure_idx = 0
+
+#     for node in path:
+#         # 更新重复次数
+#         node_counts[node] = node_counts.get(node, 0) + 1
+#         repeat = node_counts[node]
+#         df_node = df_dict[node]
+
+#         # 筛选符合条件的行：repeat 次数匹配
+#         mask = df_node['repeat(次数)'].apply(
+#             lambda x: str(repeat) in str(x).split('/') if pd.notna(x) else False)
+#         candidates = df_node[mask]
+#         if candidates.empty:
+#             continue
+
+#         # 进一步根据案例条件筛选
+#         valid_rows = [row for _, row in candidates.iterrows() if matches_conditions(row, case)]
+#         if not valid_rows:
+#             logger.debug(f"模块 {node}, repeat={repeat}: 无可用行（条件不匹配或无数据）")
+#             continue
+#         row = random.choice(valid_rows)
+
+#         # ----- 调试信息记录 -----
+#         logger.debug(f"选中行 -> 模块: {node}, repeat: {repeat}, uid: {row['uid']}, conditions: {row.get('conditions(条件)', '')}")
+#         logger.debug(f"案例信息: 姓名={case.get('姓名')}, 性别={case.get('性别')}, 逾期笔数={case.get('逾期笔数')}")
+#         assistant_full = str(row['assistant(专员)'])
+#         logger.debug(f"助理话术预览: {assistant_full[:80]}...")
+        
+#         # 校验性别与话术中称呼的一致性
+#         if '先生' in assistant_full and case.get('性别') == '女士':
+#             logger.warning(f"性别可能错误: 女性案例但话术包含'先生'，uid={row['uid']}, 姓名={case.get('姓名')}")
+#         if '女士' in assistant_full and case.get('性别') == '先生':
+#             logger.warning(f"性别可能错误: 男性案例但话术包含'女士'，uid={row['uid']}, 姓名={case.get('姓名')}")
+
+#         # 处理继承链：祖先 + 当前 + 孩子
+#         turn_list = []  # 每个元素为 (user_text, assistant_text)
+
+#         # 1. 祖先
+#         ancestors = get_ancestors(row['uid'], df_node)
+#         logger.debug(f"祖先数量: {len(ancestors)}")
+#         for anc in ancestors:
+#             user_text = sample_utterance(anc, True)
+#             assistant_text = sample_utterance(anc, False)
+#             if user_text or assistant_text:
+#                 turn_list.append((user_text, assistant_text))
+
+#         # 2. 当前行
+#         current_user = sample_utterance(row, True)
+#         current_assistant = sample_utterance(row, False)
+#         turn_list.append((current_user, current_assistant))
+
+#         # 3. 后代链
+#         descendant_chain = get_random_descendant_chain(row['uid'], df_node)
+#         logger.debug(f"后代链长度: {len(descendant_chain)}")
+#         for desc in descendant_chain:
+#             user_text = sample_utterance(desc, True)
+#             assistant_text = sample_utterance(desc, False)
+#             if user_text or assistant_text:
+#                 turn_list.append((user_text, assistant_text))
+
+#         # 附加衔接施压话术（仅当无祖先且无后代时附加到当前行的 assistant 内容上）
+#         if node in INSERT_NODES and pressure_idx < len(pressure_list):
+#             # 无祖先和无后代
+#             if len(ancestors) == 0 and len(descendant_chain) == 0:
+#                 if random.random() < 0.7:
+#                     # 修改 turn_list 中最后一个元素（当前行）的 assistant_text
+#                     last_idx = len(turn_list) - 1
+#                     current_user, current_assist = turn_list[last_idx]
+#                     new_assist = current_assist + pressure_list[pressure_idx]
+#                     turn_list[last_idx] = (current_user, new_assist)
+#                     pressure_idx += 1
+
+#         # 将所有轮次加入 messages
+#         for user_txt, assistant_txt in turn_list:
+#             if user_txt:
+#                 messages.append({"role": "user", "content": user_txt})
+#             if assistant_txt:
+#                 messages.append({"role": "assistant", "content": assistant_txt})
+
+#     return messages
+
 def generate_dialogue(path, df_dict, case, prompt_text):
-    """根据一条模块路径和一个案例，生成完整对话 messages"""
+    """
+    根据一条模块路径和一个案例，生成完整对话 messages
+    包含详细的调试日志、继承链处理（祖先 + 当前 + 随机后代链）、施压话术附加，以及性别话术校验
+    """
     messages = []
     # 添加 system 消息
     sys_content = "你是一个洋钱罐的催收专员，请根据客户的情况，使用合适的话术与客户进行沟通，争取让客户承诺还款。\n" + prompt_text
@@ -286,6 +415,7 @@ def generate_dialogue(path, df_dict, case, prompt_text):
             pressure_list.append('')
     pressure_idx = 0
 
+    # 遍历路径中的每个模块
     for node in path:
         # 更新重复次数
         node_counts[node] = node_counts.get(node, 0) + 1
@@ -297,28 +427,28 @@ def generate_dialogue(path, df_dict, case, prompt_text):
             lambda x: str(repeat) in str(x).split('/') if pd.notna(x) else False)
         candidates = df_node[mask]
         if candidates.empty:
+            logger.debug(f"模块 {node}, repeat={repeat}: 无候选行（repeat不匹配）")
             continue
 
         # 进一步根据案例条件筛选
         valid_rows = [row for _, row in candidates.iterrows() if matches_conditions(row, case)]
         if not valid_rows:
-            logger.debug(f"模块 {node}, repeat={repeat}: 无可用行（条件不匹配或无数据）")
+            logger.debug(f"模块 {node}, repeat={repeat}: 无候选行（条件不匹配或无数据）")
             continue
         row = random.choice(valid_rows)
 
-        # ----- 调试信息记录 -----
+        # ----- 调试信息记录（始终记录，但可通过日志级别控制） -----
         logger.debug(f"选中行 -> 模块: {node}, repeat: {repeat}, uid: {row['uid']}, conditions: {row.get('conditions(条件)', '')}")
         logger.debug(f"案例信息: 姓名={case.get('姓名')}, 性别={case.get('性别')}, 逾期笔数={case.get('逾期笔数')}")
         assistant_full = str(row['assistant(专员)'])
-        logger.debug(f"助理话术预览: {assistant_full[:80]}...")
-        
+        logger.debug(f"助理话术预览: {assistant_full[:80]}{'...' if len(assistant_full)>80 else ''}")
         # 校验性别与话术中称呼的一致性
         if '先生' in assistant_full and case.get('性别') == '女士':
-            logger.warning(f"性别可能错误: 女性案例但话术包含'先生'，uid={row['uid']}, 姓名={case.get('姓名')}")
+            logger.warning(f"性别可能错误: 女性案例但话术包含'先生'，uid={row['uid']}, 姓名={case.get('姓名')}, 话术片段: {assistant_full[:100]}")
         if '女士' in assistant_full and case.get('性别') == '先生':
-            logger.warning(f"性别可能错误: 男性案例但话术包含'女士'，uid={row['uid']}, 姓名={case.get('姓名')}")
+            logger.warning(f"性别可能错误: 男性案例但话术包含'女士'，uid={row['uid']}, 姓名={case.get('姓名')}, 话术片段: {assistant_full[:100]}")
 
-        # 处理继承链：祖先 + 当前 + 孩子
+        # 处理继承链：祖先 + 当前 + 随机后代链
         turn_list = []  # 每个元素为 (user_text, assistant_text)
 
         # 1. 祖先
@@ -333,30 +463,32 @@ def generate_dialogue(path, df_dict, case, prompt_text):
         # 2. 当前行
         current_user = sample_utterance(row, True)
         current_assistant = sample_utterance(row, False)
-        turn_list.append((current_user, current_assistant))
 
-        # 3. 后代链
+        # 3. 后代链（随机选择一条路径）
         descendant_chain = get_random_descendant_chain(row['uid'], df_node)
         logger.debug(f"后代链长度: {len(descendant_chain)}")
+
+        # 附加衔接施压话术（仅当无祖先且无后代时附加到当前行的助理话术）
+        attached_pressure = False
+        if node in INSERT_NODES and pressure_idx < len(pressure_list):
+            if len(ancestors) == 0 and len(descendant_chain) == 0:
+                if random.random() < 0.7:
+                    current_assistant += pressure_list[pressure_idx]
+                    pressure_idx += 1
+                    attached_pressure = True
+        logger.debug(f"是否附加施压话术: {attached_pressure}")
+
+        # 先将当前行加入 turn_list（位置在祖先之后、后代之前）
+        turn_list.append((current_user, current_assistant))
+
+        # 再加入后代链
         for desc in descendant_chain:
             user_text = sample_utterance(desc, True)
             assistant_text = sample_utterance(desc, False)
             if user_text or assistant_text:
                 turn_list.append((user_text, assistant_text))
 
-        # 附加衔接施压话术（仅当无祖先且无后代时附加到当前行的 assistant 内容上）
-        if node in INSERT_NODES and pressure_idx < len(pressure_list):
-            # 无祖先和无后代
-            if len(ancestors) == 0 and len(descendant_chain) == 0:
-                if random.random() < 0.7:
-                    # 修改 turn_list 中最后一个元素（当前行）的 assistant_text
-                    last_idx = len(turn_list) - 1
-                    current_user, current_assist = turn_list[last_idx]
-                    new_assist = current_assist + pressure_list[pressure_idx]
-                    turn_list[last_idx] = (current_user, new_assist)
-                    pressure_idx += 1
-
-        # 将所有轮次加入 messages
+        # 将所有轮次按顺序加入 messages
         for user_txt, assistant_txt in turn_list:
             if user_txt:
                 messages.append({"role": "user", "content": user_txt})
