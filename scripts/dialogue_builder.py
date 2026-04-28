@@ -133,10 +133,34 @@ def get_ancestors(uid, df):
         uid = parent_val
     return list(reversed(ancestors))
 
-def get_descendants(uid, df):
-    """获取直接子行（仅一层，因为规则中很少有多层继承）"""
+def get_random_descendant_chain(uid, df, stop_prob=0.3, max_depth=10):
+    """
+    递归获取一条随机的后代链（从子行开始，随机选择一条路径直到无子行或触发停止）
+    uid: 当前行的 uid
+    df: 模块的 DataFrame
+    stop_prob: 当子行的 flexible_stop=1 时，以该概率停止继续向下（不再添加更深的后代）
+    max_depth: 最大递归深度，防止无限循环
+    返回: list of rows，顺序从直接子行到最末代（不包含当前行）
+    """
     children = df[df['parent(继承)'] == uid]
-    return children.to_dict('records')
+    if children.empty or max_depth <= 0:
+        return []
+    # 随机选择一个子行
+    child_row = children.sample(n=1).iloc[0]
+    chain = [child_row]
+    # 检查是否继续向下：如果 flexible_stop=1 且随机数小于 stop_prob，则停止
+    flex_stop = child_row.get('flexible_stop(可选不继承)', 0)
+    if pd.notna(flex_stop) and flex_stop == 1 and random.random() < stop_prob:
+        return chain
+    # 否则继续递归
+    deeper = get_random_descendant_chain(child_row['uid'], df, stop_prob, max_depth-1)
+    chain.extend(deeper)
+    return chain
+
+# def get_descendants(uid, df):
+#     """获取直接子行（仅一层，因为规则中很少有多层继承）"""
+#     children = df[df['parent(继承)'] == uid]
+#     return children.to_dict('records')
 
 def matches_conditions(row, case):
     """检查 row 的 conditions(条件) 是否与当前 case 匹配"""
@@ -271,26 +295,31 @@ def generate_dialogue(path, df_dict, case, prompt_text):
                 turn_list.append((user_text, assistant_text))
 
         # 2. 当前行
-        user_text = sample_utterance(row, True)
-        assistant_text = sample_utterance(row, False)
-        # 对于特定模块，可能附加衔接施压话术
+        current_user = sample_utterance(row, True)
+        current_assistant = sample_utterance(row, False)
+        turn_list.append((current_user, current_assistant))
+
+        # 3. 后代链
+        descendant_chain = get_random_descendant_chain(row['uid'], df_node)
+        for desc in descendant_chain:
+            user_text = sample_utterance(desc, True)
+            assistant_text = sample_utterance(desc, False)
+            if user_text or assistant_text:
+                turn_list.append((user_text, assistant_text))
+
+ # 附加衔接施压话术（仅当无祖先且无后代时附加到当前行的 assistant 内容上）
         if node in INSERT_NODES and pressure_idx < len(pressure_list):
-            # 原逻辑：没有继承关系时才附加，这里简化：只要当前行没有父且没有孩子？
-            # 保持原逻辑：如果祖先或孩子为空，则附加
-            if len(ancestors) == 0 and len(get_descendants(row['uid'], df_node)) == 0:
+            # 无祖先和无后代
+            if len(ancestors) == 0 and len(descendant_chain) == 0:
                 if random.random() < 0.7:
-                    assistant_text += pressure_list[pressure_idx]
+                    # 修改 turn_list 中最后一个元素（当前行）的 assistant_text
+                    last_idx = len(turn_list) - 1
+                    current_user, current_assist = turn_list[last_idx]
+                    new_assist = current_assist + pressure_list[pressure_idx]
+                    turn_list[last_idx] = (current_user, new_assist)
                     pressure_idx += 1
-        turn_list.append((user_text, assistant_text))
 
-        # 3. 孩子（直接子行）
-        children = get_descendants(row['uid'], df_node)
-        for child in children:
-            user_text = sample_utterance(child, True)
-            assistant_text = sample_utterance(child, False)
-            turn_list.append((user_text, assistant_text))
-
-        # 将所有轮次按顺序加入 messages
+        # 将所有轮次加入 messages
         for user_txt, assistant_txt in turn_list:
             if user_txt:
                 messages.append({"role": "user", "content": user_txt})
@@ -298,88 +327,6 @@ def generate_dialogue(path, df_dict, case, prompt_text):
                 messages.append({"role": "assistant", "content": assistant_txt})
 
     return messages
-
-# def main():
-#     random.seed(RANDOM_SEED)
-#     np.random.seed(RANDOM_SEED)
-#     print(f"随机种子: {RANDOM_SEED}")
-
-#     # 加载数据
-#     print("加载 Excel 模块...")
-#     df_dict = load_sheets(EXCEL_PATH)
-#     print("加载概率矩阵...")
-#     prob_df = load_prob_matrix(PROB_PATH, MODULES)
-
-#     # 加载案例列表
-#     case_files = sorted([f for f in os.listdir(CASES_DIR) if f.endswith('.txt')])
-#     cases = []
-#     prompts = []
-#     for fname in case_files:
-#         path = os.path.join(CASES_DIR, fname)
-#         cases.append(parse_case_info(path))
-#         prompts.append(get_full_prompt(path))
-#     print(f"加载案例数量: {len(cases)}")
-
-#     # 生成路径
-#     print(f"生成 {NUM_PATHS} 条路径...")
-#     all_paths = []
-#     for _ in range(NUM_PATHS):
-#         path = ["核实"]
-#         counts = {mod: 0 for mod in MODULES}
-#         counts["核实"] = 1
-#         banned = set()
-#         current = "核实"
-#         while True:
-#             # 获取转移分布
-#             probs = prob_df.loc[current].copy()
-#             # 排除禁用节点
-#             available = [m for m in MODULES if m not in banned]
-#             if not available:
-#                 break
-#             probs = probs[available]
-#             if probs.sum() == 0:
-#                 break
-#             probs /= probs.sum()
-#             next_node = np.random.choice(available, p=probs)
-#             path.append(next_node)
-#             counts[next_node] += 1
-#             # 检查是否超过最大重复次数
-#             max_repeat = MAX_REPEAT.get(next_node, 100)
-#             if counts[next_node] >= max_repeat:
-#                 if next_node in SPECIAL_NODES:
-#                     banned.add(next_node)
-#                 else:
-#                     break
-#             current = next_node
-#         all_paths.append(path)
-#     print(f"路径生成完成，共 {len(all_paths)} 条")
-
-#     # 生成对话
-#     print("开始生成对话...")
-#     all_dialogues = []
-#     case_idx = 0
-#     for i, path in enumerate(all_paths):
-#         case = cases[case_idx % len(cases)]
-#         prompt = prompts[case_idx % len(prompts)]
-#         case_idx += 1
-#         try:
-#             messages = generate_dialogue(path, df_dict, case, prompt)
-#             all_dialogues.append({"messages": messages})
-#         except Exception as e:
-#             import traceback
-#             print(f"生成第{i}条对话时出错，路径长度: {len(path)}, 案例索引: {case_idx}")
-#             traceback.print_exc()
-#             continue
-#         if (i+1) % 5000 == 0:
-#             print(f"已生成 {i+1}/{NUM_PATHS} 条对话")
-
-#     # 保存结果
-#     os.makedirs(OUTPUT_DIR, exist_ok=True)
-#     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-#     out_file = os.path.join(OUTPUT_DIR, f"yangqian_dialogues_{timestamp}.json")
-#     with open(out_file, 'w', encoding='utf-8') as f:
-#         json.dump(all_dialogues, f, ensure_ascii=False, indent=2)
-#     print(f"生成完成，共 {len(all_dialogues)} 条对话，保存至 {out_file}")
 
 def main():
     random.seed(RANDOM_SEED)
