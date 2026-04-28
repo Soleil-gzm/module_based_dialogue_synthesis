@@ -45,19 +45,19 @@ logger.addHandler(ch)
 logger.propagate = False
 
 # ========== 配置参数（请根据实际路径修改）==========
-EXCEL_PATH = "datas/yangqianguan/对话模块分类 - 洋钱罐 - 1111.xlsx"
-PROB_PATH = "datas/yangqianguan/yangqianguan_prob.xlsx"
-CASES_DIR = "datas/yangqianguan/cases_random"
+EXCEL_PATH = "datas/【生成式通用】电催话术通用模板-首催 - 20260330.xlsx"
+PROB_PATH = "datas/prob.xlsx"
+CASES_DIR = "datas/cases"
 OUTPUT_DIR = "output"
 NUM_PATHS = 40000            # 生成对话数量
 RANDOM_SEED = 42             # 随机种子，保证可复现
 
 # 模块列表（与 Excel 中的 sheet 名称一致）
 MODULES = [
-    '核实', '三方', '转告', '告知', '承诺还款', '非明确承诺还款',
-    '资金困难', '信息问题', '用卡及征信', '无法沟通', '放时间应对',
-    '特殊情况', '年费及可用额度', '投诉处理', '联系三方应对',
-    '要求停催应对', '要求领导回电应对', '转人工及挂机'
+    '身份确认', '告知', '信息核实', '三方', '转告', '承诺还款', '已还款', '敷衍',
+    '投诉处理', '信息问题', '不方便接电', '对抗', '没钱', '诉求', '通用原因',
+    '否认办理业务', '工程款', '未发工资', '还错卡', '生病住院', '破产', '失业',
+    '他人用款', '忘记还款', '盗刷'
 ]
 
 # 每个模块的最大重复次数（从 possible_times 映射）
