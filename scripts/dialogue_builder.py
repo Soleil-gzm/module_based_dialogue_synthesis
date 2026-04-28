@@ -13,6 +13,23 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 
+# ========== 调试与日志配置 ==========
+DEBUG_MODE = True   # 全局调试开关，可改为 False 关闭详细日志
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+log_filename = os.path.join(LOG_DIR, f"dialogue_builder_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+
+# 配置 logging：同时输出到控制台和文件
+logging.basicConfig(
+    level=logging.DEBUG if DEBUG_MODE else logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_filename, encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 # ========== 配置参数（请根据实际路径修改）==========
 EXCEL_PATH = "datas/对话模块分类 - 洋钱罐 - 1111.xlsx"
 PROB_PATH = "datas/prob.xlsx"
@@ -103,18 +120,6 @@ def get_full_prompt(txt_path):
     with open(txt_path, 'r', encoding='utf-8') as f:
         return f.read()
 
-# def get_ancestors(uid, df):
-#     """递归获取所有祖先行（按从远祖到父的顺序）"""
-#     ancestors = []
-#     while True:
-#         parent_val = df.loc[df['uid'] == uid, 'parent(继承)'].values[0]
-#         if pd.isna(parent_val) or parent_val == 0:
-#             break
-#         parent_row = df[df['uid'] == parent_val].iloc[0]
-#         ancestors.append(parent_row)
-#         uid = parent_val
-#     return list(reversed(ancestors))
-
 def get_ancestors(uid, df):
     ancestors = []
     while True:
@@ -156,41 +161,6 @@ def get_random_descendant_chain(uid, df, stop_prob=0.3, max_depth=10):
     deeper = get_random_descendant_chain(child_row['uid'], df, stop_prob, max_depth-1)
     chain.extend(deeper)
     return chain
-
-# def matches_conditions(row, case):
-#     """检查 row 的 conditions(条件) 是否与当前 case 匹配"""
-#     cond_str = row.get('conditions(条件)', '')
-#     if pd.isna(cond_str) or cond_str == '':
-#         return True
-#     # 以 '|' 分割，每个子条件需满足
-#     sub_conds = cond_str.split('|')
-#     for sub in sub_conds:
-#         # 处理 & 连接的条件
-#         parts = sub.split('&')
-#         for part in parts:
-#             part = part.strip()
-#             if part == 'S1|S2':
-#                 # 我们只保留了 S1|S2 的行，所以直接通过
-#                 continue
-#             elif part == '性别是先生':
-#                 if case['性别'] != '先生':
-#                     return False
-#             elif part == '性别是女士':
-#                 if case['性别'] != '女士':
-#                     return False
-#             elif part == '逾期笔数大于1':
-#                 if int(case['逾期笔数']) <= 1:
-#                     return False
-#             elif part == '逾期笔数等于1':
-#                 if int(case['逾期笔数']) != 1:
-#                     return False
-#             elif part.startswith('<随机金额>小于<剩余总待还>'):
-#                 # 简化处理：随机金额总是小于剩余总待还
-#                 continue
-#             else:
-#                 # 未知条件，忽略
-#                 continue
-#     return True
 
 def matches_conditions(row, case):
     """通用条件匹配器，支持 & (且) 和 | (或)，优先级 & 高于 |。"""
@@ -332,14 +302,28 @@ def generate_dialogue(path, df_dict, case, prompt_text):
         # 进一步根据案例条件筛选
         valid_rows = [row for _, row in candidates.iterrows() if matches_conditions(row, case)]
         if not valid_rows:
+            logger.debug(f"模块 {node}, repeat={repeat}: 无可用行（条件不匹配或无数据）")
             continue
         row = random.choice(valid_rows)
+
+        # ----- 调试信息记录 -----
+        logger.debug(f"选中行 -> 模块: {node}, repeat: {repeat}, uid: {row['uid']}, conditions: {row.get('conditions(条件)', '')}")
+        logger.debug(f"案例信息: 姓名={case.get('姓名')}, 性别={case.get('性别')}, 逾期笔数={case.get('逾期笔数')}")
+        assistant_full = str(row['assistant(专员)'])
+        logger.debug(f"助理话术预览: {assistant_full[:80]}...")
+        
+        # 校验性别与话术中称呼的一致性
+        if '先生' in assistant_full and case.get('性别') == '女士':
+            logger.warning(f"性别可能错误: 女性案例但话术包含'先生'，uid={row['uid']}, 姓名={case.get('姓名')}")
+        if '女士' in assistant_full and case.get('性别') == '先生':
+            logger.warning(f"性别可能错误: 男性案例但话术包含'女士'，uid={row['uid']}, 姓名={case.get('姓名')}")
 
         # 处理继承链：祖先 + 当前 + 孩子
         turn_list = []  # 每个元素为 (user_text, assistant_text)
 
         # 1. 祖先
         ancestors = get_ancestors(row['uid'], df_node)
+        logger.debug(f"祖先数量: {len(ancestors)}")
         for anc in ancestors:
             user_text = sample_utterance(anc, True)
             assistant_text = sample_utterance(anc, False)
@@ -353,6 +337,7 @@ def generate_dialogue(path, df_dict, case, prompt_text):
 
         # 3. 后代链
         descendant_chain = get_random_descendant_chain(row['uid'], df_node)
+        logger.debug(f"后代链长度: {len(descendant_chain)}")
         for desc in descendant_chain:
             user_text = sample_utterance(desc, True)
             assistant_text = sample_utterance(desc, False)
