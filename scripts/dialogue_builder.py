@@ -299,6 +299,88 @@ def generate_dialogue(path, df_dict, case, prompt_text):
 
     return messages
 
+# def main():
+#     random.seed(RANDOM_SEED)
+#     np.random.seed(RANDOM_SEED)
+#     print(f"随机种子: {RANDOM_SEED}")
+
+#     # 加载数据
+#     print("加载 Excel 模块...")
+#     df_dict = load_sheets(EXCEL_PATH)
+#     print("加载概率矩阵...")
+#     prob_df = load_prob_matrix(PROB_PATH, MODULES)
+
+#     # 加载案例列表
+#     case_files = sorted([f for f in os.listdir(CASES_DIR) if f.endswith('.txt')])
+#     cases = []
+#     prompts = []
+#     for fname in case_files:
+#         path = os.path.join(CASES_DIR, fname)
+#         cases.append(parse_case_info(path))
+#         prompts.append(get_full_prompt(path))
+#     print(f"加载案例数量: {len(cases)}")
+
+#     # 生成路径
+#     print(f"生成 {NUM_PATHS} 条路径...")
+#     all_paths = []
+#     for _ in range(NUM_PATHS):
+#         path = ["核实"]
+#         counts = {mod: 0 for mod in MODULES}
+#         counts["核实"] = 1
+#         banned = set()
+#         current = "核实"
+#         while True:
+#             # 获取转移分布
+#             probs = prob_df.loc[current].copy()
+#             # 排除禁用节点
+#             available = [m for m in MODULES if m not in banned]
+#             if not available:
+#                 break
+#             probs = probs[available]
+#             if probs.sum() == 0:
+#                 break
+#             probs /= probs.sum()
+#             next_node = np.random.choice(available, p=probs)
+#             path.append(next_node)
+#             counts[next_node] += 1
+#             # 检查是否超过最大重复次数
+#             max_repeat = MAX_REPEAT.get(next_node, 100)
+#             if counts[next_node] >= max_repeat:
+#                 if next_node in SPECIAL_NODES:
+#                     banned.add(next_node)
+#                 else:
+#                     break
+#             current = next_node
+#         all_paths.append(path)
+#     print(f"路径生成完成，共 {len(all_paths)} 条")
+
+#     # 生成对话
+#     print("开始生成对话...")
+#     all_dialogues = []
+#     case_idx = 0
+#     for i, path in enumerate(all_paths):
+#         case = cases[case_idx % len(cases)]
+#         prompt = prompts[case_idx % len(prompts)]
+#         case_idx += 1
+#         try:
+#             messages = generate_dialogue(path, df_dict, case, prompt)
+#             all_dialogues.append({"messages": messages})
+#         except Exception as e:
+#             import traceback
+#             print(f"生成第{i}条对话时出错，路径长度: {len(path)}, 案例索引: {case_idx}")
+#             traceback.print_exc()
+#             continue
+#         if (i+1) % 5000 == 0:
+#             print(f"已生成 {i+1}/{NUM_PATHS} 条对话")
+
+#     # 保存结果
+#     os.makedirs(OUTPUT_DIR, exist_ok=True)
+#     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+#     out_file = os.path.join(OUTPUT_DIR, f"yangqian_dialogues_{timestamp}.json")
+#     with open(out_file, 'w', encoding='utf-8') as f:
+#         json.dump(all_dialogues, f, ensure_ascii=False, indent=2)
+#     print(f"生成完成，共 {len(all_dialogues)} 条对话，保存至 {out_file}")
+
 def main():
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
@@ -330,9 +412,7 @@ def main():
         banned = set()
         current = "核实"
         while True:
-            # 获取转移分布
             probs = prob_df.loc[current].copy()
-            # 排除禁用节点
             available = [m for m in MODULES if m not in banned]
             if not available:
                 break
@@ -343,7 +423,6 @@ def main():
             next_node = np.random.choice(available, p=probs)
             path.append(next_node)
             counts[next_node] += 1
-            # 检查是否超过最大重复次数
             max_repeat = MAX_REPEAT.get(next_node, 100)
             if counts[next_node] >= max_repeat:
                 if next_node in SPECIAL_NODES:
@@ -364,10 +443,14 @@ def main():
         case_idx += 1
         try:
             messages = generate_dialogue(path, df_dict, case, prompt)
+            # ---------- 关键修改：替换所有消息中的占位符 ----------
+            for msg in messages:
+                if 'content' in msg:
+                    msg['content'] = fill_placeholders(msg['content'], case)
             all_dialogues.append({"messages": messages})
         except Exception as e:
             import traceback
-            print(f"生成第{i}条对话时出错，路径长度: {len(path)}, 案例索引: {case_idx}")
+            print(f"生成第{i}条对话时出错，路径长度: {len(path)}, 案例索引: {case_idx-1}")
             traceback.print_exc()
             continue
         if (i+1) % 5000 == 0:
