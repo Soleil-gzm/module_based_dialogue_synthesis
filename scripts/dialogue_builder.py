@@ -157,44 +157,96 @@ def get_random_descendant_chain(uid, df, stop_prob=0.3, max_depth=10):
     chain.extend(deeper)
     return chain
 
-# def get_descendants(uid, df):
-#     """获取直接子行（仅一层，因为规则中很少有多层继承）"""
-#     children = df[df['parent(继承)'] == uid]
-#     return children.to_dict('records')
+# def matches_conditions(row, case):
+#     """检查 row 的 conditions(条件) 是否与当前 case 匹配"""
+#     cond_str = row.get('conditions(条件)', '')
+#     if pd.isna(cond_str) or cond_str == '':
+#         return True
+#     # 以 '|' 分割，每个子条件需满足
+#     sub_conds = cond_str.split('|')
+#     for sub in sub_conds:
+#         # 处理 & 连接的条件
+#         parts = sub.split('&')
+#         for part in parts:
+#             part = part.strip()
+#             if part == 'S1|S2':
+#                 # 我们只保留了 S1|S2 的行，所以直接通过
+#                 continue
+#             elif part == '性别是先生':
+#                 if case['性别'] != '先生':
+#                     return False
+#             elif part == '性别是女士':
+#                 if case['性别'] != '女士':
+#                     return False
+#             elif part == '逾期笔数大于1':
+#                 if int(case['逾期笔数']) <= 1:
+#                     return False
+#             elif part == '逾期笔数等于1':
+#                 if int(case['逾期笔数']) != 1:
+#                     return False
+#             elif part.startswith('<随机金额>小于<剩余总待还>'):
+#                 # 简化处理：随机金额总是小于剩余总待还
+#                 continue
+#             else:
+#                 # 未知条件，忽略
+#                 continue
+#     return True
 
 def matches_conditions(row, case):
-    """检查 row 的 conditions(条件) 是否与当前 case 匹配"""
+    """通用条件匹配器，支持 & (且) 和 | (或)，优先级 & 高于 |。"""
     cond_str = row.get('conditions(条件)', '')
     if pd.isna(cond_str) or cond_str == '':
         return True
-    # 以 '|' 分割，每个子条件需满足
-    sub_conds = cond_str.split('|')
-    for sub in sub_conds:
-        # 处理 & 连接的条件
-        parts = sub.split('&')
-        for part in parts:
-            part = part.strip()
-            if part == 'S1|S2':
-                # 我们只保留了 S1|S2 的行，所以直接通过
-                continue
-            elif part == '性别是先生':
-                if case['性别'] != '先生':
-                    return False
-            elif part == '性别是女士':
-                if case['性别'] != '女士':
-                    return False
-            elif part == '逾期笔数大于1':
-                if int(case['逾期笔数']) <= 1:
-                    return False
-            elif part == '逾期笔数等于1':
-                if int(case['逾期笔数']) != 1:
-                    return False
-            elif part.startswith('<随机金额>小于<剩余总待还>'):
-                # 简化处理：随机金额总是小于剩余总待还
-                continue
+
+    # 处理括号（如果有）可以后续扩展，这里先按无括号处理
+    # 先将 S1|S2 替换为特殊标记，便于后续统一处理
+    # 注意：原始 cond_str 中 S1|S2 通常是作为整体出现的
+    # 我们将其视为一个原子条件，永远为真（因为我们已预过滤）
+    # 但为了不干扰分割，可暂时替换
+    import re
+    # 匹配 S1|S2 这样的模式（可能前后有 & 或 空格）
+    cond_str = re.sub(r'S1\|S2', '__S1_OR_S2__', cond_str)
+
+    # 1. 按 & 分割
+    and_parts = cond_str.split('&')
+    for and_part in and_parts:
+        and_part = and_part.strip()
+        if not and_part:
+            continue
+        # 2. 每个 and_part 内部可能包含 |，表示“或”关系
+        or_parts = and_part.split('|')
+        sub_ok = False
+        for or_part in or_parts:
+            or_part = or_part.strip()
+            if or_part == '__S1_OR_S2__':
+                sub_ok = True
+                break
+            elif or_part == '性别是先生':
+                if case.get('性别') == '先生':
+                    sub_ok = True
+                    break
+            elif or_part == '性别是女士':
+                if case.get('性别') == '女士':
+                    sub_ok = True
+                    break
+            elif or_part == '逾期笔数大于1':
+                if int(case.get('逾期笔数', 0)) > 1:
+                    sub_ok = True
+                    break
+            elif or_part == '逾期笔数等于1':
+                if int(case.get('逾期笔数', 0)) == 1:
+                    sub_ok = True
+                    break
+            elif or_part.startswith('<随机金额>小于<剩余总待还>'):
+                # 目前简化：随机金额总是小于剩余总待还
+                sub_ok = True
+                break
             else:
-                # 未知条件，忽略
+                # 未知条件，默认忽略（或可根据需求设为 False）
                 continue
+        # 如果这个 and_part 中的所有 or 条件都不满足，则整体不匹配
+        if not sub_ok:
+            return False
     return True
 
 def sample_utterance(row, is_human):
@@ -409,38 +461,6 @@ def main():
         with open(PATHS_CACHE, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=2)
         print(f"路径生成完成，共 {len(all_paths)} 条，已保存至 {PATHS_CACHE}（种子: {RANDOM_SEED}）")
-
-
-    # # 生成路径
-    # print(f"生成 {NUM_PATHS} 条路径...")
-    # all_paths = []
-    # for _ in range(NUM_PATHS):
-    #     path = ["核实"]
-    #     counts = {mod: 0 for mod in MODULES}
-    #     counts["核实"] = 1
-    #     banned = set()
-    #     current = "核实"
-    #     while True:
-    #         probs = prob_df.loc[current].copy()
-    #         available = [m for m in MODULES if m not in banned]
-    #         if not available:
-    #             break
-    #         probs = probs[available]
-    #         if probs.sum() == 0:
-    #             break
-    #         probs /= probs.sum()
-    #         next_node = np.random.choice(available, p=probs)
-    #         path.append(next_node)
-    #         counts[next_node] += 1
-    #         max_repeat = MAX_REPEAT.get(next_node, 100)
-    #         if counts[next_node] >= max_repeat:
-    #             if next_node in SPECIAL_NODES:
-    #                 banned.add(next_node)
-    #             else:
-    #                 break
-    #         current = next_node
-    #     all_paths.append(path)
-    # print(f"路径生成完成，共 {len(all_paths)} 条")
 
     # 生成对话
     print("开始生成对话...")
