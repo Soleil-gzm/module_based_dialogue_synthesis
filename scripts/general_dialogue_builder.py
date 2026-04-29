@@ -529,12 +529,31 @@ def main():
                 need_generate = False
             else:
                 logger.info("缓存种子或数量不匹配，重新生成路径...")
+    
+    # 强制生成不重复的路径（直到达到目标数量或最大尝试次数）
     if need_generate:
-        logger.info(f"生成 {NUM_PATHS} 条路径...")
+        logger.info(f"生成 {NUM_PATHS} 条不重复路径...")
         all_paths = []
-        for _ in range(NUM_PATHS):
+        max_attempts = NUM_PATHS * 10   # 防止无限循环
+        attempts = 0
+        paths_set = set()
+        
+        while len(all_paths) < NUM_PATHS and attempts < max_attempts:
+            attempts += 1
             path = generate_path(prob_df, MODULES, MAX_REPEAT, TERMINAL_NODES, A_SET, B_SET)
-            all_paths.append(path)
+            # 将路径转为元组以便存入 set
+            path_tuple = tuple(path)
+            if path_tuple not in paths_set:
+                paths_set.add(path_tuple)
+                all_paths.append(path)
+            if attempts % 10000 == 0:
+                logger.info(f"已尝试 {attempts} 次，当前唯一路径数 {len(all_paths)}")
+        
+        if len(all_paths) < NUM_PATHS:
+            logger.warning(f"仅生成 {len(all_paths)} 条不重复路径，达到最大尝试次数 {max_attempts}。")
+        else:
+            logger.info(f"成功生成 {len(all_paths)} 条不重复路径。")
+        
         # 保存缓存
         cache_data = {"seed": RANDOM_SEED, "num_paths": NUM_PATHS, "paths": all_paths}
         with open(PATHS_CACHE, 'w', encoding='utf-8') as f:
