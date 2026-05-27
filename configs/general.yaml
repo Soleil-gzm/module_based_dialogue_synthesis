@@ -1,0 +1,119 @@
+company: "通用催收"
+start_module: "身份确认"
+
+modules:
+  - "身份确认"
+  - "告知"
+  - "信息核实"
+  - "三方"
+  - "转告"
+  - "承诺还款"
+  - "已还款"
+  - "敷衍"
+  - "投诉处理"
+  - "信息问题"
+  - "不方便接电"
+  - "对抗"
+  - "没钱"
+  - "诉求"
+  - "通用原因"
+  - "否认办理业务"
+  - "工程款"
+  - "未发工资"
+  - "还错卡"
+  - "生病住院"
+  - "破产"
+  - "失业"
+  - "他人用款"
+  - "忘记还款"
+  - "盗刷"
+
+max_repeat:
+  身份确认: 4
+  告知: 1
+  信息核实: 1
+  三方: 1
+  转告: 1
+  承诺还款: 2
+  已还款: 1
+  敷衍: 3
+  投诉处理: 3
+  信息问题: 3
+  不方便接电: 2
+  对抗: 4
+  没钱: 4
+  诉求: 3
+  通用原因: 4
+  否认办理业务: 4
+  工程款: 4
+  未发工资: 4
+  还错卡: 4
+  生病住院: 4
+  破产: 4
+  失业: 4
+  他人用款: 4
+  忘记还款: 4
+  盗刷: 4
+
+a_set:
+  - "通用原因"
+  - "否认办理业务"
+  - "工程款"
+  - "未发工资"
+  - "还错卡"
+  - "生病住院"
+  - "破产"
+  - "失业"
+  - "他人用款"
+  - "忘记还款"
+  - "盗刷"
+
+b_set:
+  - "敷衍"
+  - "投诉处理"
+  - "信息问题"
+  - "不方便接电"
+  - "对抗"
+  - "没钱"
+  - "诉求"
+  - "承诺还款"
+
+terminal_modules:
+  - "承诺还款"
+  - "已还款"
+
+insert_nodes:
+  - "失业"
+  - "破产"
+  - "生病住院"
+  - "未发工资"
+  - "工程款"
+  - "通用原因"
+  - "没钱"
+
+pressure_prob: 0.6
+
+# 条件解析器类型: "keyword" (当前简化版), "simple_eval" (未来可扩展)
+condition_parser: "keyword"
+
+# 路径生成配置
+num_paths: 40000
+random_seed: 42
+paths_cache: "intermediate/all_paths.json"
+
+# 数据文件路径
+excel_path: "datas/General_regulations/【生成式通用】电催话术通用模板-首催 - 20260330.xlsx"
+prob_path: "datas/General_regulations/prob.xlsx"
+cases_dir: "datas/cases"
+
+# 输出配置
+output_dir: "output"
+
+# 日志配置
+logging:
+  level: "INFO"
+  log_dir: "logs"
+  file_prefix: "dialogue_builder"
+  console: true
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  datefmt: "%Y-%m-%d %H:%M:%S"

@@ -2,20 +2,28 @@
 ## 项目结构
 
 ```
+project/
+├── config/
+│   └── general.yaml
+├── core/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── logger.py
+│   ├── condition.py
+│   ├── data_loader.py
+│   ├── path_generator.py
+│   ├── utterance.py
+│   ├── pressure_manager.py
+│   ├── dialogue_builder.py
+│   └── factory.py
 ├── datas/
-│   ├── cases_random/
-│   ├── Yangqg_simulation_data/
+│   ├── 【生成式通用】电催话术通用模板-首催 - 20260330.xlsx
 │   ├── prob.xlsx
-│   ├── 对话模块分类 - 洋钱罐 - 1111.xlsx
-│   └── 洋钱罐分类准则.docx
+│   └── cases/
+│       └── *.txt
+├── logs/
+├── intermediate/
 ├── output/
-├── scripts/
-│   └── dialogue_builder.py
-├── scripts_test/
-│   ├── dataset_process.py
-│   └── process.ipynb
-├── .gitignore
-├── generate_structure.py
-├── generate_structure_exclude_data.py
-└── README.md
+├── main.py
+└── requirements.txt
 ```
