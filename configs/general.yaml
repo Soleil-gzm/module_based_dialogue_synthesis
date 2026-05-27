@@ -100,6 +100,7 @@ condition_parser: "keyword"
 num_paths: 40000
 random_seed: 42
 paths_cache: "intermediate/all_paths.json"
+checkpoint_interval: 5000   # 每生成5000条对话保存一次检查点
 
 # 数据文件路径
 excel_path: "datas/General_regulations/【生成式通用】电催话术通用模板-首催 - 20260330.xlsx"

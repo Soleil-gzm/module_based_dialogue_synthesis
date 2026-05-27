@@ -11,17 +11,18 @@ Step 5：拆分路径生成器
 '''
 
 import json
-import random
+import os
 import numpy as np
 import pandas as pd
-from typing import List, Set, Dict, Optional
+from typing import List, Set, Optional
 from core.config import Config
+from core.random_service import RandomService
 
 class PathGenerator:
-    """根据概率矩阵和业务规则生成模块序列"""
-    def __init__(self, config: Config, prob_df: pd.DataFrame):
+    def __init__(self, config: Config, prob_df: pd.DataFrame, rng: RandomService):
         self.config = config
         self.prob_df = prob_df
+        self.rng = rng
         self.modules = config.get('modules')
         self.max_repeat = config.get('max_repeat')
         self.terminal_nodes = set(config.get('terminal_modules', []))
@@ -30,7 +31,7 @@ class PathGenerator:
         self.start_module = config.get('start_module', self.modules[0])
 
     def generate_one(self) -> List[str]:
-        """生成一条模块路径"""
+        # 使用 self.rng 替代 random 和 np.random
         path = [self.start_module]
         counts = {mod: 0 for mod in self.modules}
         counts[self.start_module] = 1
@@ -39,7 +40,7 @@ class PathGenerator:
         current = self.start_module
 
         while True:
-            # 确定候选集
+            # ... 候选集逻辑不变 ...
             if current == "身份确认":
                 candidates = ["告知", "三方"]
             elif current == "告知":
@@ -55,51 +56,39 @@ class PathGenerator:
             else:
                 candidates = self.modules[:]
 
-            # 移除禁用模块
             candidates = [m for m in candidates if m not in banned]
-            # 如果已有选中的A集，禁止其他A集
             if selected_a is not None:
                 candidates = [m for m in candidates if m not in self.a_set or m == selected_a]
-
             if not candidates:
                 break
 
-            # 概率选择
             probs = self.prob_df.loc[current].copy()
             probs = probs[probs.index.isin(candidates)]
             if probs.sum() == 0:
                 break
             probs /= probs.sum()
-            next_node = np.random.choice(probs.index, p=probs)
+            # 使用 numpy 随机选择（通过 self.rng 管理种子）
+            next_node = self.rng.np_choice(probs.index.to_numpy(), p=probs.to_numpy())
 
-            # 硬约束：已还款只能从告知或信息核实进入
             if next_node == "已还款" and current not in ["告知", "信息核实"]:
                 continue
-
-            # 记录选中的A集
             if next_node in self.a_set and selected_a is None:
                 selected_a = next_node
 
             path.append(next_node)
             counts[next_node] += 1
-
-            # 达到最大重复次数则禁用（不终止）
             max_repeat_val = self.max_repeat.get(next_node, 100)
             if counts[next_node] >= max_repeat_val:
                 banned.add(next_node)
-
-            # 终止模块则结束
             if next_node in self.terminal_nodes:
                 break
-
             current = next_node
-
         return path
 
     def generate(self, num_paths: int, seed: int, cache_path: Optional[str] = None) -> List[List[str]]:
         """生成多条不重复路径，支持缓存"""
-        random.seed(seed)
-        np.random.seed(seed)
+        # random.seed(seed)
+        # np.random.seed(seed)
 
         if cache_path:
             import os

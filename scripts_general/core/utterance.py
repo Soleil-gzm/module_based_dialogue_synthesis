@@ -15,9 +15,10 @@ fill_placeholders(text, case)
 import random
 import pandas as pd
 from typing import List, Dict, Any
+from core.random_service import RandomService
 
-def sample_utterance(row: pd.Series, is_human: bool) -> str:
-    """从一行中随机抽取一个话术（用 / 分割）"""
+def sample_utterance(row: pd.Series, is_human: bool, rng: RandomService) -> str:
+    """从一行中随机抽取一个话术（用 / 分割），使用注入的随机服务"""
     col = 'human(客户)' if is_human else 'assistant(专员)'
     text = row[col]
     if pd.isna(text):
@@ -25,7 +26,7 @@ def sample_utterance(row: pd.Series, is_human: bool) -> str:
     options = [s.strip() for s in str(text).split('/') if s.strip()]
     if not options:
         return ''
-    return random.choice(options)
+    return rng.choice(options)
 
 def get_ancestors(uid: int, df: pd.DataFrame) -> List[pd.Series]:
     """递归获取所有祖先行（从远祖到父的顺序）"""
@@ -44,17 +45,17 @@ def get_ancestors(uid: int, df: pd.DataFrame) -> List[pd.Series]:
         uid = parent_val
     return list(reversed(ancestors))
 
-def get_random_descendant_chain(uid: int, df: pd.DataFrame, stop_prob: float = 0.3, max_depth: int = 10) -> List[pd.Series]:
-    """递归获取一条随机的后代链（考虑 flexible_stop）"""
+def get_random_descendant_chain(uid: int, df: pd.DataFrame, rng: RandomService,stop_prob: float = 0.3, max_depth: int = 10) -> List[pd.Series]:
+    """递归获取一条随机的后代链，使用注入的随机服务"""
     children = df[df['parent(继承)'] == uid]
     if children.empty or max_depth <= 0:
         return []
-    child_row = children.sample(n=1).iloc[0]
+    child_row = children.sample(n=1, random_state=rng.randint(0, 2**32-1)).iloc[0]  # pandas sample 支持 random_state
     chain = [child_row]
     flex_stop = child_row.get('flexible_stop(可选不继承)', 0)
-    if pd.notna(flex_stop) and flex_stop == 1 and random.random() < stop_prob:
+    if pd.notna(flex_stop) and flex_stop == 1 and rng.random() < stop_prob:
         return chain
-    deeper = get_random_descendant_chain(child_row['uid'], df, stop_prob, max_depth-1)
+    deeper = get_random_descendant_chain(child_row['uid'], df, rng, stop_prob, max_depth-1)
     chain.extend(deeper)
     return chain
 

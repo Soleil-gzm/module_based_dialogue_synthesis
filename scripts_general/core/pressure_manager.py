@@ -8,13 +8,14 @@ Step 8：实现施压话术管理器
 原因：施压逻辑独立，避免索引越界，且可灵活调整概率和话术来源。
 '''
 
-import random
 import pandas as pd
 from typing import List
+from core.random_service import RandomService
 
 class PressureManager:
     """管理衔接施压话术，支持循环复用"""
-    def __init__(self, pressure_df: pd.DataFrame):
+    def __init__(self, pressure_df: pd.DataFrame, rng: RandomService):
+        self.rng = rng
         self.pressure_list = self._load_pressure(pressure_df)
         self.index = 0
 
@@ -31,11 +32,11 @@ class PressureManager:
             if sub.empty:
                 pressure_list.append('')
                 continue
-            row = sub.sample(n=1).iloc[0]
+            row = sub.sample(n=1, random_state=self.rng.randint(0, 2**32-1)).iloc[0]
             assistant_opt = row['assistant(专员)']
             if pd.notna(assistant_opt):
                 opts = [s.strip() for s in assistant_opt.split('/') if s.strip()]
-                pressure_list.append(random.choice(opts) if opts else '')
+                pressure_list.append(self.rng.choice(opts) if opts else '')
             else:
                 pressure_list.append('')
         return pressure_list
