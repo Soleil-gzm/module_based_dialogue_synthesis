@@ -14,6 +14,7 @@ import os
 import random
 import pandas as pd
 from typing import List, Dict, Tuple, Any
+from core.random_service import RandomService   # 新增导入
 
 def load_sheets(excel_path: str, modules: List[str], condition_keyword: str = '逾期') -> Dict[str, pd.DataFrame]:
     """
@@ -37,8 +38,8 @@ def load_prob_matrix(prob_path: str, modules: List[str]) -> pd.DataFrame:
     prob_df = prob_df / 100.0
     return prob_df
 
-def parse_case_info(txt_path: str) -> Dict[str, Any]:
-    """解析单个案例文件，返回字段字典"""
+def parse_case_info(txt_path: str, rng: Optional[RandomService] = None) -> Dict[str, Any]:
+    """解析单个案例文件，返回字段字典。如果提供 rng，则使用它生成随机值；否则使用全局 random。"""
     data = {}
     with open(txt_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -74,21 +75,31 @@ def parse_case_info(txt_path: str) -> Dict[str, Any]:
             data['总欠款'] = line.split('：')[1].strip()
         elif line.startswith('- 本金：'):
             data['本金'] = line.split('：')[1].strip()
+
     # 生成随机金额：逾期金额的 30%~70%
-    data['随机金额'] = str(round(float(data.get('逾期金额', 0)) * random.uniform(0.3, 0.7)))
+    if rng is not None:
+        random_ratio = rng.uniform(0.3, 0.7)
+        random_hour = rng.randint(1, 4)
+        random_digits = rng.randint(100, 999)
+    else:
+        random_ratio = random.uniform(0.3, 0.7)
+        random_hour = random.randint(1, 4)
+        random_digits = random.randint(100, 999)
+
+    data['随机金额'] = str(round(float(data.get('逾期金额', 0)) * random_ratio))
     # 随机时间：查账时间 + 1~4小时
-    data['随机时间'] = f"{data.get('查账时间', '')}过后{random.randint(1,4)}小时"
-    data['随机数字'] = str(random.randint(100, 999))
+    data['随机时间'] = f"{data.get('查账时间', '')}过后{random_hour}小时"
+    data['随机数字'] = str(random_digits)
     return data
 
-def load_cases(cases_dir: str) -> Tuple[List[Dict], List[str]]:
-    """加载所有案例，返回 (cases列表, prompts列表)"""
+def load_cases(cases_dir: str, rng: Optional[RandomService] = None) -> Tuple[List[Dict], List[str]]:
+    """加载所有案例，返回 (cases列表, prompts列表)。如果提供 rng，则传递给 parse_case_info。"""
     case_files = sorted([f for f in os.listdir(cases_dir) if f.endswith('.txt')])
     cases = []
     prompts = []
     for fname in case_files:
         path = os.path.join(cases_dir, fname)
-        cases.append(parse_case_info(path))
+        cases.append(parse_case_info(path, rng=rng))
         with open(path, 'r', encoding='utf-8') as f:
             prompts.append(f.read())
     return cases, prompts
