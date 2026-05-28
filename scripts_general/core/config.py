@@ -1,6 +1,6 @@
 '''
 Step 1：提取配置到 YAML 文件
-操作：创建 config/general.yaml，将所有硬编码常量（MODULES, MAX_REPEAT, A_SET, B_SET, TERMINAL_NODES, INSERT_NODES, PRESSURE_PROB 等）写入 YAML。
+操作：创建 configs/general.yaml，将所有硬编码常量（MODULES, MAX_REPEAT, A_SET, B_SET, TERMINAL_NODES, INSERT_NODES, PRESSURE_PROB 等）写入 YAML。
 原因：配置与代码分离后，切换公司只需换配置文件，无需改代码。同时便于非开发人员调整参数。
 
 Step 2：定义配置加载器
