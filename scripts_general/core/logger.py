@@ -1,49 +1,28 @@
-'''
-Step 10：添加错误处理与日志统一
-操作：使用 logging 模块，配置文件日志和控制台日志；在关键步骤添加 try-except，记录失败路径信息。
-原因：提高健壮性，便于定位问题。
-'''
-'''
-四、注意事项与最佳实践
-不要在每个文件中创建新的 logger 实例：统一使用 get_logger()。
-
-避免重复添加处理器：上面的代码通过 _logger_instance 全局单例保证了只初始化一次。
-
-可测试性：在单元测试中，你可以通过 logging.getLogger("DialogueBuilder").handlers.clear() 清空处理器，或替换为 unittest.mock。
-
-多模块共享：所有使用 get_logger() 的地方获得的都是同一个 logger 对象，因此日志输出会汇总到同一个文件（按时间戳分隔）。
-
-按日期切割日志：如果需要按天滚动，可以使用 logging.handlers.TimedRotatingFileHandler 替代 FileHandler。
-
-敏感信息处理：避免在日志中打印客户真实姓名、手机号等敏感数据，或使用 logging.Filter 脱敏。
-'''
-
 import logging
 import os
 from datetime import datetime
 from typing import Optional
 
+# 模块级全局变量，整个模块内只有一个实例，用于实现单例模式
 _logger_instance: Optional[logging.Logger] = None
 
 def init_logger(config) -> logging.Logger:
     """
-    根据配置初始化logger（应在程序启动时调用一次）
+    根据配置初始化logger（应在程序启动时调用一次），保证返回一个配置好的 Logger 对象
     config: Config对象或字典
     """
-    global _logger_instance
+    global _logger_instance     # 允许函数内部修改模块级全局变量
+    # 实现单例模式，防止重复初始化
     if _logger_instance is not None:
         return _logger_instance
 
     # 获取日志配置
-    if hasattr(config, 'get'):
-        log_config = config.get('logging', {})
-    else:
-        log_config = config.get('logging', {})
+    log_config = config.get('logging', {}) 
 
-    level_name = log_config.get('level', 'INFO').upper()
-    level = getattr(logging, level_name, logging.INFO)
+    level_name = log_config.get('level', 'INFO').upper()        # 得到 'INFO'（字符串）
+    level = getattr(logging, level_name, logging.INFO)          # 得到 logging.INFO（整数 20）
     log_dir = log_config.get('log_dir', 'logs')
-    file_prefix = log_config.get('file_prefix', 'app')
+    file_prefix = log_config.get('file_prefix', 'general_dialogue_builder')
     console_enabled = log_config.get('console', True)
     fmt = log_config.get('format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     datefmt = log_config.get('datefmt', '%Y-%m-%d %H:%M:%S')
@@ -71,7 +50,7 @@ def init_logger(config) -> logging.Logger:
         logger.addHandler(console_handler)
 
     logger.propagate = False
-    _logger_instance = logger
+    _logger_instance = logger       # 将创建好的 logger 实例保存到模块级全局变量，实现单例
     return logger
 
 def get_logger() -> logging.Logger:
