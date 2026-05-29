@@ -52,6 +52,8 @@ def main():
     logger.info("加载 Excel 模块...")
     excel_path = config.get('excel_path')
     modules = config.get('modules')
+    # keep_cols = config.get('keep_columns', None)  # 若没有配置则 None，函数内部会用默认（扩展使用）
+    # df_dict = load_sheets(excel_path, modules, condition_keyword='逾期', keep_cols=keep_cols)
     df_dict = load_sheets(excel_path, modules, condition_keyword='逾期')
 
     logger.info("加载概率矩阵...")

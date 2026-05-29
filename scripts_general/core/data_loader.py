@@ -13,10 +13,10 @@ load_cases(cases_dir)：返回 (cases_list, prompts_list)
 import os
 import random
 import pandas as pd
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Tuple, Any,Optional
 from core.random_service import RandomService   # 新增导入
 
-def load_sheets(excel_path: str, modules: List[str], condition_keyword: str = '逾期') -> Dict[str, pd.DataFrame]:
+def load_sheets(excel_path: str, modules: List[str], condition_keyword: str = '逾期', keep_cols:List[str] = None) -> Dict[str, pd.DataFrame]:
     """
     加载所有模块sheet，筛选包含 condition_keyword 的行，并过滤掉包含随机占位符的行
     """
@@ -25,9 +25,9 @@ def load_sheets(excel_path: str, modules: List[str], condition_keyword: str = '�
         df = pd.read_excel(excel_path, sheet_name=sheet)
         # 筛选 conditions 列包含指定关键词的行
         mask = df['conditions(条件)'].apply(lambda x: isinstance(x, str) and condition_keyword in x)
-        df_filtered = df[mask].copy()
-        # 去掉 human 列中包含随机标签的行
-        df_filtered = df_filtered[~df_filtered['human(客户)'].str.contains('{随机金额}|{随机时间}', na=False)]
+        if keep_cols is None:
+            keep_cols = ['uid', 'parent(继承)', 'repeat(次数)', 'conditions(条件)', 'human(客户)', 'assistant(专员)', 'flexible_stop(可选不继承)', '是否再见']
+        df_filtered = df.loc[mask, keep_cols].copy()
         df_dict[sheet] = df_filtered
     return df_dict
 
