@@ -97,6 +97,12 @@ pressure_prob: 0.6
 # 条件解析器类型: "keyword" (当前简化版), "simple_eval" (未来可扩展)
 condition_parser: "keyword"
 
+# 扩展列名：不同的文件列名不同的时候
+keep_columns:
+  - "uid"
+  - "parent(继承)"
+  - ...
+
 # 路径生成配置
 num_paths: 40000
 random_seed: 42

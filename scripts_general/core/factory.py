@@ -10,4 +10,4 @@ def create_condition_evaluator(config: Config) -> ConditionEvaluator:
     # elif parser_type == 'simple_eval':
     #     return SimpleEvalConditionEvaluator()
     else:
-        raise ValueError(f"Unknown condition_parser type: {parser_type}")
+        raise ValueError(f"Unknown condition_parser type: {parser_type}") 

@@ -63,7 +63,7 @@ class PathGenerator:
                 break
 
             probs = self.prob_df.loc[current].copy()
-            probs = probs[probs.index.isin(candidates)]
+            probs = probs[probs.index.isin(candidates)]     # 只保留当前模块到 candidates 列表中模块的转移概率，移除那些不符合候选规则的目标模块。
             if probs.sum() == 0:
                 break
             probs /= probs.sum()
@@ -87,8 +87,6 @@ class PathGenerator:
 
     def generate(self, num_paths: int, seed: int, cache_path: Optional[str] = None) -> List[List[str]]:
         """生成多条不重复路径，支持缓存"""
-        # random.seed(seed)
-        # np.random.seed(seed)
 
         if cache_path:
             import os
@@ -102,7 +100,7 @@ class PathGenerator:
                     print("缓存种子或数量不匹配，重新生成")
 
         paths = []
-        paths_set = set()
+        paths_set = set()   # 确保路径唯一
         max_attempts = num_paths * 10
         attempts = 0
         while len(paths) < num_paths and attempts < max_attempts:
