@@ -107,7 +107,7 @@ class DialogueBuilder:
                 if user_txt:
                     messages.append({"role": "user", "content": user_txt})
                 if assistant_txt:
-                    messages.append({"role": "assistant", "content": assistant_txt})
+                    messages.append({"role": "assistant", "content": assistant_txt,"loss:":"True"})
 
             # 检查是否再见（如果 row 有 '是否再见' == 1 且未达最大重复次数）
             if row.get('是否再见') == 1 and repeat < self.max_repeat.get(node, 999):
