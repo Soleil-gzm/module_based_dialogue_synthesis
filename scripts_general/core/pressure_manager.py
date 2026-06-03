@@ -1,53 +1,77 @@
-'''
-Step 8：实现施压话术管理器
-操作：创建 core/pressure_manager.py，类 PressureManager：
-
-从 df_dict['衔接施压话术'] 加载三段话术
-
-提供 get_pressure_text(repeat_index) 方法，支持循环复用。
-原因：施压逻辑独立，避免索引越界，且可灵活调整概率和话术来源。
-'''
-
 import pandas as pd
-from typing import List
+import logging
+from typing import List, Dict, Any, Tuple
 from core.random_service import RandomService
+from core.utterance import get_ancestors, get_random_descendant_chain, sample_utterance
+
+logger = logging.getLogger("DialogueBuilder")
 
 class PressureManager:
-    """管理衔接施压话术，支持循环复用"""
+    """管理施压话术模块，支持 repeat、继承、条件、随机后代链"""
     def __init__(self, pressure_df: pd.DataFrame, rng: RandomService):
+        self.df = pressure_df
         self.rng = rng
-        self.pressure_list = self._load_pressure(pressure_df)
-        self.index = 0
+        # 预计算可用的 repeat 值及最大 repeat
+        self._available_repeats = set()
+        for val in self.df['repeat(次数)'].dropna():
+            for r in str(val).split('/'):
+                if r.strip().isdigit():
+                    self._available_repeats.add(int(r.strip()))
+        self.max_repeat = max(self._available_repeats) if self._available_repeats else 3
 
-    def _load_pressure(self, df: pd.DataFrame) -> List[str]:
-        """从DataFrame中加载三段施压话术（对应repeat 1,2,3）"""
-        pressure_list = []
-        for repeat in [1, 2, 3]:
-            if df.empty:
-                pressure_list.append('')
-                continue
-            mask = df['repeat(次数)'].apply(
-                lambda x: str(repeat) in str(x).split('/') if pd.notna(x) else False)
-            sub = df[mask]
-            if sub.empty:
-                pressure_list.append('')
-                continue
-            row = sub.sample(n=1, random_state=self.rng.randint(0, 2**32-1)).iloc[0]
-            assistant_opt = row['assistant(专员)']
-            if pd.notna(assistant_opt):
-                opts = [s.strip() for s in assistant_opt.split('/') if s.strip()]
-                pressure_list.append(self.rng.choice(opts) if opts else '')
-            else:
-                pressure_list.append('')
-        return pressure_list
+    def get_pressure_segment(self, repeat: int, case: Dict[str, Any], condition_evaluator) -> Tuple[List[Dict[str, str]], bool]:
+        """
+        根据 repeat 次数从施压话术表中抽取一个话术片段（可能包含多轮）。
+        返回 (segment_list, has_customer_first), 其中 segment_list 每个元素为 {"user": str, "assistant": str}
+        has_customer_first 表示片段第一轮是否有客户话术（用于外部拼接逻辑）。
+        """
+        if self.df.empty:
+            return [], False
 
-    def get_next_pressure(self) -> str:
-        """获取下一个施压话术（循环使用）"""
-        if not self.pressure_list:
-            return ''
-        pressure = self.pressure_list[self.index % len(self.pressure_list)]
-        self.index += 1
-        return pressure
+        # 超出范围时降级使用最大 repeat
+        effective_repeat = repeat if repeat <= self.max_repeat else self.max_repeat
+        if effective_repeat != repeat:
+            logger.warning(f"施压话术表最大 repeat={self.max_repeat}，请求 repeat={repeat}，降级使用 repeat={effective_repeat}")
 
-    def reset(self):
-        self.index = 0
+        # 筛选 repeat 匹配的行
+        mask = self.df['repeat(次数)'].apply(
+            lambda x: str(effective_repeat) in str(x).split('/') if pd.notna(x) else False)
+        candidates = self.df[mask]
+        if candidates.empty:
+            return [], False
+
+        # 条件筛选
+        valid_rows = []
+        for _, row in candidates.iterrows():
+            cond_str = row.get('conditions(条件)', '')
+            if condition_evaluator.evaluate(cond_str, case):
+                valid_rows.append(row)
+        if not valid_rows:
+            return [], False
+
+        row = self.rng.choice(valid_rows)
+
+        # 获取祖先和后代链
+        ancestors = get_ancestors(row['uid'], self.df)
+        descendant_chain = get_random_descendant_chain(row['uid'], self.df, self.rng)
+
+        # 构建片段轮次列表
+        segment = []
+        for anc in ancestors:
+            user = sample_utterance(anc, True, self.rng)
+            assistant = sample_utterance(anc, False, self.rng)
+            if user or assistant:
+                segment.append({"user": user, "assistant": assistant})
+        # 当前行
+        user_cur = sample_utterance(row, True, self.rng)
+        assistant_cur = sample_utterance(row, False, self.rng)
+        segment.append({"user": user_cur, "assistant": assistant_cur})
+        for desc in descendant_chain:
+            user = sample_utterance(desc, True, self.rng)
+            assistant = sample_utterance(desc, False, self.rng)
+            if user or assistant:
+                segment.append({"user": user, "assistant": assistant})
+
+        # 判断第一轮是否有客户话术
+        has_customer_first = bool(segment[0].get("user")) if segment else False
+        return segment, has_customer_first

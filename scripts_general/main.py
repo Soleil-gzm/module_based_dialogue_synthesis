@@ -7,6 +7,7 @@
 import os
 import json
 import pickle  # 用于保存检查点状态
+import pandas as pd
 from datetime import datetime
 from core.config import load_config
 from core.logger import init_logger, get_logger
@@ -15,6 +16,7 @@ from core.path_generator import PathGenerator
 from core.dialogue_builder import DialogueBuilder
 from core.factory import create_condition_evaluator
 from core.random_service import RandomService
+from core.pressure_manager import PressureManager
 
 def save_checkpoint(dialogues: list, next_index: int, checkpoint_file: str):
     """保存对话生成进度"""
@@ -65,6 +67,12 @@ def main():
     cases, prompts = load_cases(cases_dir)
     logger.info(f"加载案例数量: {len(cases)}")
 
+    # 单独加载施压话术表
+    pressure_df = pd.read_excel(excel_path, sheet_name="链接施压话术")
+    # 可选：对 pressure_df 也进行条件筛选（例如只保留包含“逾期”的行），根据业务决定
+    # 这里为了完整继承，保留所有行
+    pressure_manager = PressureManager(pressure_df, rng)
+
     # 4. 创建条件解析器
     condition_evaluator = create_condition_evaluator(config)
 
@@ -89,7 +97,7 @@ def main():
         start_index = 0
 
     # 创建对话构建器（注入随机服务和日志器）
-    builder = DialogueBuilder(config, df_dict, condition_evaluator, rng, logger)
+    builder = DialogueBuilder(config, df_dict, condition_evaluator, rng, pressure_manager, logger)
 
     all_dialogues = existing_dialogues.copy()
     total_paths = len(all_paths)

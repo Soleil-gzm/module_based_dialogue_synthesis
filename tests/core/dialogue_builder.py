@@ -24,17 +24,17 @@ class DialogueBuilder:
     def __init__(self, config: Config, df_dict: Dict[str, pd.DataFrame],
                  condition_evaluator: ConditionEvaluator,
                  rng: RandomService,
-                 pressure_manager: PressureManager,   # 新增参数
                  logger: logging.Logger = None):
         self.config = config
         self.df_dict = df_dict
         self.condition_evaluator = condition_evaluator
         self.rng = rng
-        self.pressure_manager = pressure_manager   # 使用外部传入的实例
-        self.logger = logger or logging.getLogger('DialogueBuilder')
+        self.logger = logger or logging.getLogger('DialogueBuilder')        # 可选依赖注入模式，允许外部（如 main.py）传入一个已经配置好的 logger 实例（比如用于测试或统一日志管理），如果不传（即 logger=None），则自动创建一个名为 'DialogueBuilder' 的默认 logger。
         self.insert_nodes = set(config.get('insert_nodes', []))
         self.pressure_prob = config.get('pressure_prob', 0.6)
         self.max_repeat = config.get('max_repeat', {})
+        pressure_df = df_dict.get('衔接施压话术', pd.DataFrame())
+        self.pressure_manager = PressureManager(pressure_df, rng)
 
     def build(self, path: List[str], case: Dict[str, Any], prompt_text: str) -> List[Dict]:
         """生成一条完整的对话消息列表"""
@@ -43,10 +43,11 @@ class DialogueBuilder:
         messages.append({"role": "system", "content": sys_content})
 
         node_counts = {}
+        self.pressure_manager.reset()
 
         for node in path:
-            node_counts[node] = node_counts.get(node, 0) + 1        # 模块出现次数
-            repeat = node_counts[node]                  # repeat次进入模块根据repeat行来抽取话术
+            node_counts[node] = node_counts.get(node, 0) + 1
+            repeat = node_counts[node]
             df_node = self.df_dict.get(node)
             if df_node is None or df_node.empty:
                 self.logger.debug(f"模块 {node} 无数据，跳过")
@@ -87,6 +88,12 @@ class DialogueBuilder:
             current_user = sample_utterance(row, True, self.rng)
             current_assistant = sample_utterance(row, False, self.rng)
 
+            # 附加施压话术（仅当无祖先且无后代时）
+            if node in self.insert_nodes and len(ancestors) == 0 and len(descendant_chain) == 0:
+                if self.rng.random() < self.pressure_prob:
+                    pressure_text = self.pressure_manager.get_next_pressure()
+                    current_assistant += pressure_text
+
             turn_list.append((current_user, current_assistant))
 
             for desc in descendant_chain:
@@ -101,38 +108,6 @@ class DialogueBuilder:
                     messages.append({"role": "user", "content": user_txt})
                 if assistant_txt:
                     messages.append({"role": "assistant", "content": assistant_txt,"loss:":"True"})
-
-            # ========== 施压话术处理 ==========
-            if node in self.insert_nodes and self.rng.random() < self.pressure_prob:
-                pressure_segment, has_customer_first = self.pressure_manager.get_pressure_segment(
-                    repeat, case, self.condition_evaluator
-                )
-                if pressure_segment:
-                    if not has_customer_first and messages:
-                        last_msg = messages[-1]
-                        if last_msg["role"] == "assistant":
-                            # 合并第一条施压专员话术到上一轮
-                            last_msg["content"] += pressure_segment[0]["assistant"]
-                            # 剩余部分（如果有）作为新轮次追加
-                            for seg in pressure_segment[1:]:
-                                if seg.get("user"):
-                                    messages.append({"role": "user", "content": seg["user"]})
-                                if seg.get("assistant"):
-                                    messages.append({"role": "assistant", "content": seg["assistant"], "loss": "True"})
-                        else:
-                            # 上一轮不是 assistant，则全部作为新轮次
-                            for seg in pressure_segment:
-                                if seg.get("user"):
-                                    messages.append({"role": "user", "content": seg["user"]})
-                                if seg.get("assistant"):
-                                    messages.append({"role": "assistant", "content": seg["assistant"], "loss": "True"})
-                    else:
-                        # 第一轮有客户话术：整个片段作为新轮次追加
-                        for seg in pressure_segment:
-                            if seg.get("user"):
-                                messages.append({"role": "user", "content": seg["user"]})
-                            if seg.get("assistant"):
-                                messages.append({"role": "assistant", "content": seg["assistant"], "loss": "True"})
 
             # 检查是否再见（如果 row 有 '是否再见' == 1 且未达最大重复次数）
             if row.get('是否再见') == 1 and repeat < self.max_repeat.get(node, 999):
