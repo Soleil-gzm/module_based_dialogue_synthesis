@@ -19,7 +19,7 @@ class PressureManager:
                     self._available_repeats.add(int(r.strip()))
         self.max_repeat = max(self._available_repeats) if self._available_repeats else 3
 
-    def get_pressure_segment(self, repeat: int, case: Dict[str, Any], condition_evaluator) -> Tuple[List[Dict[str, str]], bool]:
+    def get_pressure_segment(self, repeat: int, case: Dict[str, Any], condition_evaluator, module_name: str = None) -> Tuple[List[Dict[str, str]], bool]:
         """
         根据 repeat 次数从施压话术表中抽取一个话术片段（可能包含多轮）。
         返回 (segment_list, has_customer_first), 其中 segment_list 每个元素为 {"user": str, "assistant": str}
@@ -30,8 +30,14 @@ class PressureManager:
 
         # 超出范围时降级使用最大 repeat
         effective_repeat = repeat if repeat <= self.max_repeat else self.max_repeat
+        # if effective_repeat != repeat:
+        #     logger.warning(f"施压话术表最大 repeat={self.max_repeat}，请求 repeat={repeat}，降级使用 repeat={effective_repeat}")
         if effective_repeat != repeat:
-            logger.warning(f"施压话术表最大 repeat={self.max_repeat}，请求 repeat={repeat}，降级使用 repeat={effective_repeat}")
+            if module_name:
+                logger.warning(f"模块 '{module_name}' 请求 repeat={repeat}，施压话术表最大 repeat={self.max_repeat}，降级使用 repeat={effective_repeat}")
+            else:
+                logger.warning(f"施压话术表最大 repeat={self.max_repeat}，请求 repeat={repeat}，降级使用 repeat={effective_repeat}")
+        
 
         # 筛选 repeat 匹配的行
         mask = self.df['repeat(次数)'].apply(
@@ -44,7 +50,7 @@ class PressureManager:
         valid_rows = []
         for _, row in candidates.iterrows():
             cond_str = row.get('conditions(条件)', '')
-            if condition_evaluator.evaluate(cond_str, case):
+            if condition_evaluator.evaluate(cond_str, case):        # 调用条件解析，判断抽取话术是否适用于该案例
                 valid_rows.append(row)
         if not valid_rows:
             return [], False

@@ -1,15 +1,3 @@
-'''
-Step 7：拆分对话构建器
-操作：创建 core/dialogue_builder.py，类 DialogueBuilder：
-
-初始化接收 config, df_dict, condition_evaluator
-
-方法 build_dialogue(path, case, prompt) 返回 messages 列表
-
-内部整合继承链、施压话术、占位符填充等逻辑。
-原因：对话生成是核心流程，将其与路径生成、数据加载解耦，便于单独调整对话风格（如施压策略、轮次顺序）。
-'''
-
 import logging
 import pandas as pd
 from typing import List, Dict, Any
@@ -35,6 +23,17 @@ class DialogueBuilder:
         self.insert_nodes = set(config.get('insert_nodes', []))
         self.pressure_prob = config.get('pressure_prob', 0.6)
         self.max_repeat = config.get('max_repeat', {})
+        self.goodbye_termination_prob = config.get('goodbye_termination_prob', 0.7)   # 新增
+
+    def _should_terminate(self, row: pd.Series, repeat: int, node: str) -> bool:
+        """检查是否因再见标志而终止（包含概率控制）"""
+        if row.get('是否再见') == 1 and repeat <= self.max_repeat.get(node, 999):
+            if self.rng.random() <= self.goodbye_termination_prob:
+                self.logger.debug(f"模块 {node} repeat={repeat} 再见触发，终止对话")
+                return True
+            else:
+                self.logger.debug(f"模块 {node} repeat={repeat} 再见被忽略（概率不触发），继续对话")
+        return False
 
     def build(self, path: List[str], case: Dict[str, Any], prompt_text: str) -> List[Dict]:
         """生成一条完整的对话消息列表"""
@@ -76,36 +75,52 @@ class DialogueBuilder:
             ancestors = get_ancestors(row['uid'], df_node)  # 无随机，直接使用
             descendant_chain = get_random_descendant_chain(row['uid'], df_node, self.rng)
 
-            # 构建 turn_list
+            # 构建 turn_list，同时检查再见
             turn_list = []
+            stop_dialogue = False
+
+            # 处理祖先链（一般不会有再见，但为了健壮也检查）
             for anc in ancestors:
                 user_txt = sample_utterance(anc, True, self.rng)
                 assistant_txt = sample_utterance(anc, False, self.rng)
                 if user_txt or assistant_txt:
                     turn_list.append((user_txt, assistant_txt))
+                if self._should_terminate(anc, repeat, node):
+                    stop_dialogue = True
+                    break       # 跳出祖先链构建
+            if stop_dialogue:
+                break       # 跳出全局对话构建
 
+            # 处理当前行
             current_user = sample_utterance(row, True, self.rng)
             current_assistant = sample_utterance(row, False, self.rng)
-
             turn_list.append((current_user, current_assistant))
+            if self._should_terminate(row, repeat, node):
+                break
 
+            # 处理后代链（可能包含再见）
             for desc in descendant_chain:
                 user_txt = sample_utterance(desc, True, self.rng)
                 assistant_txt = sample_utterance(desc, False, self.rng)
                 if user_txt or assistant_txt:
                     turn_list.append((user_txt, assistant_txt))
+                if self._should_terminate(desc, repeat, node):
+                    stop_dialogue = True
+                    break
+            if stop_dialogue:
+                break
 
-            # 添加到 messages
+            # 将所有 turn_list 中的话术添加到 messages
             for user_txt, assistant_txt in turn_list:
                 if user_txt:
                     messages.append({"role": "user", "content": user_txt})
                 if assistant_txt:
-                    messages.append({"role": "assistant", "content": assistant_txt,"loss:":"True"})
+                    messages.append({"role": "assistant", "content": assistant_txt, "loss": "True"})
 
-            # ========== 施压话术处理 ==========
-            if node in self.insert_nodes and self.rng.random() < self.pressure_prob:
+            # ========== 施压话术处理开始 ==========
+            if node in self.insert_nodes and self.rng.random() <= self.pressure_prob:
                 pressure_segment, has_customer_first = self.pressure_manager.get_pressure_segment(
-                    repeat, case, self.condition_evaluator
+                    repeat, case, self.condition_evaluator, module_name=node
                 )
                 if pressure_segment:
                     if not has_customer_first and messages:
@@ -133,11 +148,7 @@ class DialogueBuilder:
                                 messages.append({"role": "user", "content": seg["user"]})
                             if seg.get("assistant"):
                                 messages.append({"role": "assistant", "content": seg["assistant"], "loss": "True"})
-
-            # 检查是否再见（如果 row 有 '是否再见' == 1 且未达最大重复次数）
-            if row.get('是否再见') == 1 and repeat < self.max_repeat.get(node, 999):
-                self.logger.debug(f"模块 {node} repeat={repeat} 遇到再见标识，提前终止")
-                break
+            # ========== 施压话术处理结束 ==========
 
         # 占位符填充（无随机）
         for msg in messages:
