@@ -78,6 +78,16 @@ def parse_case_info(txt_path: str, rng: Optional[RandomService] = None) -> Dict[
         elif line.startswith('- 本金：'):
             data['本金'] = line.split('：')[1].strip()
 
+    # 获取逾期金额，防御处理
+    overdue_amount_str = data.get('逾期金额', '0')
+    try:
+        overdue_amount = float(overdue_amount_str)
+    except (ValueError, TypeError):
+        overdue_amount = 0.0
+        # 使用 print 或 logging 记录警告，建议使用 logging（需要先导入）
+        import logging
+        logging.warning(f"无法解析逾期金额: '{overdue_amount_str}'，使用默认值 0")
+
     # 生成随机金额：逾期金额的 30%~70%
     if rng is not None:
         random_ratio = rng.uniform(0.3, 0.7)
