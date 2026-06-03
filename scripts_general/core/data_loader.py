@@ -16,18 +16,20 @@ import pandas as pd
 from typing import List, Dict, Tuple, Any,Optional
 from core.random_service import RandomService   # 新增导入
 
-def load_sheets(excel_path: str, modules: List[str], condition_keyword: str = '逾期', keep_cols:List[str] = None) -> Dict[str, pd.DataFrame]:
+def load_sheets(excel_path: str, modules: List[str], keep_cols: List[str] = None) -> Dict[str, pd.DataFrame]:
     """
-    加载所有模块sheet，筛选包含 condition_keyword 的行，并过滤掉包含随机占位符的行
+    加载所有模块sheet，保留所有行（不再预过滤条件）。
+    条件筛选将在 DialogueBuilder 中由 ConditionEvaluator 动态执行。
     """
     df_dict = {}
     for sheet in modules:
         df = pd.read_excel(excel_path, sheet_name=sheet)
-        # 筛选 conditions 列包含指定关键词的行
-        mask = df['conditions(条件)'].apply(lambda x: isinstance(x, str) and condition_keyword in x)
         if keep_cols is None:
-            keep_cols = ['uid', 'parent(继承)', 'repeat(次数)', 'conditions(条件)', 'human(客户)', 'assistant(专员)', 'flexible_stop(可选不继承)', '是否再见']
-        df_filtered = df.loc[mask, keep_cols].copy()
+            # 默认保留所有核心列（可根据需要增减）
+            keep_cols = ['uid', 'parent(继承)', 'repeat(次数)', 'conditions(条件)', 
+                         'human(客户)', 'assistant(专员)', 'flexible_stop(可选不继承)', '是否再见']
+        # 只保留需要的列，但不进行行过滤
+        df_filtered = df[keep_cols].copy() if all(c in df.columns for c in keep_cols) else df.loc[:, keep_cols].copy()
         df_dict[sheet] = df_filtered
     return df_dict
 
