@@ -30,8 +30,6 @@ class PressureManager:
 
         # 超出范围时降级使用最大 repeat
         effective_repeat = repeat if repeat <= self.max_repeat else self.max_repeat
-        # if effective_repeat != repeat:
-        #     logger.warning(f"施压话术表最大 repeat={self.max_repeat}，请求 repeat={repeat}，降级使用 repeat={effective_repeat}")
         if effective_repeat != repeat:
             if module_name:
                 logger.warning(f"模块 '{module_name}' 请求 repeat={repeat}，施压话术表最大 repeat={self.max_repeat}，降级使用 repeat={effective_repeat}")

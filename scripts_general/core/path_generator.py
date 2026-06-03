@@ -29,6 +29,7 @@ class PathGenerator:
         self.a_set = set(config.get('a_set', []))
         self.b_set = set(config.get('b_set', []))
         self.start_module = config.get('start_module', self.modules[0])
+        self.cache_path_template = config.get('paths_cache')
 
     def generate_one(self) -> List[str]:
         # 使用 self.rng 替代 random 和 np.random
@@ -87,6 +88,8 @@ class PathGenerator:
 
     def generate(self, num_paths: int, seed: int, cache_path: Optional[str] = None) -> List[List[str]]:
         """生成多条不重复路径，支持缓存"""
+        if cache_path is None and self.cache_path_template:
+            cache_path = self.cache_path_template.format(num_paths=num_paths, seed=seed)
 
         if cache_path:
             import os
