@@ -1,17 +1,6 @@
-'''
-Step 5：拆分路径生成器
-操作：创建 core/path_generator.py，类 PathGenerator：
-
-初始化接收 config（含模块列表、MAX_REPEAT、A/B集、终止模块等）和 prob_df
-
-方法 generate(num_paths, seed) 返回 List[List[str]]
-
-内部实现当前 generate_path 的逻辑，支持缓存。
-原因：路径生成是独立业务逻辑，单独封装后可单独优化或替换（如改用概率矩阵采样不同算法）。
-'''
-
 import json
 import os
+import logging
 import numpy as np
 import pandas as pd
 from typing import List, Set, Optional
@@ -19,10 +8,11 @@ from core.config import Config
 from core.random_service import RandomService
 
 class PathGenerator:
-    def __init__(self, config: Config, prob_df: pd.DataFrame, rng: RandomService):
+    def __init__(self, config: Config, prob_df: pd.DataFrame, rng: RandomService, logger: logging.Logger = None):
         self.config = config
         self.prob_df = prob_df
         self.rng = rng
+        self.logger = logger or logging.getLogger('PathGenerator')
         self.modules = config.get('modules')
         self.max_repeat = config.get('max_repeat')
         self.terminal_nodes = set(config.get('terminal_modules', []))
@@ -31,8 +21,15 @@ class PathGenerator:
         self.start_module = config.get('start_module', self.modules[0])
         self.cache_path_template = config.get('paths_cache')
 
+        # 验证缓存模板是否包含必要占位符
+        if self.cache_path_template:
+            if '{num_paths}' not in self.cache_path_template or '{seed}' not in self.cache_path_template:
+                self.logger.warning(
+                    f"缓存路径模板 {self.cache_path_template} 缺少 {{num_paths}} 或 {{seed}} 占位符，"
+                    "生成的缓存文件可能会互相覆盖。建议修改为类似 'intermediate/all_paths_{num_paths}_{seed}.json'"
+                )
+
     def generate_one(self) -> List[str]:
-        # 使用 self.rng 替代 random 和 np.random
         path = [self.start_module]
         counts = {mod: 0 for mod in self.modules}
         counts[self.start_module] = 1
@@ -41,7 +38,6 @@ class PathGenerator:
         current = self.start_module
 
         while True:
-            # ... 候选集逻辑不变 ...
             if current == "身份确认":
                 candidates = ["告知", "三方"]
             elif current == "告知":
@@ -87,21 +83,24 @@ class PathGenerator:
         return path
 
     def generate(self, num_paths: int, seed: int, cache_path: Optional[str] = None) -> List[List[str]]:
-        """生成多条不重复路径，支持缓存"""
+        """生成多条不重复路径，支持缓存（缓存文件名默认包含参数，避免覆盖）"""
         if cache_path is None and self.cache_path_template:
-            cache_path = self.cache_path_template.format(num_paths=num_paths, seed=seed)
+            try:
+                cache_path = self.cache_path_template.format(num_paths=num_paths, seed=seed)
+            except KeyError as e:
+                self.logger.error(f"缓存模板缺少占位符 {e}，请确保模板包含 {{num_paths}} 和 {{seed}}")
+                raise
 
-        if cache_path:
-            import os
-            if os.path.exists(cache_path):
-                with open(cache_path, 'r', encoding='utf-8') as f:
-                    cache_data = json.load(f)
-                if cache_data.get("seed") == seed and cache_data.get("num_paths") == num_paths:
-                    print(f"从缓存加载 {len(cache_data['paths'])} 条路径")
-                    return cache_data["paths"]
-                else:
-                    print("缓存种子或数量不匹配，重新生成")
+        if cache_path and os.path.exists(cache_path):
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+            if cache_data.get("seed") == seed and cache_data.get("num_paths") == num_paths:
+                self.logger.info(f"从缓存加载 {len(cache_data['paths'])} 条路径 (文件: {cache_path})")
+                return cache_data["paths"]
+            else:
+                self.logger.info("缓存种子或数量不匹配，重新生成路径")
 
+        self.logger.info(f"开始生成 {num_paths} 条不重复路径...")
         paths = []
         paths_set = set()   # 确保路径唯一
         max_attempts = num_paths * 10
@@ -114,15 +113,16 @@ class PathGenerator:
                 paths_set.add(path_tuple)
                 paths.append(path)
             if attempts % 10000 == 0:
-                print(f"已尝试 {attempts} 次，当前唯一路径数 {len(paths)}")
+                self.logger.info(f"已尝试 {attempts} 次，当前唯一路径数 {len(paths)}")
 
         if len(paths) < num_paths:
-            print(f"警告：仅生成 {len(paths)} 条不重复路径，达到最大尝试次数")
+            self.logger.warning(f"仅生成 {len(paths)} 条不重复路径，达到最大尝试次数 {max_attempts}")
 
         if cache_path:
             cache_data = {"seed": seed, "num_paths": num_paths, "paths": paths}
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
             with open(cache_path, 'w', encoding='utf-8') as f:
                 json.dump(cache_data, f, ensure_ascii=False, indent=2)
-
+            self.logger.info(f"路径缓存已保存至 {cache_path}")
+            
         return paths

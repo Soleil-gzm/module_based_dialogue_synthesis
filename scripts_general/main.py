@@ -56,7 +56,7 @@ def main():
     modules = config.get('modules')
     # keep_cols = config.get('keep_columns', None)  # 若没有配置则 None，函数内部会用默认（扩展使用）
     # df_dict = load_sheets(excel_path, modules, condition_keyword='逾期', keep_cols=keep_cols)
-    df_dict = load_sheets(excel_path, modules, condition_keyword='逾期')
+    df_dict = load_sheets(excel_path, modules)
 
     logger.info("加载概率矩阵...")
     prob_path = config.get('prob_path')
@@ -77,11 +77,12 @@ def main():
     condition_evaluator = create_condition_evaluator(config)
 
     # 5. 生成路径（带缓存）
-    path_gen = PathGenerator(config, prob_df, rng)
+    path_gen = PathGenerator(config, prob_df, rng, logger)  # 增加 logger 参数
     num_paths = config.get('num_paths')
+    seed = config.get('random_seed')
     cache_path = config.get('paths_cache')
     logger.info(f"开始生成 {num_paths} 条路径...")
-    all_paths = path_gen.generate(num_paths, seed, cache_path)
+    all_paths = path_gen.generate(num_paths, seed)
     logger.info(f"路径生成完成，共 {len(all_paths)} 条")
 
     # 6. 对话生成（支持断点续传）
