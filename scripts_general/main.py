@@ -2,11 +2,11 @@
 """
 多轮对话生成脚本（重构版）
 基于配置驱动、模块化设计，支持通用催收模板。
+支持断点续传和可选的详细追踪（trace）。
 """
 
 import json
 import os
-import pickle  # 用于保存检查点状态
 from datetime import datetime
 
 import pandas as pd
@@ -60,8 +60,6 @@ def main():
     logger.info("加载 Excel 模块...")
     excel_path = config.get("excel_path")
     modules = config.get("modules")
-    # keep_cols = config.get('keep_columns', None)  # 若没有配置则 None，函数内部会用默认（扩展使用）
-    # df_dict = load_sheets(excel_path, modules, condition_keyword='逾期', keep_cols=keep_cols)
     df_dict = load_sheets(excel_path, modules)
 
     logger.info("加载概率矩阵...")
@@ -70,32 +68,27 @@ def main():
 
     logger.info("加载案例...")
     cases_dir = config.get("cases_dir")
-    cases, prompts = load_cases(cases_dir)
+    cases, prompts = load_cases(cases_dir, rng=rng)  # 传入 rng 保证随机金额可复现
     logger.info(f"加载案例数量: {len(cases)}")
 
     # 单独加载施压话术表
     pressure_df = pd.read_excel(excel_path, sheet_name="链接施压话术")
-    # 可选：对 pressure_df 也进行条件筛选（例如只保留包含“逾期”的行），根据业务决定
-    # 这里为了完整继承，保留所有行
     pressure_manager = PressureManager(pressure_df, rng)
 
     # 4. 创建条件解析器
     condition_evaluator = create_condition_evaluator(config)
 
     # 5. 生成路径（带缓存）
-    path_gen = PathGenerator(config, prob_df, rng, logger)  # 增加 logger 参数
+    path_gen = PathGenerator(config, prob_df, rng, logger)
     num_paths = config.get("num_paths")
-    seed = config.get("random_seed")
-    cache_path = config.get("paths_cache")
     logger.info(f"开始生成 {num_paths} 条路径...")
     all_paths = path_gen.generate(num_paths, seed)
     logger.info(f"路径生成完成，共 {len(all_paths)} 条")
 
     # 6. 对话生成（支持断点续传）
     checkpoint_interval = config.get("checkpoint_interval", 5000)
-    checkpoint_file = os.path.join(
-        config.get("output_dir", "output"), "checkpoint.json"
-    )
+    output_dir = config.get("output_dir", "output")
+    checkpoint_file = os.path.join(output_dir, "checkpoint.json")
 
     # 加载已有进度
     existing_dialogues, start_index = load_checkpoint(checkpoint_file)
@@ -113,6 +106,7 @@ def main():
     )
 
     all_dialogues = existing_dialogues.copy()
+    all_traces = []  # 存储追踪数据（如果启用）
     total_paths = len(all_paths)
 
     logger.info(f"开始生成对话，共 {total_paths} 条路径，从索引 {start_index} 开始...")
@@ -123,6 +117,9 @@ def main():
         try:
             messages = builder.build(path, case, prompt)
             all_dialogues.append({"messages": messages})
+            if config.get("trace_enabled", False):
+                trace_data = builder.get_trace_data()
+                all_traces.append(trace_data)
         except Exception as e:
             logger.error(f"生成第{i}条对话时出错，路径长度: {len(path)}", exc_info=True)
             continue
@@ -132,8 +129,7 @@ def main():
             save_checkpoint(all_dialogues, i + 1, checkpoint_file)
             logger.info(f"已生成 {i+1}/{total_paths} 条对话，检查点已保存")
 
-    # 最终保存
-    output_dir = config.get("output_dir", "output")
+    # 最终保存对话
     os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_file = os.path.join(output_dir, f"general_dialogues_{timestamp}.json")
@@ -145,6 +141,15 @@ def main():
         os.remove(checkpoint_file)
 
     logger.info(f"生成完成，共 {len(all_dialogues)} 条对话，保存至 {out_file}")
+
+    # 保存追踪数据（如果启用）
+    if config.get("trace_enabled", False) and all_traces:
+        trace_output_dir = config.get("trace_output_dir", "traces")
+        os.makedirs(trace_output_dir, exist_ok=True)
+        trace_file = os.path.join(trace_output_dir, f"traces_{timestamp}.json")
+        with open(trace_file, "w", encoding="utf-8") as f:
+            json.dump(all_traces, f, ensure_ascii=False, indent=2)
+        logger.info(f"追踪数据已保存至 {trace_file}")
 
 
 if __name__ == "__main__":

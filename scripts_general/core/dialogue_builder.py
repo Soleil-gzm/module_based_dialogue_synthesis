@@ -1,13 +1,18 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from core.condition import ConditionEvaluator
 from core.config import Config
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
-from core.utterance import (fill_placeholders, get_ancestors,
-                            get_random_descendant_chain, sample_utterance)
+from core.trace import TraceCollector
+from core.utterance import (
+    fill_placeholders,
+    get_ancestors,
+    get_random_descendant_chain,
+    sample_utterance,
+)
 
 
 class DialogueBuilder:
@@ -19,21 +24,21 @@ class DialogueBuilder:
         df_dict: Dict[str, pd.DataFrame],
         condition_evaluator: ConditionEvaluator,
         rng: RandomService,
-        pressure_manager: PressureManager,  # 新增参数
+        pressure_manager: PressureManager,
         logger: logging.Logger = None,
     ):
         self.config = config
         self.df_dict = df_dict
         self.condition_evaluator = condition_evaluator
         self.rng = rng
-        self.pressure_manager = pressure_manager  # 使用外部传入的实例
+        self.pressure_manager = pressure_manager
         self.logger = logger or logging.getLogger("DialogueBuilder")
         self.insert_nodes = set(config.get("insert_nodes", []))
         self.pressure_prob = config.get("pressure_prob", 0.6)
         self.max_repeat = config.get("max_repeat", {})
-        self.goodbye_termination_prob = config.get(
-            "goodbye_termination_prob", 0.7
-        )  # 新增
+        self.goodbye_termination_prob = config.get("goodbye_termination_prob", 0.7)
+        self.trace_enabled = config.get("trace_enabled", False)
+        self.trace_collector = TraceCollector(self.trace_enabled)
 
     def _should_terminate(self, row: pd.Series, repeat: int, node: str) -> bool:
         """检查是否因再见标志而终止（包含概率控制）"""
@@ -67,7 +72,6 @@ class DialogueBuilder:
         if merge_last and messages and messages[-1].get("role") == "assistant":
             # 合并第一条 assistant 到上一轮
             messages[-1]["content"] += segment[0]["assistant"]
-            # 剩余部分按正常追加
             remaining = segment[1:]
         else:
             remaining = segment
@@ -80,118 +84,165 @@ class DialogueBuilder:
                     {"role": "assistant", "content": item["assistant"], "loss": "True"}
                 )
 
-    def build(
-        self, path: List[str], case: Dict[str, Any], prompt_text: str
-    ) -> List[Dict]:
+    def _process_module(
+        self,
+        node: str,
+        repeat: int,
+        case: Dict[str, Any],
+        messages: List[Dict],
+        node_counts: Dict[str, int],
+    ) -> Tuple[bool, str]:
+        """
+        处理单个模块的话术选择和对话追加。
+
+        返回: (stop_dialogue, stop_reason)
+            stop_dialogue: 是否应该终止整个对话
+            stop_reason: 终止原因（仅在 stop_dialogue=True 时有意义）
+        """
+        df_node = self.df_dict.get(node)
+        if df_node is None or df_node.empty:
+            self.logger.debug(f"模块 {node} 无数据，跳过")
+            self.trace_collector.set_module_status(self._current_module_trace, "skipped_no_data")
+            return False, ""
+
+        # 筛选 repeat 匹配的行
+        mask = df_node["repeat(次数)"].apply(
+            lambda x: str(repeat) in str(x).split("/") if pd.notna(x) else False
+        )
+        candidates = df_node[mask]
+        if candidates.empty:
+            self.logger.debug(f"模块 {node} repeat={repeat} 无候选行")
+            self.trace_collector.set_module_status(self._current_module_trace, "skipped_no_repeat_match")
+            return False, ""
+
+        # 根据条件筛选
+        valid_rows = []
+        for _, row in candidates.iterrows():
+            cond_str = row.get("conditions(条件)", "")
+            if self.condition_evaluator.evaluate(cond_str, case):
+                valid_rows.append(row)
+        if not valid_rows:
+            self.logger.debug(f"模块 {node} repeat={repeat} 无满足条件的行")
+            self.trace_collector.set_module_status(self._current_module_trace, "skipped_condition_mismatch")
+            return False, ""
+
+        row = self.rng.choice(valid_rows)
+        self.trace_collector.set_module_selected_uid(self._current_module_trace, row["uid"])
+
+        ancestors = get_ancestors(row["uid"], df_node)
+        descendant_chain = get_random_descendant_chain(row["uid"], df_node, self.rng)
+
+        # 构建 turn_list
+        turn_list = []
+        stop_dialogue = False
+        stop_reason = ""
+
+        # 祖先链
+        for anc in ancestors:
+            user_txt = sample_utterance(anc, True, self.rng)
+            assistant_txt = sample_utterance(anc, False, self.rng)
+            if user_txt or assistant_txt:
+                turn_list.append((user_txt, assistant_txt))
+            if self._should_terminate(anc, repeat, node):
+                stop_dialogue = True
+                stop_reason = f"goodbye_in_ancestor_{anc['uid']}"
+                self.trace_collector.set_stop_reason(stop_reason, self._current_module_trace)
+                break
+        if stop_dialogue:
+            self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
+            return True, stop_reason
+
+        # 当前行
+        current_user = sample_utterance(row, True, self.rng)
+        current_assistant = sample_utterance(row, False, self.rng)
+        turn_list.append((current_user, current_assistant))
+        if self._should_terminate(row, repeat, node):
+            stop_reason = f"goodbye_in_current_{row['uid']}"
+            self.trace_collector.set_stop_reason(stop_reason, self._current_module_trace)
+            self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
+            return True, stop_reason
+
+        # 后代链
+        for desc in descendant_chain:
+            user_txt = sample_utterance(desc, True, self.rng)
+            assistant_txt = sample_utterance(desc, False, self.rng)
+            if user_txt or assistant_txt:
+                turn_list.append((user_txt, assistant_txt))
+            if self._should_terminate(desc, repeat, node):
+                stop_dialogue = True
+                stop_reason = f"goodbye_in_descendant_{desc['uid']}"
+                self.trace_collector.set_stop_reason(stop_reason, self._current_module_trace)
+                break
+        if stop_dialogue:
+            self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
+            return True, stop_reason
+
+        # 记录追踪数据
+        self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
+        self.trace_collector.set_module_ancestors_descendants(
+            self._current_module_trace, len(ancestors), len(descendant_chain)
+        )
+
+        # 添加话术到 messages
+        for user_txt, assistant_txt in turn_list:
+            if user_txt:
+                messages.append({"role": "user", "content": user_txt})
+            if assistant_txt:
+                messages.append({"role": "assistant", "content": assistant_txt, "loss": "True"})
+
+        # 施压话术处理
+        if node in self.insert_nodes and self.rng.random() <= self.pressure_prob:
+            pressure_segment, has_customer_first = self.pressure_manager.get_pressure_segment(
+                repeat, case, self.condition_evaluator, module_name=node
+            )
+            if pressure_segment:
+                if not has_customer_first and messages:
+                    self._append_segment(messages, pressure_segment, merge_last=True)
+                else:
+                    self._append_segment(messages, pressure_segment, merge_last=False)
+                self.trace_collector.set_module_pressure(
+                    self._current_module_trace, applied=True, seg_len=len(pressure_segment)
+                )
+
+        return False, ""
+
+    def build(self, path: List[str], case: Dict[str, Any], prompt_text: str) -> List[Dict]:
         """生成一条完整的对话消息列表"""
+        self.trace_collector.start_dialogue(path, case.get("客户姓名", "unknown"))
+
         messages = []
         sys_content = f"你是一个{case.get('抬头', '催收专员')}，请根据客户的情况，使用合适的话术与客户进行沟通，争取让客户承诺还款。\n{prompt_text}"
         messages.append({"role": "system", "content": sys_content})
 
         node_counts = {}
+        overall_stop_reason = None
 
         for node in path:
-            node_counts[node] = node_counts.get(node, 0) + 1  # 模块出现次数
-            repeat = node_counts[node]  # repeat次进入模块根据repeat行来抽取话术
-            df_node = self.df_dict.get(node)
-            if df_node is None or df_node.empty:
-                self.logger.debug(f"模块 {node} 无数据，跳过")
-                continue
+            repeat = node_counts.get(node, 0) + 1
+            node_counts[node] = repeat
 
-            # 筛选 repeat 匹配的行
-            mask = df_node["repeat(次数)"].apply(
-                lambda x: str(repeat) in str(x).split("/") if pd.notna(x) else False
+            # 开始模块追踪
+            self._current_module_trace = self.trace_collector.start_module(node, repeat)
+
+            stop_dialogue, stop_reason = self._process_module(
+                node, repeat, case, messages, node_counts
             )
-            candidates = df_node[mask]
-            if candidates.empty:
-                self.logger.debug(f"模块 {node} repeat={repeat} 无候选行")
-                continue
-
-            # 根据条件筛选
-            valid_rows = []
-            for _, row in candidates.iterrows():
-                cond_str = row.get("conditions(条件)", "")
-                if self.condition_evaluator.evaluate(cond_str, case):
-                    valid_rows.append(row)
-            if not valid_rows:
-                self.logger.debug(f"模块 {node} repeat={repeat} 无满足条件的行")
-                continue
-
-            row = self.rng.choice(valid_rows)
-
-            # 获取祖先、后代链
-            ancestors = get_ancestors(row["uid"], df_node)  # 无随机，直接使用
-            descendant_chain = get_random_descendant_chain(
-                row["uid"], df_node, self.rng
-            )
-
-            # 构建 turn_list，同时检查再见
-            turn_list = []
-            stop_dialogue = False
-
-            # 处理祖先链（一般不会有再见，但为了健壮也检查）
-            for anc in ancestors:
-                user_txt = sample_utterance(anc, True, self.rng)
-                assistant_txt = sample_utterance(anc, False, self.rng)
-                if user_txt or assistant_txt:
-                    turn_list.append((user_txt, assistant_txt))
-                if self._should_terminate(anc, repeat, node):
-                    stop_dialogue = True
-                    break  # 跳出祖先链构建
             if stop_dialogue:
-                break  # 跳出全局对话构建
-
-            # 处理当前行
-            current_user = sample_utterance(row, True, self.rng)
-            current_assistant = sample_utterance(row, False, self.rng)
-            turn_list.append((current_user, current_assistant))
-            if self._should_terminate(row, repeat, node):
+                overall_stop_reason = stop_reason
                 break
 
-            # 处理后代链（可能包含再见）
-            for desc in descendant_chain:
-                user_txt = sample_utterance(desc, True, self.rng)
-                assistant_txt = sample_utterance(desc, False, self.rng)
-                if user_txt or assistant_txt:
-                    turn_list.append((user_txt, assistant_txt))
-                if self._should_terminate(desc, repeat, node):
-                    stop_dialogue = True
-                    break
-            if stop_dialogue:
-                break
+        else:
+            # 循环自然结束
+            if overall_stop_reason is None:
+                self.trace_collector.set_stop_reason("path_natural_end")
 
-            # 将所有 turn_list 中的话术添加到 messages
-            for user_txt, assistant_txt in turn_list:
-                if user_txt:
-                    messages.append({"role": "user", "content": user_txt})
-                if assistant_txt:
-                    messages.append(
-                        {"role": "assistant", "content": assistant_txt, "loss": "True"}
-                    )
-
-            self.logger.info(f"模块 {node} repeat={repeat} 成功添加 {len(turn_list)} 轮对话")
-
-            # ========== 施压话术处理开始 ==========
-            if node in self.insert_nodes and self.rng.random() <= self.pressure_prob:
-                pressure_segment, has_customer_first = (
-                    self.pressure_manager.get_pressure_segment(
-                        repeat, case, self.condition_evaluator, module_name=node
-                    )
-                )
-                if pressure_segment:
-                    # 根据首轮是否有客户话术以及是否有上一条消息决定是否合并
-                    if not has_customer_first and messages:
-                        self._append_segment(
-                            messages, pressure_segment, merge_last=True
-                        )
-                    else:
-                        self._append_segment(
-                            messages, pressure_segment, merge_last=False
-                        )
-            # ========== 施压话术处理结束 ==========
-
-        # 占位符填充（无随机）
+        # 占位符填充
         for msg in messages:
             if "content" in msg:
                 msg["content"] = fill_placeholders(msg["content"], case)
+
         return messages
+
+    def get_trace_data(self) -> Dict:
+        """返回当前对话的追踪数据（仅在 trace_enabled 时有效）"""
+        return self.trace_collector.to_dict()

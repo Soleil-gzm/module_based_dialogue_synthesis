@@ -120,6 +120,10 @@ cases_dir: "datas/cases"
 # 输出配置
 output_dir: "output"
 
+# 追踪配置
+trace_enabled: true   # 是否启用详细追踪
+trace_output_dir: "traces"   # 可选，追踪输出目录（在 main 中使用）
+
 # 日志配置
 logging:
   level: "DEBUG"
