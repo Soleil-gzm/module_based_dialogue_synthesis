@@ -34,6 +34,32 @@ class DialogueBuilder:
             else:
                 self.logger.debug(f"模块 {node} repeat={repeat} 再见被忽略（概率不触发），继续对话")
         return False
+    
+    def _append_segment(self, messages: List[Dict], segment: List[Dict[str, str]], merge_last: bool = False) -> None:
+        """
+        将施压话术片段追加到对话消息列表中。
+        
+        Args:
+            messages: 当前对话消息列表（会被原地修改）
+            segment: 话术片段，每个元素为 {"user": str, "assistant": str}
+            merge_last: 是否将片段的第一条 assistant 合并到上一条 assistant 消息中
+        """
+        if not segment:
+            return
+
+        if merge_last and messages and messages[-1].get("role") == "assistant":
+            # 合并第一条 assistant 到上一轮
+            messages[-1]["content"] += segment[0]["assistant"]
+            # 剩余部分按正常追加
+            remaining = segment[1:]
+        else:
+            remaining = segment
+
+        for item in remaining:
+            if item.get("user"):
+                messages.append({"role": "user", "content": item["user"]})
+            if item.get("assistant"):
+                messages.append({"role": "assistant", "content": item["assistant"], "loss": "True"})
 
     def build(self, path: List[str], case: Dict[str, Any], prompt_text: str) -> List[Dict]:
         """生成一条完整的对话消息列表"""
@@ -123,31 +149,11 @@ class DialogueBuilder:
                     repeat, case, self.condition_evaluator, module_name=node
                 )
                 if pressure_segment:
+                    # 根据首轮是否有客户话术以及是否有上一条消息决定是否合并
                     if not has_customer_first and messages:
-                        last_msg = messages[-1]
-                        if last_msg["role"] == "assistant":
-                            # 合并第一条施压专员话术到上一轮
-                            last_msg["content"] += pressure_segment[0]["assistant"]
-                            # 剩余部分（如果有）作为新轮次追加
-                            for seg in pressure_segment[1:]:
-                                if seg.get("user"):
-                                    messages.append({"role": "user", "content": seg["user"]})
-                                if seg.get("assistant"):
-                                    messages.append({"role": "assistant", "content": seg["assistant"], "loss": "True"})
-                        else:
-                            # 上一轮不是 assistant，则全部作为新轮次
-                            for seg in pressure_segment:
-                                if seg.get("user"):
-                                    messages.append({"role": "user", "content": seg["user"]})
-                                if seg.get("assistant"):
-                                    messages.append({"role": "assistant", "content": seg["assistant"], "loss": "True"})
+                        self._append_segment(messages, pressure_segment, merge_last=True)
                     else:
-                        # 第一轮有客户话术：整个片段作为新轮次追加
-                        for seg in pressure_segment:
-                            if seg.get("user"):
-                                messages.append({"role": "user", "content": seg["user"]})
-                            if seg.get("assistant"):
-                                messages.append({"role": "assistant", "content": seg["assistant"], "loss": "True"})
+                        self._append_segment(messages, pressure_segment, merge_last=False)
             # ========== 施压话术处理结束 ==========
 
         # 占位符填充（无随机）
