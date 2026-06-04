@@ -1,11 +1,7 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-df = pd.DataFrame({
-    "A": [1, 2, 3],
-    "B": [10, 20, 30],
-    "C": [100, 200, 300]
-})
+df = pd.DataFrame({"A": [1, 2, 3], "B": [10, 20, 30], "C": [100, 200, 300]})
 
 print("原始数据：")
 print(df)
