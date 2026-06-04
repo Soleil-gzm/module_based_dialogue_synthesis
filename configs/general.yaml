@@ -79,7 +79,7 @@ b_set:
   - "承诺还款"
 
 terminal_modules:
-  - "承诺还款"
+  # - "承诺还款"
   - "已还款"
 
 insert_nodes:
@@ -95,7 +95,7 @@ insert_nodes:
 pressure_prob: 0.6
 
 # 遇到“是否再见=1”时终止对话的概率，范围 [0,1]
-goodbye_termination_prob: 0.7   
+goodbye_termination_prob: 0.3   
 
 # 条件解析器类型: "keyword" (当前简化版), "simple_eval" (未来可扩展)
 condition_parser: "keyword"
@@ -107,7 +107,7 @@ keep_columns:
   - ...
 
 # 路径生成配置
-num_paths: 1000
+num_paths: 100
 random_seed: 42
 paths_cache: "intermediate/all_paths_{num_paths}_{seed}.json"
 checkpoint_interval: 5000   # 每生成5000条对话保存一次检查点

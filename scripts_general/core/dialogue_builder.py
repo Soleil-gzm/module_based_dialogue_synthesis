@@ -169,6 +169,8 @@ class DialogueBuilder:
                         {"role": "assistant", "content": assistant_txt, "loss": "True"}
                     )
 
+            self.logger.info(f"模块 {node} repeat={repeat} 成功添加 {len(turn_list)} 轮对话")
+
             # ========== 施压话术处理开始 ==========
             if node in self.insert_nodes and self.rng.random() <= self.pressure_prob:
                 pressure_segment, has_customer_first = (
