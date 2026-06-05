@@ -4,4 +4,4 @@ output/
 intermediate/
 logs/
 __pycache__
-traces/
+scripts_test/
