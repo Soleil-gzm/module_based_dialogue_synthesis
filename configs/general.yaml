@@ -109,7 +109,7 @@ keep_columns:
 # 路径生成配置
 num_paths: 100
 random_seed: 42
-paths_cache: "intermediate/all_paths_{num_paths}_{seed}.json"
+paths_cache: "intermediate/path/all_paths_{num_paths}_{seed}.json"
 checkpoint_interval: 5000   # 每生成5000条对话保存一次检查点
 
 # 数据文件路径
@@ -122,12 +122,12 @@ output_dir: "output"
 
 # 追踪配置
 trace_enabled: true   # 是否启用详细追踪
-trace_output_dir: "traces"   # 可选，追踪输出目录（在 main 中使用）
+trace_output_dir: "intermediate/traces"   # 可选，追踪输出目录（在 main 中使用）
 
 # 日志配置
 logging:
   level: "DEBUG"
-  log_dir: "logs"
+  log_dir: "intermediate/logs"
   file_prefix: "dialogue_builder"
   console: true
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

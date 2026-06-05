@@ -94,7 +94,6 @@ class DialogueBuilder:
     ) -> Tuple[bool, str]:
         """
         处理单个模块的话术选择和对话追加。
-
         返回: (stop_dialogue, stop_reason)
             stop_dialogue: 是否应该终止整个对话
             stop_reason: 终止原因（仅在 stop_dialogue=True 时有意义）
@@ -137,45 +136,56 @@ class DialogueBuilder:
         stop_dialogue = False
         stop_reason = ""
 
-        # 祖先链
+        # --- 辅助函数：将 turn_list 提交到 messages ---
+        def flush_turn_list():
+            for user_txt, assistant_txt in turn_list:
+                if user_txt:
+                    messages.append({"role": "user", "content": user_txt})
+                if assistant_txt:
+                    messages.append({"role": "assistant", "content": assistant_txt, "loss": "True"})
+
+        # 处理祖先链
         for anc in ancestors:
             user_txt = sample_utterance(anc, True, self.rng)
             assistant_txt = sample_utterance(anc, False, self.rng)
             if user_txt or assistant_txt:
                 turn_list.append((user_txt, assistant_txt))
             if self._should_terminate(anc, repeat, node):
+                # 触发再见：先提交已收集的话术（包括这一轮），然后停止
+                flush_turn_list()       # 确保再见前保存当前对话
                 stop_dialogue = True
                 stop_reason = f"goodbye_in_ancestor_{anc['uid']}"
                 self.trace_collector.set_stop_reason(stop_reason, self._current_module_trace)
-                break
-        if stop_dialogue:
-            self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
-            return True, stop_reason
+                self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
+                return True, stop_reason
 
-        # 当前行
+        # 处理当前行
         current_user = sample_utterance(row, True, self.rng)
         current_assistant = sample_utterance(row, False, self.rng)
         turn_list.append((current_user, current_assistant))
         if self._should_terminate(row, repeat, node):
+            flush_turn_list()
             stop_reason = f"goodbye_in_current_{row['uid']}"
             self.trace_collector.set_stop_reason(stop_reason, self._current_module_trace)
             self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
             return True, stop_reason
 
-        # 后代链
+        # 处理后代链
         for desc in descendant_chain:
             user_txt = sample_utterance(desc, True, self.rng)
             assistant_txt = sample_utterance(desc, False, self.rng)
             if user_txt or assistant_txt:
                 turn_list.append((user_txt, assistant_txt))
             if self._should_terminate(desc, repeat, node):
+                flush_turn_list()
                 stop_dialogue = True
                 stop_reason = f"goodbye_in_descendant_{desc['uid']}"
                 self.trace_collector.set_stop_reason(stop_reason, self._current_module_trace)
-                break
-        if stop_dialogue:
-            self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
-            return True, stop_reason
+                self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
+                return True, stop_reason
+
+        # 无再见触发：正常提交所有话术
+        flush_turn_list()
 
         # 记录追踪数据
         self.trace_collector.set_module_turn_count(self._current_module_trace, len(turn_list))
@@ -183,25 +193,20 @@ class DialogueBuilder:
             self._current_module_trace, len(ancestors), len(descendant_chain)
         )
 
-        # 添加话术到 messages
-        for user_txt, assistant_txt in turn_list:
-            if user_txt:
-                messages.append({"role": "user", "content": user_txt})
-            if assistant_txt:
-                messages.append({"role": "assistant", "content": assistant_txt, "loss": "True"})
-
         # 施压话术处理
         if node in self.insert_nodes and self.rng.random() <= self.pressure_prob:
             pressure_segment, has_customer_first = self.pressure_manager.get_pressure_segment(
                 repeat, case, self.condition_evaluator, module_name=node
             )
             if pressure_segment:
-                if not has_customer_first and messages:
+                # 决定是否合并
+                merge_last = (not has_customer_first and messages)
+                if merge_last:
                     self._append_segment(messages, pressure_segment, merge_last=True)
                 else:
                     self._append_segment(messages, pressure_segment, merge_last=False)
                 self.trace_collector.set_module_pressure(
-                    self._current_module_trace, applied=True, seg_len=len(pressure_segment)
+                    self._current_module_trace, applied=True, seg_len=len(pressure_segment), merge_last=merge_last
                 )
 
         return False, ""

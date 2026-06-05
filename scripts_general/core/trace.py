@@ -44,6 +44,7 @@ class TraceCollector:
             "selected_uid": None,
             "pressure_applied": False,
             "pressure_segment_length": 0,
+            "pressure_merge_last": False, 
         }
         self.data["modules"].append(module_trace)
         return module_trace
@@ -69,10 +70,11 @@ class TraceCollector:
             module_trace["ancestor_count"] = anc_cnt
             module_trace["descendant_count"] = desc_cnt
 
-    def set_module_pressure(self, module_trace: Dict, applied: bool, seg_len: int = 0):
+    def set_module_pressure(self, module_trace: Dict, applied: bool, seg_len: int = 0, merge_last: bool = False):
         if self.enabled:
             module_trace["pressure_applied"] = applied
             module_trace["pressure_segment_length"] = seg_len
+            module_trace["pressure_merge_last"] = merge_last 
 
     def set_stop_reason(self, reason: str, module_trace: Dict = None):
         """设置整个对话停止的原因，可关联到某个模块"""
