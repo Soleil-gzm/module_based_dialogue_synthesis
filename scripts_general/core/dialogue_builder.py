@@ -35,6 +35,7 @@ class DialogueBuilder:
         self.goodbye_termination_prob = config.get("goodbye_termination_prob", 0.7)
         self.trace_enabled = config.get("trace_enabled", False)
         self.trace_collector = TraceCollector(self.trace_enabled)
+        self.flexible_stop_prob = config.get("flexible_stop_prob",0.3)
 
     def _should_terminate(self, row: pd.Series, repeat: int, node: str) -> bool:
         """检查是否因再见标志而终止（包含概率控制）"""
@@ -133,7 +134,7 @@ class DialogueBuilder:
         )
 
         ancestors = get_ancestors(row["uid"], df_node)
-        descendant_chain = get_random_descendant_chain(row["uid"], df_node, self.rng)
+        descendant_chain = get_random_descendant_chain(row["uid"], df_node, self.rng,stop_prob=self.flexible_stop_prob)
 
         # 构建 turn_list
         turn_list = []

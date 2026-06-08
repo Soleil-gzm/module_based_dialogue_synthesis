@@ -73,7 +73,7 @@ def main():
 
     # 单独加载施压话术表
     pressure_df = pd.read_excel(excel_path, sheet_name="链接施压话术")
-    pressure_manager = PressureManager(pressure_df, rng)
+    pressure_manager = PressureManager(pressure_df, rng, config)
 
     # 4. 创建条件解析器
     condition_evaluator = create_condition_evaluator(config)

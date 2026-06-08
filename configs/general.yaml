@@ -96,6 +96,8 @@ pressure_prob: 0.6
 
 # 遇到“是否再见=1”时终止对话的概率，范围 [0,1]
 goodbye_termination_prob: 0.3   
+# 后代链停止概率（当 flexible_stop=1 时，以该概率停止继续向下）
+flexible_stop_prob: 0.3
 
 # 条件解析器类型: "keyword" (当前简化版), "simple_eval" (未来可扩展)
 condition_parser: "keyword"

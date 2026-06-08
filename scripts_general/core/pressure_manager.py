@@ -5,6 +5,7 @@ import pandas as pd
 from core.random_service import RandomService
 from core.utterance import (get_ancestors, get_random_descendant_chain,
                             sample_utterance)
+from core.config import Config
 
 logger = logging.getLogger("DialogueBuilder")
 
@@ -12,7 +13,7 @@ logger = logging.getLogger("DialogueBuilder")
 class PressureManager:
     """管理施压话术模块，支持 repeat、继承、条件、随机后代链"""
 
-    def __init__(self, pressure_df: pd.DataFrame, rng: RandomService):
+    def __init__(self, pressure_df: pd.DataFrame, rng: RandomService,config:Config):
         self.df = pressure_df
         self.rng = rng
         # 预计算可用的 repeat 值及最大 repeat
@@ -22,6 +23,7 @@ class PressureManager:
                 if r.strip().isdigit():
                     self._available_repeats.add(int(r.strip()))
         self.max_repeat = max(self._available_repeats) if self._available_repeats else 3
+        self.flexible_stop_prob = config.get("flexible_stop_prob", 0.3)
 
     def get_pressure_segment(
         self,
@@ -75,7 +77,7 @@ class PressureManager:
 
         # 获取祖先和后代链
         ancestors = get_ancestors(row["uid"], self.df)
-        descendant_chain = get_random_descendant_chain(row["uid"], self.df, self.rng)
+        descendant_chain = get_random_descendant_chain(row["uid"], self.df, self.rng, stop_prob=self.flexible_stop_prob)
 
         # 构建片段轮次列表
         segment = []
