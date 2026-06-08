@@ -200,13 +200,13 @@ class DialogueBuilder:
             )
             if pressure_segment:
                 # 决定是否合并
-                merge_last = (not has_customer_first and messages)
-                if merge_last:
+                should_merge = (not has_customer_first) and (messages is not None and len(messages) > 0)
+                if should_merge:
                     self._append_segment(messages, pressure_segment, merge_last=True)
                 else:
                     self._append_segment(messages, pressure_segment, merge_last=False)
                 self.trace_collector.set_module_pressure(
-                    self._current_module_trace, applied=True, seg_len=len(pressure_segment), merge_last=merge_last
+                    self._current_module_trace, applied=True, seg_len=len(pressure_segment), merge_last= should_merge
                 )
 
         return False, ""
