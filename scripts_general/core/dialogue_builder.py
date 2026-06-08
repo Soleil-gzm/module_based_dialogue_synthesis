@@ -35,7 +35,7 @@ class DialogueBuilder:
         self.goodbye_termination_prob = config.get("goodbye_termination_prob", 0.7)
         self.trace_enabled = config.get("trace_enabled", False)
         self.trace_collector = TraceCollector(self.trace_enabled)
-        self.flexible_stop_prob = config.get("flexible_stop_prob",0.3)
+        self.flexible_stop_prob = config.get("flexible_stop_prob", 0.3)
 
     def _should_terminate(self, row: pd.Series, repeat: int, node: str) -> bool:
         """检查是否因再见标志而终止（包含概率控制）"""
@@ -134,7 +134,9 @@ class DialogueBuilder:
         )
 
         ancestors = get_ancestors(row["uid"], df_node)
-        descendant_chain = get_random_descendant_chain(row["uid"], df_node, self.rng,stop_prob=self.flexible_stop_prob)
+        descendant_chain = get_random_descendant_chain(
+            row["uid"], df_node, self.rng, stop_prob=self.flexible_stop_prob
+        )
 
         # 构建 turn_list
         turn_list = []
@@ -168,7 +170,7 @@ class DialogueBuilder:
                 self.trace_collector.set_module_turn_count(
                     self._current_module_trace, len(turn_list)
                 )
-                return True, stop_reason
+                return stop_dialogue, stop_reason
 
         # 处理当前行
         current_user = sample_utterance(row, True, self.rng)
@@ -176,6 +178,7 @@ class DialogueBuilder:
         turn_list.append((current_user, current_assistant))
         if self._should_terminate(row, repeat, node):
             flush_turn_list()
+            stop_dialogue = True
             stop_reason = f"goodbye_in_current_{row['uid']}"
             self.trace_collector.set_stop_reason(
                 stop_reason, self._current_module_trace
@@ -183,7 +186,7 @@ class DialogueBuilder:
             self.trace_collector.set_module_turn_count(
                 self._current_module_trace, len(turn_list)
             )
-            return True, stop_reason
+            return stop_dialogue, stop_reason
 
         # 处理后代链
         for desc in descendant_chain:
@@ -201,7 +204,7 @@ class DialogueBuilder:
                 self.trace_collector.set_module_turn_count(
                     self._current_module_trace, len(turn_list)
                 )
-                return True, stop_reason
+                return stop_dialogue, stop_reason
 
         # 无再见触发：正常提交所有话术
         flush_turn_list()
