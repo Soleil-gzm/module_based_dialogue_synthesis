@@ -135,7 +135,7 @@ class DialogueBuilder:
 
         ancestors = get_ancestors(row["uid"], df_node)
         descendant_chain = get_random_descendant_chain(
-            row["uid"], df_node, self.rng, stop_prob=self.flexible_stop_prob
+            row["uid"], df_node, self.rng, flexible_stop_prob=self.flexible_stop_prob
         )
 
         # 构建 turn_list

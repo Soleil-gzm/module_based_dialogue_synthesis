@@ -78,7 +78,7 @@ class PressureManager:
         # 获取祖先和后代链
         ancestors = get_ancestors(row["uid"], self.df)
         descendant_chain = get_random_descendant_chain(
-            row["uid"], self.df, self.rng, stop_prob=self.flexible_stop_prob
+            row["uid"], self.df, self.rng, flexible_stop_prob=self.flexible_stop_prob
         )
 
         # 构建片段轮次列表

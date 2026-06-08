@@ -39,7 +39,7 @@ def get_random_descendant_chain(
     uid: int,
     df: pd.DataFrame,
     rng: RandomService,
-    stop_prob: float = 0.3,
+    flexible_stop_prob: float = 0.3,
     max_depth: int = 10,
 ) -> List[pd.Series]:
     """递归获取一条随机的后代链，使用注入的随机服务"""
@@ -51,10 +51,10 @@ def get_random_descendant_chain(
     ]  # pandas sample 支持 random_state
     chain = [child_row]
     flex_stop = child_row.get("flexible_stop(可选不继承)", 0)
-    if pd.notna(flex_stop) and flex_stop == 1 and rng.random() < stop_prob:
+    if pd.notna(flex_stop) and flex_stop == 1 and rng.random() < flexible_stop_prob:
         return chain
     deeper = get_random_descendant_chain(
-        child_row["uid"], df, rng, stop_prob, max_depth - 1
+        child_row["uid"], df, rng, flexible_stop_prob, max_depth - 1
     )
     chain.extend(deeper)
     return chain
