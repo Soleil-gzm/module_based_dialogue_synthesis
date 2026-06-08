@@ -1,9 +1,10 @@
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 from core.config import Config
-from core.random_service import RandomService
 from core.path_generator import PathGenerator
+from core.random_service import RandomService
+
 
 # 创建一个最小的配置用于测试
 def make_test_config():
@@ -13,9 +14,10 @@ def make_test_config():
         "terminal_modules": ["承诺还款", "已还款"],
         "a_set": [],
         "b_set": [],
-        "start_module": "身份确认"
+        "start_module": "身份确认",
     }
     return Config(config_dict)
+
 
 def test_generate_one_simple():
     config = make_test_config()
@@ -23,7 +25,7 @@ def test_generate_one_simple():
     prob_df = pd.DataFrame(
         [[1.0, 0.0, 0.0, 0.0]],
         index=["身份确认"],
-        columns=["身份确认", "告知", "承诺还款", "已还款"]
+        columns=["身份确认", "告知", "承诺还款", "已还款"],
     )
     rng = RandomService(42)
     gen = PathGenerator(config, prob_df, rng)
