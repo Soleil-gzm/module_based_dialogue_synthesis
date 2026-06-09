@@ -109,7 +109,7 @@ keep_columns:
   - ...
 
 # 路径生成配置
-num_paths: 100
+num_paths: 4000
 random_seed: 42
 paths_cache: "intermediate/path/all_paths_{num_paths}_{seed}.json"
 checkpoint_interval: 5000   # 每生成5000条对话保存一次检查点

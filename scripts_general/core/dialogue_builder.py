@@ -87,7 +87,6 @@ class DialogueBuilder:
         repeat: int,
         case: Dict[str, Any],
         messages: List[Dict],
-        node_counts: Dict[str, int],
     ) -> Tuple[bool, str]:
         """
         处理单个模块的话术选择和对话追加。
@@ -133,6 +132,7 @@ class DialogueBuilder:
             self._current_module_trace, row["uid"]
         )
 
+        # 获得前后继承链
         ancestors = get_ancestors(row["uid"], df_node)
         descendant_chain = get_random_descendant_chain(
             row["uid"], df_node, self.rng, flexible_stop_prob=self.flexible_stop_prob
@@ -263,7 +263,7 @@ class DialogueBuilder:
             self._current_module_trace = self.trace_collector.start_module(node, repeat)
 
             stop_dialogue, stop_reason = self._process_module(
-                node, repeat, case, messages, node_counts
+                node, repeat, case, messages
             )
             if stop_dialogue:
                 overall_stop_reason = stop_reason
