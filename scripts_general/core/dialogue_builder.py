@@ -37,16 +37,20 @@ class DialogueBuilder:
         self.trace_collector = TraceCollector(self.trace_enabled)
         self.flexible_stop_prob = config.get("flexible_stop_prob", 0.3)
 
-    def _should_terminate(self, row: pd.Series, repeat: int, node: str) -> bool:
-        """检查是否因再见标志而终止（包含概率控制）"""
+    def _should_terminate(self, row: pd.Series, repeat: int, node: str, module_trace: Dict = None) -> bool:
+        """检查是否因再见标志而终止（包含概率控制），并记录 trace"""
         if row.get("是否再见") == 1 and repeat <= self.max_repeat.get(node, 999):
             if self.rng.random() <= self.goodbye_termination_prob:
                 self.logger.debug(f"模块 {node} repeat={repeat} 再见触发，终止对话")
+                if module_trace:
+                    module_trace["goodbye_triggered"] = True
+                    module_trace["goodbye_ignored"] = False
                 return True
             else:
-                self.logger.debug(
-                    f"模块 {node} repeat={repeat} 再见被忽略（概率不触发），继续对话"
-                )
+                self.logger.debug(f"模块 {node} repeat={repeat} 再见被忽略（概率不触发），继续对话")
+                if module_trace:
+                    module_trace["goodbye_triggered"] = False
+                    module_trace["goodbye_ignored"] = True
         return False
 
     def _append_segment(
@@ -159,7 +163,7 @@ class DialogueBuilder:
             assistant_txt = sample_utterance(anc, False, self.rng)
             if user_txt or assistant_txt:
                 turn_list.append((user_txt, assistant_txt))
-            if self._should_terminate(anc, repeat, node):
+            if self._should_terminate(anc, repeat, node, self._current_module_trace):
                 # 触发再见：先提交已收集的话术（包括这一轮），然后停止
                 flush_turn_list()  # 确保再见前保存当前对话
                 stop_dialogue = True
@@ -176,7 +180,7 @@ class DialogueBuilder:
         current_user = sample_utterance(row, True, self.rng)
         current_assistant = sample_utterance(row, False, self.rng)
         turn_list.append((current_user, current_assistant))
-        if self._should_terminate(row, repeat, node):
+        if self._should_terminate(row, repeat, node, self._current_module_trace):
             flush_turn_list()
             stop_dialogue = True
             stop_reason = f"goodbye_in_current_{row['uid']}"
@@ -194,7 +198,7 @@ class DialogueBuilder:
             assistant_txt = sample_utterance(desc, False, self.rng)
             if user_txt or assistant_txt:
                 turn_list.append((user_txt, assistant_txt))
-            if self._should_terminate(desc, repeat, node):
+            if self._should_terminate(desc, repeat, node, self._current_module_trace):
                 flush_turn_list()
                 stop_dialogue = True
                 stop_reason = f"goodbye_in_descendant_{desc['uid']}"

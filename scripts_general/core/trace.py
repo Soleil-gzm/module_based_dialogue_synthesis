@@ -39,6 +39,8 @@ class TraceCollector:
             "turn_count": 0,
             "ancestor_count": 0,
             "descendant_count": 0,
+            "goodbye_triggered": False,    # 新增
+            "goodbye_ignored": False,      # 新增
             "stop_reason": None,
             "error": None,
             "selected_uid": None,
