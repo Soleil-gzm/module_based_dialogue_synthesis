@@ -263,7 +263,7 @@ class DialogueBuilder:
         else:
             prob = self.pressure_prob
 
-        if self.rng.random() <= prob:
+        if self.rng.random() > prob:
             return
 
         pressure_segment, has_customer_first = (

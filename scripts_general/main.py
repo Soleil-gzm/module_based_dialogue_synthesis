@@ -14,7 +14,7 @@ from core.config import load_config
 from core.data_loader import load_cases, load_prob_matrix, load_sheets
 from core.dialogue_builder import DialogueBuilder
 from core.factory import create_condition_evaluator
-from core.logger import get_logger, init_logger
+from core.logger import init_logger, get_logger
 from core.path_generator import PathGenerator
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
@@ -44,19 +44,43 @@ def main():
     # 1. 加载配置
     config_path = "configs/general.yaml"
     config = load_config(config_path)
-    # 初始化日志
-    init_logger(config)
+    logger = None  # 稍后初始化
+
+    # 2. 读取基本参数
+    task_name = config.get("task_name", "general")
+    num_paths = config.get("num_paths")
+    seed = config.get("random_seed", 42)
+    output_root = config.get("output_dir", "output")
+    paths_cache_dir = config.get("paths_cache_dir", "paths")
+    checkpoint_interval = config.get("checkpoint_interval", 5000)
+
+    # 构建任务子目录名：{task_name}_{num_paths}_{seed}
+    task_dir_name = f"{task_name}_{num_paths}_{seed}"
+    task_dir = os.path.join(output_root, task_dir_name)
+    intermediate_dir = os.path.join(task_dir, "intermediate")
+    logs_dir = os.path.join(intermediate_dir, "logs")
+    traces_dir = os.path.join(intermediate_dir, "traces")
+    analysis_dir = os.path.join(intermediate_dir, "analysis")  # 可选
+
+    # 创建必要的目录
+    os.makedirs(logs_dir, exist_ok=True)
+    os.makedirs(traces_dir, exist_ok=True)
+    os.makedirs(analysis_dir, exist_ok=True)
+
+    # 3. 初始化日志（传入日志目录）
+    # 注意：需要修改 logger.py 以支持 log_dir 参数
+    init_logger(config, log_dir=logs_dir)
     logger = get_logger()
 
     logger.info("=== 对话生成系统启动 ===")
     logger.info(f"配置文件: {config_path}")
+    logger.info(f"任务目录: {task_dir}")
 
-    # 2. 随机服务（使用配置中的随机种子）
-    seed = config.get("random_seed", 42)
+    # 4. 随机服务
     rng = RandomService(seed)
     logger.info(f"随机种子: {seed}")
 
-    # 3. 加载数据
+    # 5. 加载数据
     logger.info("加载 Excel 模块...")
     excel_path = config.get("excel_path")
     modules = config.get("modules")
@@ -68,29 +92,35 @@ def main():
 
     logger.info("加载案例...")
     cases_dir = config.get("cases_dir")
-    cases, prompts = load_cases(cases_dir, rng=rng)  # 传入 rng 保证随机金额可复现
+    cases, prompts = load_cases(cases_dir, rng=rng)
     logger.info(f"加载案例数量: {len(cases)}")
 
-    # 单独加载施压话术表
+    # 6. 加载施压话术表
     pressure_df = pd.read_excel(excel_path, sheet_name="链接施压话术")
     pressure_manager = PressureManager(pressure_df, rng, config)
 
-    # 4. 创建条件解析器
+    # 7. 条件解析器
     condition_evaluator = create_condition_evaluator(config)
 
-    # 5. 生成路径（带缓存）
+    # 8. 路径生成（使用独立于任务的缓存目录）
+    # 路径缓存放在 output_root/paths/ 下，文件名由模板决定
+    paths_cache_template = config.get("paths_cache", "output/paths/all_paths_{num_paths}_{seed}.json")
+    # 确保路径缓存目录存在
+    paths_cache_dir_abs = os.path.join(output_root, paths_cache_dir)
+    os.makedirs(paths_cache_dir_abs, exist_ok=True)
+    # 生成最终缓存路径
+    cache_path = paths_cache_template.format(num_paths=num_paths, seed=seed)
+    # 如果配置中的路径已包含 output_root，则直接使用，否则基于 output_root 拼接
+    if not os.path.isabs(cache_path) and not cache_path.startswith(output_root):
+        cache_path = os.path.join(output_root, cache_path)
+
     path_gen = PathGenerator(config, prob_df, rng, logger)
-    num_paths = config.get("num_paths")
     logger.info(f"开始生成 {num_paths} 条路径...")
-    all_paths = path_gen.generate(num_paths, seed)
+    all_paths = path_gen.generate(num_paths, seed, cache_path=cache_path)
     logger.info(f"路径生成完成，共 {len(all_paths)} 条")
 
-    # 6. 对话生成（支持断点续传）
-    checkpoint_interval = config.get("checkpoint_interval", 5000)
-    output_dir = config.get("output_dir", "output")
-    checkpoint_file = os.path.join(output_dir, "checkpoint.json")
-
-    # 加载已有进度
+    # 9. 对话生成（支持断点续传）
+    checkpoint_file = os.path.join(task_dir, "checkpoint.json")
     existing_dialogues, start_index = load_checkpoint(checkpoint_file)
     if start_index > 0:
         logger.info(
@@ -100,13 +130,13 @@ def main():
         existing_dialogues = []
         start_index = 0
 
-    # 创建对话构建器（注入随机服务和日志器）
+    # 创建对话构建器
     builder = DialogueBuilder(
         config, df_dict, condition_evaluator, rng, pressure_manager, logger
     )
 
     all_dialogues = existing_dialogues.copy()
-    all_traces = []  # 存储追踪数据（如果启用）
+    all_traces = []
     total_paths = len(all_paths)
 
     logger.info(f"开始生成对话，共 {total_paths} 条路径，从索引 {start_index} 开始...")
@@ -124,18 +154,13 @@ def main():
             logger.error(f"生成第{i}条对话时出错，路径长度: {len(path)}", exc_info=True)
             continue
 
-        # 定期保存检查点
         if (i + 1) % checkpoint_interval == 0:
             save_checkpoint(all_dialogues, i + 1, checkpoint_file)
             logger.info(f"已生成 {i+1}/{total_paths} 条对话，检查点已保存")
 
     # 最终保存对话
-    os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    num_paths = config.get("num_paths")  # 从配置中获取数量
-    out_file = os.path.join(
-        output_dir, f"general_dialogues_{num_paths}_{timestamp}.json"
-    )
+    out_file = os.path.join(task_dir, f"general_dialogues_{timestamp}.json")
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(all_dialogues, f, ensure_ascii=False, indent=2)
 
@@ -147,11 +172,7 @@ def main():
 
     # 保存追踪数据（如果启用）
     if config.get("trace_enabled", False) and all_traces:
-        trace_output_dir = config.get("trace_output_dir", "traces")
-        os.makedirs(trace_output_dir, exist_ok=True)
-        trace_file = os.path.join(
-            trace_output_dir, f"traces_{num_paths}_{timestamp}.json"
-        )
+        trace_file = os.path.join(traces_dir, f"traces_{timestamp}.json")
         with open(trace_file, "w", encoding="utf-8") as f:
             json.dump(all_traces, f, ensure_ascii=False, indent=2)
         logger.info(f"追踪数据已保存至 {trace_file}")
