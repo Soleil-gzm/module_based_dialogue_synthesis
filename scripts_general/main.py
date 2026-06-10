@@ -132,7 +132,10 @@ def main():
     # 最终保存对话
     os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_file = os.path.join(output_dir, f"general_dialogues_{timestamp}.json")
+    num_paths = config.get("num_paths")  # 从配置中获取数量
+    out_file = os.path.join(
+        output_dir, f"general_dialogues_{num_paths}_{timestamp}.json"
+    )
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(all_dialogues, f, ensure_ascii=False, indent=2)
 
@@ -146,7 +149,9 @@ def main():
     if config.get("trace_enabled", False) and all_traces:
         trace_output_dir = config.get("trace_output_dir", "traces")
         os.makedirs(trace_output_dir, exist_ok=True)
-        trace_file = os.path.join(trace_output_dir, f"traces_{timestamp}.json")
+        trace_file = os.path.join(
+            trace_output_dir, f"traces_{num_paths}_{timestamp}.json"
+        )
         with open(trace_file, "w", encoding="utf-8") as f:
             json.dump(all_traces, f, ensure_ascii=False, indent=2)
         logger.info(f"追踪数据已保存至 {trace_file}")

@@ -4,8 +4,7 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 from core.config import Config
 from core.random_service import RandomService
-from core.utterance import (get_ancestors, get_random_descendant_chain,
-                            sample_utterance)
+from core.utterance import get_ancestors, get_random_descendant_chain, sample_utterance
 
 logger = logging.getLogger("DialogueBuilder")
 
@@ -36,27 +35,23 @@ class PressureManager:
         根据 repeat 次数从施压话术表中抽取一个话术片段（可能包含多轮）。
         返回 (segment_list, has_customer_first), 其中 segment_list 每个元素为 {"user": str, "assistant": str}
         has_customer_first 表示片段第一轮是否有客户话术（用于外部拼接逻辑）。
+
+        注意：如果请求的 repeat 超过施压话术表支持的最大次数，直接返回空片段，不降级。
         """
         if self.df.empty:
             return [], False
 
-        # 超出范围时降级使用最大 repeat
-        effective_repeat = repeat if repeat <= self.max_repeat else self.max_repeat
-        if effective_repeat != repeat:
+        # 如果请求的 repeat 超过施压话术表最大支持次数，直接返回空（不降级）
+        if repeat > self.max_repeat:
             if module_name:
-                logger.warning(
-                    f"模块 '{module_name}' 请求 repeat={repeat}，施压话术表最大 repeat={self.max_repeat}，降级使用 repeat={effective_repeat}"
+                logger.debug(
+                    f"模块 '{module_name}' 请求 repeat={repeat} 超过话术表最大 repeat={self.max_repeat}，跳过施压"
                 )
-            else:
-                logger.warning(
-                    f"施压话术表最大 repeat={self.max_repeat}，请求 repeat={repeat}，降级使用 repeat={effective_repeat}"
-                )
+            return [], False
 
-        # 筛选 repeat 匹配的行
+        # 筛选 repeat 匹配的行（注意：这里直接使用 repeat，不再降级）
         mask = self.df["repeat(次数)"].apply(
-            lambda x: (
-                str(effective_repeat) in str(x).split("/") if pd.notna(x) else False
-            )
+            lambda x: (str(repeat) in str(x).split("/") if pd.notna(x) else False)
         )
         candidates = self.df[mask]
         if candidates.empty:
@@ -66,9 +61,7 @@ class PressureManager:
         valid_rows = []
         for _, row in candidates.iterrows():
             cond_str = row.get("conditions(条件)", "")
-            if condition_evaluator.evaluate(
-                cond_str, case
-            ):  # 调用条件解析，判断抽取话术是否适用于该案例
+            if condition_evaluator.evaluate(cond_str, case):
                 valid_rows.append(row)
         if not valid_rows:
             return [], False
