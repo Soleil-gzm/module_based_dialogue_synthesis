@@ -24,7 +24,9 @@ def init_logger(config, log_dir: str = None, timestamp: str = None) -> logging.L
     level = getattr(logging, level_name, logging.INFO)
     file_prefix = log_config.get("file_prefix", "dialogue_builder")
     console_enabled = log_config.get("console", True)
-    fmt = log_config.get("format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    fmt = log_config.get(
+        "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     datefmt = log_config.get("datefmt", "%Y-%m-%d %H:%M:%S")
 
     # 确定日志目录
@@ -56,6 +58,7 @@ def init_logger(config, log_dir: str = None, timestamp: str = None) -> logging.L
     logger.propagate = False
     _logger_instance = logger
     return logger
+
 
 def get_logger() -> logging.Logger:
     """获取已初始化的logger，若未初始化则使用默认配置"""

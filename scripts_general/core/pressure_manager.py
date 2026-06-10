@@ -4,7 +4,8 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 from core.config import Config
 from core.random_service import RandomService
-from core.utterance import get_ancestors, get_random_descendant_chain, sample_utterance
+from core.utterance import (get_ancestors, get_random_descendant_chain,
+                            sample_utterance)
 
 logger = logging.getLogger("DialogueBuilder")
 

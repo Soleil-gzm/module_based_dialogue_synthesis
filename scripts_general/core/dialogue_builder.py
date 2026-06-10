@@ -7,12 +7,8 @@ from core.config import Config
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
 from core.trace import TraceCollector
-from core.utterance import (
-    fill_placeholders,
-    get_ancestors,
-    get_random_descendant_chain,
-    sample_utterance,
-)
+from core.utterance import (fill_placeholders, get_ancestors,
+                            get_random_descendant_chain, sample_utterance)
 
 
 class DialogueBuilder:
@@ -78,10 +74,10 @@ class DialogueBuilder:
         merge_last: bool = False,
     ) -> None:
         """将施压话术片段追加到对话消息列表中
-                Args:
-            messages: 当前对话消息列表（会被原地修改）
-            segment: 话术片段，每个元素为 {"user": str, "assistant": str}
-            merge_last: 是否将片段的第一条 assistant 合并到上一条 assistant 消息中
+            Args:
+        messages: 当前对话消息列表（会被原地修改）
+        segment: 话术片段，每个元素为 {"user": str, "assistant": str}
+        merge_last: 是否将片段的第一条 assistant 合并到上一条 assistant 消息中
         """
         if not segment:
             return
@@ -110,8 +106,8 @@ class DialogueBuilder:
         node_counts: Dict[str, int],
     ) -> Tuple[bool, str]:
         """处理单个模块的话术选择和对话追加。返回 (stop_dialogue, stop_reason)
-            stop_dialogue: 是否应该终止整个对话
-            stop_reason: 终止原因（仅在 stop_dialogue=True 时有意义）
+        stop_dialogue: 是否应该终止整个对话
+        stop_reason: 终止原因（仅在 stop_dialogue=True 时有意义）
         """
         df_node = self.df_dict.get(node)
         if df_node is None or df_node.empty:
@@ -181,7 +177,7 @@ class DialogueBuilder:
                 turn_list.append((user_txt, assistant_txt))
             if self._should_terminate(anc, repeat, node, self._current_module_trace):
                 # 触发再见：先提交已收集的话术（包括这一轮），然后停止
-                flush_turn_list()       # 确保再见前保存当前对话
+                flush_turn_list()  # 确保再见前保存当前对话
                 stop_reason = f"goodbye_in_ancestor_{anc['uid']}"
                 self.trace_collector.set_stop_reason(
                     stop_reason, self._current_module_trace
@@ -241,8 +237,8 @@ class DialogueBuilder:
         repeat: int,
         case: Dict[str, Any],
         messages: List[Dict],
-        idx: int,       # 当前模块在路径中的索引（从0开始）
-        total: int,     # 路径总模块数
+        idx: int,  # 当前模块在路径中的索引（从0开始）
+        total: int,  # 路径总模块数
     ):
         """根据动态概率决定是否附加施压话术（带全局次数限制）"""
         if node not in self.insert_nodes:
@@ -254,7 +250,7 @@ class DialogueBuilder:
         if self.pressure_dynamic_enabled and total > 1:
             t = idx / (total - 1)  # 归一化位置 0~1
             # 指数曲线插值
-            prob = self.pressure_start_prob + (         
+            prob = self.pressure_start_prob + (
                 self.pressure_end_prob - self.pressure_start_prob
             ) * (t**self.pressure_curve_exponent)
             # 模块权重
@@ -263,7 +259,7 @@ class DialogueBuilder:
         else:
             prob = self.pressure_prob
 
-        if self.rng.random() > prob:
+        if self.rng.random() > prob:  # 不施压
             return
 
         pressure_segment, has_customer_first = (

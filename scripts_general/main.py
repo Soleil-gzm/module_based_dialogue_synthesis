@@ -14,7 +14,7 @@ from core.config import load_config
 from core.data_loader import load_cases, load_prob_matrix, load_sheets
 from core.dialogue_builder import DialogueBuilder
 from core.factory import create_condition_evaluator
-from core.logger import init_logger, get_logger
+from core.logger import get_logger, init_logger
 from core.path_generator import PathGenerator
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
@@ -104,7 +104,9 @@ def main():
 
     # 8. 路径生成（使用独立于任务的缓存目录）
     # 路径缓存放在 output_root/paths/ 下，文件名由模板决定
-    paths_cache_template = config.get("paths_cache", "output/paths/all_paths_{num_paths}_{seed}.json")
+    paths_cache_template = config.get(
+        "paths_cache", "output/paths/all_paths_{num_paths}_{seed}.json"
+    )
     # 确保路径缓存目录存在
     paths_cache_dir_abs = os.path.join(output_root, paths_cache_dir)
     os.makedirs(paths_cache_dir_abs, exist_ok=True)

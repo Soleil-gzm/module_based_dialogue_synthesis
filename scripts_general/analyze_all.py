@@ -3,13 +3,15 @@
 分析 trace 文件（交互式版本）：
 - 施压话术位置分布（直方图）
 - 再见触发位置分布（直方图）
-- 触发原因分布（条形图，交互式）
+- 触发原因分布（条形图）
+- 对话轮数分布（直方图）
+- 再见处理结果分布（条形图）：触发/忽略/无再见
 """
 
 import json
 import os
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 
 # ========== 硬编码输入输出 ==========
 INPUT_TRACE_FILE = "output/general_4000_42/intermediate/traces/traces_20260610_155816.json"  # 修改为实际文件
@@ -20,9 +22,10 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 PRESSURE_HIST_HTML = os.path.join(OUTPUT_DIR, "pressure_position_histogram.html")
 GOODBYE_HIST_HTML = os.path.join(OUTPUT_DIR, "goodbye_position_histogram.html")
 STOP_REASON_BAR_HTML = os.path.join(OUTPUT_DIR, "stop_reason_bar.html")
+DIALOGUE_LENGTH_HIST = os.path.join(OUTPUT_DIR, "dialogue_length_histogram.html")
+GOODBYE_HANDLING_BAR = os.path.join(OUTPUT_DIR, "goodbye_handling_bar.html")
 REPORT_TXT = os.path.join(OUTPUT_DIR, "analysis_report.txt")
 
-# 尝试导入 plotly
 try:
     import plotly.express as px
     import plotly.graph_objects as go
@@ -42,18 +45,27 @@ def load_traces(file_path):
 
 
 def simplify_reason(reason):
-    """去除停止原因末尾的数字，例如 'goodbye_in_current_12' -> 'goodbye_in_current'"""
     if not reason:
         return reason
-    # 匹配末尾的 _数字
     return re.sub(r"_\d+$", "", reason)
 
 
 def analyze(traces):
-    pressure_positions = []  # 归一化位置
+    # 施压位置
+    pressure_positions = []
+    # 再见触发位置
     goodbye_normalized = []
+    # 停止原因计数
     stop_reason_counter = Counter()
-    goodbye_conversations = 0
+    # 对话轮数（每个对话的总 turn_count 之和）
+    dialogue_lengths = []
+    # 再见处理结果统计
+    goodbye_handling = {
+        "triggered_and_stopped": 0,
+        "triggered_but_not_stopped": 0,
+        "ignored_no_trigger": 0,  # 出现过再见忽略但未触发
+        "no_goodbye": 0,
+    }
 
     for trace in traces:
         path = trace.get("path", [])
@@ -61,22 +73,43 @@ def analyze(traces):
         final_reason = trace.get("final_stop_reason", None)
         path_len = len(path)
 
+        # 停止原因
         if final_reason:
             simplified = simplify_reason(final_reason)
             stop_reason_counter[simplified] += 1
-            if final_reason.startswith("goodbye"):
-                goodbye_conversations += 1
-                # 找到再见触发的模块索引（第一个 goodbye_triggered=True 的模块）
-                trigger_idx = None
-                for idx, mod in enumerate(modules):
-                    if mod.get("goodbye_triggered", False):
-                        trigger_idx = idx
-                        break
-                if trigger_idx is not None:
-                    if path_len > 1:
-                        goodbye_normalized.append(trigger_idx / (path_len - 1))
-                    else:
-                        goodbye_normalized.append(0.0)
+
+        # 对话轮数：累加每个模块的 turn_count
+        total_turns = sum(mod.get("turn_count", 0) for mod in modules)
+        dialogue_lengths.append(total_turns)
+
+        # 再见处理结果统计
+        has_triggered = any(mod.get("goodbye_triggered", False) for mod in modules)
+        has_ignored = any(mod.get("goodbye_ignored", False) for mod in modules)
+        is_stopped = final_reason and final_reason.startswith("goodbye")
+
+        if has_triggered:
+            if is_stopped:
+                goodbye_handling["triggered_and_stopped"] += 1
+            else:
+                goodbye_handling["triggered_but_not_stopped"] += 1
+        elif has_ignored:
+            goodbye_handling["ignored_no_trigger"] += 1
+        else:
+            goodbye_handling["no_goodbye"] += 1
+
+        # 再见触发位置（只针对 triggered 的对话）
+        if has_triggered:
+            # 找到第一个 goodbye_triggered=True 的模块索引
+            trigger_idx = None
+            for idx, mod in enumerate(modules):
+                if mod.get("goodbye_triggered", False):
+                    trigger_idx = idx
+                    break
+            if trigger_idx is not None:
+                if path_len > 1:
+                    goodbye_normalized.append(trigger_idx / (path_len - 1))
+                else:
+                    goodbye_normalized.append(0.0)
 
         # 施压位置
         for idx, mod in enumerate(modules):
@@ -90,22 +123,18 @@ def analyze(traces):
         "pressure_positions": pressure_positions,
         "goodbye_normalized": goodbye_normalized,
         "stop_reason_counter": stop_reason_counter,
+        "dialogue_lengths": dialogue_lengths,
+        "goodbye_handling": goodbye_handling,
         "total_conversations": len(traces),
-        "goodbye_conversations": goodbye_conversations,
     }
 
 
-def create_histogram(data, title, xlabel, ylabel, output_html):
-    """创建交互式直方图（使用单一高对比色 + 透明度）"""
+def create_histogram(data, title, xlabel, ylabel, output_html, nbins=20):
     if not data:
         print(f"警告: 没有数据可绘制 {title}")
         return
     fig = go.Figure(
-        data=[
-            go.Histogram(
-                x=data, nbinsx=20, marker_color="#1f77b4", opacity=0.75, name="Count"
-            )
-        ]
+        data=[go.Histogram(x=data, nbinsx=nbins, marker_color="#1f77b4", opacity=0.75)]
     )
     fig.update_layout(
         title=title,
@@ -119,24 +148,23 @@ def create_histogram(data, title, xlabel, ylabel, output_html):
     print(f"保存直方图: {output_html}")
 
 
-# 使用单一颜色
-def create_bar_chart(counter, title, xlabel, ylabel, output_html):
-    """创建条形图（每个柱子不同颜色）"""
-    if not counter:
+def create_bar_chart(counter_or_dict, title, xlabel, ylabel, output_html):
+    if not counter_or_dict:
         return
-    categories = list(counter.keys())
-    counts = list(counter.values())
-    # 使用 Plotly 的默认颜色序列（自动分配不同颜色）
+    if isinstance(counter_or_dict, dict):
+        categories = list(counter_or_dict.keys())
+        counts = list(counter_or_dict.values())
+    else:
+        categories = list(counter_or_dict.keys())
+        counts = list(counter_or_dict.values())
     fig = go.Figure(
         data=[
             go.Bar(
                 x=categories,
                 y=counts,
-                marker_color="coral",  # 也可用其他颜色，如需不同颜色可注释掉此行
-                # 如果要每个柱子不同颜色，可以使用：
-                #  marker_color=px.colors.qualitative.Plotly[:len(categories)]
                 text=counts,
                 textposition="auto",
+                marker_color=px.colors.qualitative.Plotly[: len(categories)],
             )
         ]
     )
@@ -151,55 +179,35 @@ def create_bar_chart(counter, title, xlabel, ylabel, output_html):
     print(f"保存条形图: {output_html}")
 
 
-# 使用不同颜色
-# def create_bar_chart(counter, title, xlabel, ylabel, output_html):
-#     if not counter:
-#         return
-#     categories = list(counter.keys())
-#     counts = list(counter.values())
-#     fig = go.Figure(data=[go.Bar(x=categories, y=counts,
-#                                  marker_color=px.colors.qualitative.Plotly[:len(categories)],
-#                                  text=counts, textposition='auto')])
-#     fig.update_layout(
-#         title=title,
-#         xaxis_title=xlabel,
-#         yaxis_title=ylabel,
-#         template='plotly_white',
-#         xaxis_tickangle=-45
-#     )
-#     fig.write_html(output_html)
-#     print(f"保存条形图: {output_html}")
-
-
 def save_report(stats, output_file):
+    import numpy as np
+
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("=== Trace Analysis Report ===\n")
         f.write(f"Total conversations: {stats['total_conversations']}\n")
-        f.write(
-            f"Early stopped (goodbye) conversations: {stats['goodbye_conversations']}\n\n"
-        )
-        f.write("Stop reason distribution:\n")
+        f.write("\nStop reason distribution:\n")
         for reason, cnt in sorted(
             stats["stop_reason_counter"].items(), key=lambda x: x[1], reverse=True
         ):
             f.write(f"  {reason}: {cnt}\n")
-        f.write("\n")
+        f.write("\nGoodbye handling:\n")
+        for k, v in stats["goodbye_handling"].items():
+            f.write(f"  {k}: {v}\n")
         if stats["pressure_positions"]:
-            import numpy as np
-
             arr = np.array(stats["pressure_positions"])
-            f.write("Pressure position statistics (normalized):\n")
-            f.write(f"  Mean: {np.mean(arr):.3f}\n")
-            f.write(f"  Median: {np.median(arr):.3f}\n")
-            f.write(f"  Std: {np.std(arr):.3f}\n")
+            f.write(
+                f"\nPressure position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n"
+            )
         if stats["goodbye_normalized"]:
-            import numpy as np
-
             arr = np.array(stats["goodbye_normalized"])
-            f.write("\nGoodbye position statistics (normalized):\n")
-            f.write(f"  Mean: {np.mean(arr):.3f}\n")
-            f.write(f"  Median: {np.median(arr):.3f}\n")
-            f.write(f"  Std: {np.std(arr):.3f}\n")
+            f.write(
+                f"Goodbye trigger position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n"
+            )
+        if stats["dialogue_lengths"]:
+            arr = np.array(stats["dialogue_lengths"])
+            f.write(
+                f"Dialogue length (number of turns) mean: {np.mean(arr):.2f}, median: {np.median(arr):.2f}, min: {np.min(arr)}, max: {np.max(arr)}\n"
+            )
     print(f"Report saved: {output_file}")
 
 
@@ -209,7 +217,6 @@ def main():
     print(f"Loaded {len(traces)} conversations")
     stats = analyze(traces)
 
-    # 创建交互式图表（使用 Plotly）
     if HAS_PLOTLY:
         create_histogram(
             stats["pressure_positions"],
@@ -235,9 +242,23 @@ def main():
             "Number of Conversations",
             STOP_REASON_BAR_HTML,
         )
+        create_histogram(
+            stats["dialogue_lengths"],
+            "Dialogue Length Distribution",
+            "Number of Turns (user+assistant pairs)",
+            "Frequency",
+            DIALOGUE_LENGTH_HIST,
+        )
+        create_bar_chart(
+            stats["goodbye_handling"],
+            "Goodbye Handling Outcome",
+            "Category",
+            "Number of Conversations",
+            GOODBYE_HANDLING_BAR,
+        )
     else:
-        # 回退到 matplotlib 静态图
-        print("Plotly not available, using matplotlib static charts.")
+        # 回退到 matplotlib 静态图（略）
+        print("Plotly not available, static charts generated (matplotlib).")
         import matplotlib.pyplot as plt
         import numpy as np
 
@@ -247,7 +268,7 @@ def main():
             plt.xlabel("Normalized Position")
             plt.ylabel("Frequency")
             plt.title("Pressure Utterance Position Distribution")
-            plt.grid(True, linestyle="--", alpha=0.6)
+            plt.grid(True)
             plt.savefig(PRESSURE_HIST_HTML.replace(".html", ".png"), dpi=150)
             plt.close()
         if stats["goodbye_normalized"]:
@@ -256,7 +277,7 @@ def main():
             plt.xlabel("Normalized Position")
             plt.ylabel("Frequency")
             plt.title("Goodbye Trigger Position Distribution")
-            plt.grid(True, linestyle="--", alpha=0.6)
+            plt.grid(True)
             plt.savefig(GOODBYE_HIST_HTML.replace(".html", ".png"), dpi=150)
             plt.close()
         if stats["stop_reason_counter"]:
@@ -269,6 +290,25 @@ def main():
             plt.title("Stop Reason Distribution")
             plt.tight_layout()
             plt.savefig(STOP_REASON_BAR_HTML.replace(".html", ".png"), dpi=150)
+            plt.close()
+        if stats["dialogue_lengths"]:
+            plt.figure()
+            plt.hist(stats["dialogue_lengths"], bins=20, edgecolor="black", alpha=0.7)
+            plt.xlabel("Number of Turns")
+            plt.ylabel("Frequency")
+            plt.title("Dialogue Length Distribution")
+            plt.grid(True)
+            plt.savefig(DIALOGUE_LENGTH_HIST.replace(".html", ".png"), dpi=150)
+            plt.close()
+        if stats["goodbye_handling"]:
+            categories = list(stats["goodbye_handling"].keys())
+            counts = list(stats["goodbye_handling"].values())
+            plt.figure(figsize=(8, 6))
+            plt.bar(categories, counts, edgecolor="black", alpha=0.7)
+            plt.ylabel("Number of Conversations")
+            plt.title("Goodbye Handling Outcome")
+            plt.tight_layout()
+            plt.savefig(GOODBYE_HANDLING_BAR.replace(".html", ".png"), dpi=150)
             plt.close()
 
     save_report(stats, REPORT_TXT)
