@@ -18,7 +18,11 @@ class CaseLoader(ABC):
     """案例加载器抽象接口"""
 
     @abstractmethod
-    def load(self, rng: Optional[RandomService] = None, time_gen: Optional[TimeGenerator] = None) -> Tuple[List[Dict], List[str]]:
+    def load(
+        self,
+        rng: Optional[RandomService] = None,
+        time_gen: Optional[TimeGenerator] = None,
+    ) -> Tuple[List[Dict], List[str]]:
         """
         返回 (cases_list, prompts_list)
         cases_list: 每个元素是用于占位填充的字典
@@ -33,10 +37,15 @@ class DefaultCaseLoader(CaseLoader):
     def __init__(self, cases_dir: str):
         self.cases_dir = cases_dir
 
-    def load(self, rng: Optional[RandomService] = None, time_gen: Optional[TimeGenerator] = None) -> Tuple[List[Dict], List[str]]:
+    def load(
+        self,
+        rng: Optional[RandomService] = None,
+        time_gen: Optional[TimeGenerator] = None,
+    ) -> Tuple[List[Dict], List[str]]:
         from core.data_loader import load_cases  # 避免循环导入
 
         return load_cases(self.cases_dir, rng=rng, time_gen=time_gen)
+
 
 class XiaoyingCaseLoader(CaseLoader):
     """
@@ -55,31 +64,37 @@ class XiaoyingCaseLoader(CaseLoader):
         files = [f for f in os.listdir(directory) if f.endswith(ext)]
         return sorted(files)
 
-    def load(self, rng: Optional[RandomService] = None, time_gen: Optional[TimeGenerator] = None) -> Tuple[List[Dict], List[str]]:
-            replace_files = self._get_sorted_files(self.replace_dir)
-            system_files = self._get_sorted_files(self.system_dir)
+    def load(
+        self,
+        rng: Optional[RandomService] = None,
+        time_gen: Optional[TimeGenerator] = None,
+    ) -> Tuple[List[Dict], List[str]]:
+        replace_files = self._get_sorted_files(self.replace_dir)
+        system_files = self._get_sorted_files(self.system_dir)
 
-            if not replace_files:
-                raise ValueError(f"替换案例目录为空: {self.replace_dir}")
-            if not system_files:
-                raise ValueError(f"系统提示目录为空: {self.system_dir}")
+        if not replace_files:
+            raise ValueError(f"替换案例目录为空: {self.replace_dir}")
+        if not system_files:
+            raise ValueError(f"系统提示目录为空: {self.system_dir}")
 
-            cases = []
-            prompts = []
-            # 确定配对长度：简单使用最大值并循环复用
-            max_len = max(len(replace_files), len(system_files))
+        cases = []
+        prompts = []
+        # 确定配对长度：简单使用最大值并循环复用
+        max_len = max(len(replace_files), len(system_files))
 
-            for i in range(max_len):
-                # 循环取 replace 文件
-                replace_file = replace_files[i % len(replace_files)]
-                replace_path = os.path.join(self.replace_dir, replace_file)
-                case = parse_case_info(replace_path, rng=rng, time_gen=time_gen)    # 复用原有解析函数
-                cases.append(case)
+        for i in range(max_len):
+            # 循环取 replace 文件
+            replace_file = replace_files[i % len(replace_files)]
+            replace_path = os.path.join(self.replace_dir, replace_file)
+            case = parse_case_info(
+                replace_path, rng=rng, time_gen=time_gen
+            )  # 复用原有解析函数
+            cases.append(case)
 
-                # 循环取 system 文件
-                system_file = system_files[i % len(system_files)]
-                system_path = os.path.join(self.system_dir, system_file)
-                with open(system_path, "r", encoding="utf-8") as f:
-                    prompts.append(f.read())
+            # 循环取 system 文件
+            system_file = system_files[i % len(system_files)]
+            system_path = os.path.join(self.system_dir, system_file)
+            with open(system_path, "r", encoding="utf-8") as f:
+                prompts.append(f.read())
 
-            return cases, prompts
+        return cases, prompts

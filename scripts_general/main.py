@@ -14,12 +14,12 @@ import pandas as pd
 from core.config import load_config
 from core.data_loader import load_cases, load_prob_matrix, load_sheets
 from core.dialogue_builder import DialogueBuilder
-from core.factory import create_case_loader, create_condition_evaluator
+from core.factory import (create_case_loader, create_condition_evaluator,
+                          create_time_generator)
 from core.logger import get_logger, init_logger
 from core.path_generator import PathGenerator
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
-from core.factory import create_case_loader, create_time_generator
 
 
 def save_checkpoint(dialogues: list, next_index: int, checkpoint_file: str):
@@ -106,9 +106,9 @@ def main():
     # 条件解析器
     condition_evaluator = create_condition_evaluator(config)
     # 时间解析器
-    time_gen = create_time_generator(config)   # 新增
+    time_gen = create_time_generator(config)  # 新增
     case_loader = create_case_loader(config)
-    cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)   # 传入 time_gen
+    cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)  # 传入 time_gen
 
     # 8. 路径生成（使用独立于任务的缓存目录）
     # 路径缓存放在 output_root/paths/ 下，文件名由模板决定
@@ -192,26 +192,36 @@ def main():
         trace_file = os.path.join(traces_dir, f"traces_{timestamp}.json")
         if os.path.exists(trace_file):
             # 构建期望的路径：intermediate/analysis/时间戳
-            analysis_output = os.path.join(task_dir, "intermediate", "analysis", timestamp)
+            analysis_output = os.path.join(
+                task_dir, "intermediate", "analysis", timestamp
+            )
             plot_format = config.get("auto_analysis.format", "html")
             try:
                 import subprocess
+
                 # 使用当前 Python 解释器执行 analyze_all.py 脚本
                 script_path = os.path.join(os.path.dirname(__file__), "analyze_all.py")
                 cmd = [
                     sys.executable,
                     script_path,
-                    "--trace", trace_file,
-                    "--output_dir", analysis_output,
-                    "--format", plot_format
+                    "--trace",
+                    trace_file,
+                    "--output_dir",
+                    analysis_output,
+                    "--format",
+                    plot_format,
                 ]
                 logger.info(f"开始自动分析，命令: {' '.join(cmd)}")
-                result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, check=False
+                )
                 if result.returncode == 0:
                     logger.info(f"自动分析完成，报告保存在 {analysis_output}")
                     logger.debug(f"分析输出:\n{result.stdout}")
                 else:
-                    logger.error(f"自动分析失败 (返回码 {result.returncode}):\n{result.stderr}")
+                    logger.error(
+                        f"自动分析失败 (返回码 {result.returncode}):\n{result.stderr}"
+                    )
             except Exception as e:
                 logger.error(f"调用分析脚本时出错: {e}", exc_info=True)
         else:

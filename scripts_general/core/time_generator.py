@@ -14,6 +14,7 @@ class TimeGenerator(ABC):
 
 class SimpleNaturalTimeGenerator(TimeGenerator):
     """简单自然时间生成器（完全随机）"""
+
     def generate(self, rng: RandomService, base_time: Optional[str] = None) -> str:
         period_hours = {
             "上午": (8, 11),
@@ -37,5 +38,3 @@ class SimpleNaturalTimeGenerator(TimeGenerator):
 
 # 可以扩展其他生成器，例如基于查账时间的生成器
 # class RelativeTimeGenerator(TimeGenerator): ...
-
-

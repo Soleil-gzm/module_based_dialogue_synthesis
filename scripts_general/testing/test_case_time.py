@@ -9,20 +9,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
-
 # 导入被测试模块
-from core.case_loader import (
-    CaseLoader,
-    DefaultCaseLoader,
-    XiaoyingCaseLoader,
-)
-from core.time_generator import (
-    SimpleNaturalTimeGenerator,
-)
-from core.data_loader import parse_case_info, load_cases
-from core.factory import create_case_loader,create_time_generator
-from core.random_service import RandomService
+from core.case_loader import CaseLoader, DefaultCaseLoader, XiaoyingCaseLoader
 from core.config import Config
+from core.data_loader import load_cases, parse_case_info
+from core.factory import create_case_loader, create_time_generator
+from core.random_service import RandomService
+from core.time_generator import SimpleNaturalTimeGenerator
 
 
 # ========== 辅助函数 ==========
@@ -33,9 +26,11 @@ def create_mock_rng(seed=42):
 
 def create_mock_time_gen(fixed_time="今天上午10点"):
     """创建一个固定输出的时间生成器，用于测试"""
+
     class FixedTimeGenerator:
         def generate(self, rng, base_time=None):
             return fixed_time
+
     return FixedTimeGenerator()
 
 
@@ -45,18 +40,19 @@ class TestTimeGenerator:
     def test_simple_natural_time_generator_format(self):
         rng = create_mock_rng(42)
         gen = SimpleNaturalTimeGenerator()
-        
+
         # 正则匹配：
         # 可选：(今天|明天)
         # 必须：(上午|中午|下午|晚上)
         # 必须：数字（1-2位数）
         # 可选：点 + 数字 + 分（如点15分）
-        pattern = r'^(今天|明天)?(上午|中午|下午|晚上)\d{1,2}(点(\d{1,2}分)?)?$'
-        
+        pattern = r"^(今天|明天)?(上午|中午|下午|晚上)\d{1,2}(点(\d{1,2}分)?)?$"
+
         for _ in range(20):
             time_str = gen.generate(rng)
-            assert re.match(pattern, time_str) is not None, \
-                f"时间字符串 '{time_str}' 不符合期望格式（例如：今天上午10点、下午3点、明天晚上8点15分）"
+            assert (
+                re.match(pattern, time_str) is not None
+            ), f"时间字符串 '{time_str}' 不符合期望格式（例如：今天上午10点、下午3点、明天晚上8点15分）"
 
     def test_create_time_generator_from_config(self):
         """测试工厂函数根据配置返回正确的生成器"""
@@ -105,7 +101,9 @@ class TestDataLoader:
 - 违约金：1334.23元
 - 罚息：1496.38元
 """
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".txt", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", suffix=".txt", delete=False
+        ) as f:
             f.write(content)
             tmp_path = f.name
         yield tmp_path
@@ -136,7 +134,9 @@ class TestDataLoader:
         case = parse_case_info(sample_case_file, rng=rng, time_gen=fixed_time_gen)
         # 随机金额应该是确定性的（由于固定种子）
         # 逾期金额_数值为22357.67，随机比例固定0.3~0.7，种子42下应可计算
-        expected_random_amount = str(round(22357.67 * 0.3))  # 种子42的uniform第一个值约为0.3
+        expected_random_amount = str(
+            round(22357.67 * 0.3)
+        )  # 种子42的uniform第一个值约为0.3
         # 实际可能不同，我们只检查存在且为数字
         assert case["随机金额"].replace(".", "").isdigit()
         # 随机时间应为固定时间
@@ -147,6 +147,7 @@ class TestDataLoader:
         with tempfile.TemporaryDirectory() as tmpdir:
             # 将 sample_case_file 复制到临时目录
             import shutil
+
             dest = os.path.join(tmpdir, "case1.txt")
             shutil.copy(sample_case_file, dest)
             cases, prompts = load_cases(tmpdir, rng=None)
@@ -163,11 +164,19 @@ class TestCaseLoader:
         """创建两个临时目录，分别放 replace 和 system 文件"""
         with tempfile.TemporaryDirectory() as replace_dir, tempfile.TemporaryDirectory() as system_dir:
             # 创建 replace 文件
-            replace_content1 = """- 客户姓名：张三\n- 逾期金额：1000元\n- 查账时间：今天上午10点"""
-            replace_content2 = """- 客户姓名：李四\n- 逾期金额：2000元\n- 查账时间：今天下午2点"""
-            with open(os.path.join(replace_dir, "rep1.txt"), "w", encoding="utf-8") as f:
+            replace_content1 = (
+                """- 客户姓名：张三\n- 逾期金额：1000元\n- 查账时间：今天上午10点"""
+            )
+            replace_content2 = (
+                """- 客户姓名：李四\n- 逾期金额：2000元\n- 查账时间：今天下午2点"""
+            )
+            with open(
+                os.path.join(replace_dir, "rep1.txt"), "w", encoding="utf-8"
+            ) as f:
                 f.write(replace_content1)
-            with open(os.path.join(replace_dir, "rep2.txt"), "w", encoding="utf-8") as f:
+            with open(
+                os.path.join(replace_dir, "rep2.txt"), "w", encoding="utf-8"
+            ) as f:
                 f.write(replace_content2)
             # 创建 system 文件
             sys_content1 = "这是系统提示1"
@@ -231,6 +240,7 @@ class TestFactory:
         config = Config(config_data)
         loader = create_case_loader(config)
         from core.case_loader import DefaultCaseLoader
+
         assert isinstance(loader, DefaultCaseLoader)
         assert loader.cases_dir == "dummy_path"
 
@@ -240,12 +250,13 @@ class TestFactory:
             "case_loader": {
                 "type": "xiaoying",
                 "replace_dir": "path/to/replace",
-                "system_dir": "path/to/system"
+                "system_dir": "path/to/system",
             }
         }
         config = Config(config_data)
         loader = create_case_loader(config)
         from core.case_loader import XiaoyingCaseLoader
+
         assert isinstance(loader, XiaoyingCaseLoader)
         assert loader.replace_dir == "path/to/replace"
         assert loader.system_dir == "path/to/system"

@@ -1,7 +1,7 @@
 from core.case_loader import CaseLoader, DefaultCaseLoader, XiaoyingCaseLoader
 from core.condition import ConditionEvaluator, KeywordConditionEvaluator
 from core.config import Config
-from core.time_generator import TimeGenerator,SimpleNaturalTimeGenerator
+from core.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
 
 
 def create_condition_evaluator(config: Config) -> ConditionEvaluator:
@@ -34,7 +34,8 @@ def create_case_loader(config: Config) -> CaseLoader:
         return XiaoyingCaseLoader(replace_dir, system_dir)
     else:
         raise ValueError(f"Unknown case_loader type: {loader_type}")
-    
+
+
 def create_time_generator(config: Config) -> TimeGenerator:
     """工厂方法：根据配置创建时间生成器"""
     gen_type = config.get("time_generator.type", "simple_natural")

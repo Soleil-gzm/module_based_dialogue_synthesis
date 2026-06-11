@@ -61,7 +61,9 @@ def load_prob_matrix(prob_path: str, modules: List[str]) -> pd.DataFrame:
 
 
 def parse_case_info(
-    txt_path: str, rng: Optional[RandomService] = None, time_gen: Optional[TimeGenerator] = None
+    txt_path: str,
+    rng: Optional[RandomService] = None,
+    time_gen: Optional[TimeGenerator] = None,
 ) -> Dict[str, Any]:
     """
     解析单个案例文件，返回字段字典。
@@ -105,32 +107,32 @@ def parse_case_info(
             raw = line.split("：")[1].strip()
             data["逾期金额"] = raw
             # 提取数值
-            match = re.search(r'[\d.]+', raw)
+            match = re.search(r"[\d.]+", raw)
             data["逾期金额_数值"] = float(match.group()) if match else 0.0
         elif line.startswith("- 总欠款："):
             raw = line.split("：")[1].strip()
             data["总欠款"] = raw
-            match = re.search(r'[\d.]+', raw)
+            match = re.search(r"[\d.]+", raw)
             data["总欠款_数值"] = float(match.group()) if match else 0.0
         elif line.startswith("- 本金："):
             raw = line.split("：")[1].strip()
             data["本金"] = raw
-            match = re.search(r'[\d.]+', raw)
+            match = re.search(r"[\d.]+", raw)
             data["本金_数值"] = float(match.group()) if match else 0.0
         elif line.startswith("- 利息："):
             raw = line.split("：")[1].strip()
             data["利息"] = raw
-            match = re.search(r'[\d.]+', raw)
+            match = re.search(r"[\d.]+", raw)
             data["利息_数值"] = float(match.group()) if match else 0.0
         elif line.startswith("- 违约金："):
             raw = line.split("：")[1].strip()
             data["违约金"] = raw
-            match = re.search(r'[\d.]+', raw)
+            match = re.search(r"[\d.]+", raw)
             data["违约金_数值"] = float(match.group()) if match else 0.0
         elif line.startswith("- 罚息："):
             raw = line.split("：")[1].strip()
             data["罚息"] = raw
-            match = re.search(r'[\d.]+', raw)
+            match = re.search(r"[\d.]+", raw)
             data["罚息_数值"] = float(match.group()) if match else 0.0
 
     # 获取逾期金额数值（用于随机金额生成）
@@ -166,7 +168,7 @@ def parse_case_info(
 def load_cases(
     cases_dir: str,
     rng: Optional[RandomService] = None,
-    time_gen: Optional[TimeGenerator] = None
+    time_gen: Optional[TimeGenerator] = None,
 ) -> Tuple[List[Dict], List[str]]:
     """
     加载所有案例，返回 (cases列表, prompts列表)。
