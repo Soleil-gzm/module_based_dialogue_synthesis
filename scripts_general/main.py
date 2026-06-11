@@ -7,6 +7,7 @@
 
 import json
 import os
+import sys
 from datetime import datetime
 
 import pandas as pd
@@ -185,6 +186,36 @@ def main():
         with open(trace_file, "w", encoding="utf-8") as f:
             json.dump(all_traces, f, ensure_ascii=False, indent=2)
         logger.info(f"追踪数据已保存至 {trace_file}")
+
+    # ========== 自动分析（如果配置启用） ==========
+    if config.get("auto_analysis.enabled", False):
+        trace_file = os.path.join(traces_dir, f"traces_{timestamp}.json")
+        if os.path.exists(trace_file):
+            # 构建期望的路径：intermediate/analysis/时间戳
+            analysis_output = os.path.join(task_dir, "intermediate", "analysis", timestamp)
+            plot_format = config.get("auto_analysis.format", "html")
+            try:
+                import subprocess
+                # 使用当前 Python 解释器执行 analyze_all.py 脚本
+                script_path = os.path.join(os.path.dirname(__file__), "analyze_all.py")
+                cmd = [
+                    sys.executable,
+                    script_path,
+                    "--trace", trace_file,
+                    "--output_dir", analysis_output,
+                    "--format", plot_format
+                ]
+                logger.info(f"开始自动分析，命令: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                if result.returncode == 0:
+                    logger.info(f"自动分析完成，报告保存在 {analysis_output}")
+                    logger.debug(f"分析输出:\n{result.stdout}")
+                else:
+                    logger.error(f"自动分析失败 (返回码 {result.returncode}):\n{result.stderr}")
+            except Exception as e:
+                logger.error(f"调用分析脚本时出错: {e}", exc_info=True)
+        else:
+            logger.warning(f"未找到 trace 文件 {trace_file}，跳过自动分析")
 
 
 if __name__ == "__main__":

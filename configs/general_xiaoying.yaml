@@ -20,7 +20,7 @@ paths_cache_dir: "paths"   # 最终路径为 output/paths/
 # ============================================
 # 生成数量与随机种子
 # ============================================
-num_paths: 1000
+num_paths: 40000
 random_seed: 42
 
 # 断点续传间隔（保存检查点的对话条数）
@@ -203,3 +203,11 @@ logging:
   console: true
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
   datefmt: "%Y-%m-%d %H:%M:%S"
+
+# ============================================
+# 自动分析配置
+# ============================================
+auto_analysis:
+  enabled: true          # 是否在生成对话后自动运行分析
+  output_dir: "intermediate/analysis" # 相对于任务目录的输出子目录
+  format: "html"         # "html" 或 "png"
