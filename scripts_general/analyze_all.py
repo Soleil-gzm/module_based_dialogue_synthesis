@@ -14,8 +14,8 @@ import re
 from collections import Counter, defaultdict
 
 # ========== 硬编码输入输出 ==========
-INPUT_TRACE_FILE = "output/general_4000_42/intermediate/traces/traces_20260610_155816.json"  # 修改为实际文件
-OUTPUT_DIR = "output/general_4000_42/intermediate/analysis"
+INPUT_TRACE_FILE = "output/general_v1_40000_42/intermediate/traces/traces_20260610_173304.json"  # 修改为实际文件
+OUTPUT_DIR = "output/general_v1_40000_42/intermediate/analysis"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # 输出文件（HTML 交互式）
@@ -50,21 +50,97 @@ def simplify_reason(reason):
     return re.sub(r"_\d+$", "", reason)
 
 
+# def analyze(traces):
+#     # 施压位置
+#     pressure_positions = []
+#     # 再见触发位置
+#     goodbye_normalized = []
+#     # 停止原因计数
+#     stop_reason_counter = Counter()
+#     # 对话轮数（每个对话的总 turn_count 之和）
+#     dialogue_lengths = []
+#     # 再见处理结果统计
+#     goodbye_handling = {
+#         "goodbye_triggered": 0,
+#         "goodbye_ignored": 0,
+#         "no_goodbye": 0,
+#     }
+
+#     for trace in traces:
+#         path = trace.get("path", [])
+#         modules = trace.get("modules", [])
+#         final_reason = trace.get("final_stop_reason", None)
+#         path_len = len(path)
+
+#         # 停止原因
+#         if final_reason:
+#             simplified = simplify_reason(final_reason)
+#             stop_reason_counter[simplified] += 1
+
+#         # 对话轮数：累加每个模块的 turn_count
+#         total_turns = sum(mod.get("turn_count", 0) for mod in modules)
+#         dialogue_lengths.append(total_turns)
+
+#         # 再见处理结果统计
+#         has_triggered = any(mod.get("goodbye_triggered", False) for mod in modules)
+#         has_ignored = any(mod.get("goodbye_ignored", False) for mod in modules)
+#         is_stopped = final_reason and final_reason.startswith("goodbye")
+
+#         if has_triggered:
+#             if is_stopped:
+#                 goodbye_handling["triggered_and_stopped"] += 1
+#             else:
+#                 goodbye_handling["triggered_but_not_stopped"] += 1
+#         elif has_ignored:
+#             goodbye_handling["ignored_no_trigger"] += 1
+#         else:
+#             goodbye_handling["no_goodbye"] += 1
+
+#         # 再见触发位置（只针对 triggered 的对话）
+#         if has_triggered:
+#             # 找到第一个 goodbye_triggered=True 的模块索引
+#             trigger_idx = None
+#             for idx, mod in enumerate(modules):
+#                 if mod.get("goodbye_triggered", False):
+#                     trigger_idx = idx
+#                     break
+#             if trigger_idx is not None:
+#                 if path_len > 1:
+#                     goodbye_normalized.append(trigger_idx / (path_len - 1))
+#                 else:
+#                     goodbye_normalized.append(0.0)
+
+#         # 施压位置
+#         for idx, mod in enumerate(modules):
+#             if mod.get("pressure_applied", False):
+#                 if path_len > 1:
+#                     pressure_positions.append(idx / (path_len - 1))
+#                 else:
+#                     pressure_positions.append(0.0)
+
+#     return {
+#         "pressure_positions": pressure_positions,
+#         "goodbye_normalized": goodbye_normalized,
+#         "stop_reason_counter": stop_reason_counter,
+#         "dialogue_lengths": dialogue_lengths,
+#         "goodbye_handling": goodbye_handling,
+#         "total_conversations": len(traces),
+#     }
+
 def analyze(traces):
-    # 施压位置
+    # 施压位置（归一化）
     pressure_positions = []
-    # 再见触发位置
+    # 再见触发位置（归一化）
     goodbye_normalized = []
-    # 停止原因计数
+    # 停止原因计数（简化后）
     stop_reason_counter = Counter()
-    # 对话轮数（每个对话的总 turn_count 之和）
+    # 每条对话的总轮数（所有模块的 turn_count 之和）
     dialogue_lengths = []
-    # 再见处理结果统计
+    # 再见处理统计
     goodbye_handling = {
-        "triggered_and_stopped": 0,
-        "triggered_but_not_stopped": 0,
-        "ignored_no_trigger": 0,  # 出现过再见忽略但未触发
-        "no_goodbye": 0,
+        "goodbye_triggered": 0,   # 再见被触发且对话终止
+        "goodbye_ignored": 0,     # 再见被忽略（未终止）
+        "no_goodbye": 0,          # 从未出现再见
     }
 
     for trace in traces:
@@ -73,31 +149,27 @@ def analyze(traces):
         final_reason = trace.get("final_stop_reason", None)
         path_len = len(path)
 
-        # 停止原因
+        # 停止原因（简化，去除数字后缀）
         if final_reason:
             simplified = simplify_reason(final_reason)
             stop_reason_counter[simplified] += 1
 
-        # 对话轮数：累加每个模块的 turn_count
+        # 对话轮数
         total_turns = sum(mod.get("turn_count", 0) for mod in modules)
         dialogue_lengths.append(total_turns)
 
-        # 再见处理结果统计
+        # 再见处理统计
         has_triggered = any(mod.get("goodbye_triggered", False) for mod in modules)
         has_ignored = any(mod.get("goodbye_ignored", False) for mod in modules)
-        is_stopped = final_reason and final_reason.startswith("goodbye")
 
         if has_triggered:
-            if is_stopped:
-                goodbye_handling["triggered_and_stopped"] += 1
-            else:
-                goodbye_handling["triggered_but_not_stopped"] += 1
+            goodbye_handling["goodbye_triggered"] += 1
         elif has_ignored:
-            goodbye_handling["ignored_no_trigger"] += 1
+            goodbye_handling["goodbye_ignored"] += 1
         else:
             goodbye_handling["no_goodbye"] += 1
 
-        # 再见触发位置（只针对 triggered 的对话）
+        # 再见触发位置（仅针对 triggered 的对话）
         if has_triggered:
             # 找到第一个 goodbye_triggered=True 的模块索引
             trigger_idx = None
@@ -127,7 +199,6 @@ def analyze(traces):
         "goodbye_handling": goodbye_handling,
         "total_conversations": len(traces),
     }
-
 
 def create_histogram(data, title, xlabel, ylabel, output_html, nbins=20):
     if not data:
