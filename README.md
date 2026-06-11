@@ -1,332 +1,395 @@
-***
+# 多轮对话生成系统
 
-# 🧩一、项目背景
-
-# python
-基于规则和概率矩阵的对话数据集自动生成工具，专为电话催收场景设计。通过 Excel 话术模板 + 概率转移矩阵 + 继承树结构，自动生成大量多样化的多轮对话 JSON 数据，可直接用于 LLM 的指令微调或对话模型训练。
-***
-
-# 🧩二、功能特性
-
-- **配置驱动**：所有业务参数（模块列表、转移规则、重复次数限制等）通过 YAML 配置文件管理，无需修改代码即可适配不同话术模板或业务逻辑。
-
-- **模块化设计**：路径生成、对话构建、条件解析、随机服务等职责分离，便于扩展和维护。
-
-- **继承树模拟**：每个模块内部通过 `uid` / `parent` 构建话术树，支持祖先链（完整上下文）和随机后代链（模拟分支），使对话更真实。
-
-- **施压话术独立模块**：施压话术自身具备 repeat、继承、条件解析能力，可根据主模块出现次数动态附加，并支持合并或独立轮次。
-
-- **断点续传 & 路径缓存**：对话生成定期保存检查点，意外中断后可恢复；路径生成结果按 `num_paths` 和 `seed` 缓存，避免重复计算。
-
-- **可复现随机**：统一 `RandomService` 管理随机种子，确保结果可重复。
-
-- **详细追踪**（可选）：记录每条对话的模块处理状态、跳过原因、停止原因、继承链长度、施压话术细节等，便于调试和分析。
-
-### 2.1 架构分层图
-
-```mermaid
-flowchart TD
-
-newlines1["`配置层
-config`"] -->
-newlines2["`数据层
-data_loader  →  Excel / 概率矩阵 / 案例`"] -->
-newlines3["`业务逻辑层
-PathGenerator  →  模块序列（状态机+概率）
-DialogueBuilder → 对话构建（继承树+施压）
-ConditionEvaluator → 条件解析
-PressureManager → 施压话术管理`"] -->
-newlines4["`基础设施层
-RandomService / Logger / TraceCollector`"]
-```
-
-### 2.2模块职责表
-
-| 模块                   | 核心职责            | 关键接口                                      |
-| -------------------- | --------------- | ----------------------------------------- |
-| `PathGenerator`      | 生成模块序列（对话骨架）    | `generate(num_paths, seed)`               |
-| `DialogueBuilder`    | 基于路径和案例生成对话消息   | `build(path, case, prompt)`               |
-| `ConditionEvaluator` | 判断话术是否适用当前案例    | `evaluate(cond_str, case) -> bool`        |
-| `PressureManager`    | 抽取施压话术片段（支持继承树） | `get_pressure_segment(repeat, case, ...)` |
-| `RandomService`      | 统一随机服务，确保可复现    | `choice()`, `random()`, `np_choice()`     |
-| `TraceCollector`     | 记录对话生成过程中的决策    | `start_dialogue()`, `set_module_status()` |
-
-### 2.3关键流程时序图
-
-```
-main.py
-  ├─ load_config()
-  ├─ load_sheets() / load_prob_matrix() / load_cases()
-  ├─ create_condition_evaluator()
-  ├─ PathGenerator.generate() → 返回路径列表
-  └─ for each path:
-       └─ DialogueBuilder.build()
-            ├─ 遍历 path 中模块
-            ├─ 筛选 repeat + 条件 → 选中一行
-            ├─ get_ancestors() + get_random_descendant_chain()
-            ├─ 构建 turn_list，检查再见（概率终止）
-            ├─ 追加施压话术（若有）
-            └─ fill_placeholders()
-```
-
-***
-
-# 🧩三、项目代码说明
-
-## 3.1 核心模块说明
-
-### 3.1.1 `dialogue_builder.py`
-
-### 3.1.2 `path_generator.py`
-
-### 3.1.3 `pressure_manager.py`
-
-施压关键修改说明    ==动态概率 + 次数上限 + 延迟启动==
-原因：早期模块数量多，随机触发概率固定，导致总次数在早期就达到上限，后期即使概率高也无法触发。
-
-1. **动态施压概率**：基于模块索引 `idx` 和总模块数 `total_modules` 计算归一化位置 `t`，然后使用指数函数 `t ** exponent` 使概率后期增长更快。
-
-2. **全局次数上限**：`self.pressure_max_total` 限制每条对话最多施压次数（默认3），超过后不再触发。
-
-3. **模块权重**：通过 `module_pressure_weights` 配置不同模块的权重（例如“身份确认”权重为0，困难模块权重>1）。
-
-4. **重置计数**：在每次 `build` 开始时重置 `self.pressure_count = 0`。
-
-5. **保留兼容性**：如果 `pressure_dynamic_enabled` 为 `false`，则回退到固定概率 `pressure_prob`。
-
-以下是一个适合放在 README 中关于施压话术触发策略的章节示例，你可以直接复制到文档的“配置说明”或“核心机制”部分。
+基于规则和概率矩阵的对话数据集自动生成工具，专为电话催收场景设计。通过 Excel 话术模板 + 概率转移矩阵 + 继承树结构，自动生成大量多样化的多轮对话 `JSON` 数据，可直接用于 `LLM` 的指令微调或对话模型训练。
 
 ---
 
-## 施压话术触发策略
+## 📋 目录
 
-为了模拟真实催收中“后期逐步加压”的行为，系统采用**动态概率 + 全局次数上限 + 模块权重**的触发机制。
+- [特性](#特性)
+- [系统架构](#系统架构)
+- [快速开始](#快速开始)
+- [配置说明](#配置说明)
+- [数据准备](#数据准备)
+- [运行生成](#运行生成)
+- [测试](#测试)
+- [输出结构](#输出结构)
+- [扩展开发](#扩展开发)
+- [常见问题](#常见问题)
 
-### 核心规则
+---
 
-1. **只有指定模块才可能触发**  
-   由配置文件中的 `insert_nodes` 列表定义，例如 `["没钱", "失业", "破产", ...]`。
+## ✨ 特性
 
-2. **触发概率随对话进度递增**  
-   - 归一化位置 `t = 当前模块索引 / (路径总模块数 - 1)`（取值范围 0 ~ 1）。  
-   - 动态概率公式：  
-     `prob = start_prob + (end_prob - start_prob) * (t ** exponent)`  
-     - `start_prob`：路径开头的基础概率（默认 0.02）  
-     - `end_prob`：路径末尾的最大概率（默认 0.6）  
-     - `exponent`：指数曲线（>1 使后期增长更快，默认 2.5）  
-   - 概率不会超过 1.0。
+- **配置驱动**：所有业务参数（模块、转移概率、重复次数、施压策略等）均通过 `YAML` 配置文件管理，无需修改代码即可适配不同业务线。
+- **可复现性**：统一随机服务 `RandomService` 支持固定种子，确保生成结果可复现。
+- **模块化设计**：路径生成、对话构建、条件解析、施压话术、时间生成等核心组件高度解耦，符合开闭原则。
+- **断点续传**：生成大规模对话时支持检查点机制，中断后可恢复。
+- **智能施压策略**：动态概率模型使施压话术自然集中于对话中后段，符合真实催收流程。
+- **可扩展条件解析**：抽象 `ConditionEvaluator`，当前支持关键词匹配，可轻松替换为复杂逻辑（如 `&`、`|` 运算符）。
+- **灵活案例加载**：支持单一目录（原有行为）或双目录（替换数据 + 系统提示）模式，适配不同业务需求。
+- **自然时间生成**：内置口语化时间生成器（如“今天下午3点”），可自定义或扩展。
+- **详尽追踪**：可选 `TraceCollector` 记录每条对话的决策过程（施压位置、再见触发、停止原因等），便于分析与调优。
+- **自动分析报告**：生成对话后自动调用分析模块，输出可视化图表（HTML/PNG）和统计报告。
 
-3. **模块权重调整**  
-   可为不同模块设置权重因子（`module_pressure_weights`），最终概率为 `prob * weight`。权重默认 1.0，困难模块可设 >1，非施压模块权重无效（因为不在 `insert_nodes` 中）。
+---
 
-4. **每条对话最多施压次数**  
-   由 `pressure_max_total` 控制（默认 3）。达到上限后不再触发，避免施压过密。
+## 🏗️ 系统架构
 
-5. **兼容固定概率模式**  
-   设置 `pressure_dynamic_enabled: false` 后，将回退到固定概率 `pressure_prob`（默认 0.6），同时仍受 `pressure_max_total` 限制。
+![[Pasted image 20260611171602.png]]
 
-### 配置示例
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        配置层 (YAML)                         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        数据加载层                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
+│  │ load_sheets │  │load_prob    │  │ CaseLoader (抽象)   │ │
+│  │  (Excel)    │  │  Matrix     │  │ ├ DefaultCaseLoader │ │
+│  └─────────────┘  └─────────────┘  │ └ XiaoyingCaseLoader│ │
+│                                     └─────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        业务逻辑层                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │PathGenerator │  │DialogueBuilder│ │PressureManager   │  │
+│  │ (路径生成)   │  │ (对话构建)    │  │ (施压管理)       │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │ConditionEval │  │TimeGenerator │  │RandomService     │  │
+│  │ (条件解析)   │  │ (时间生成)   │  │ (随机服务)       │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        生成层 (main.py)                       │
+│  └── 路径缓存 → 对话生成 → 断点续传 → 输出 JSON + Trace     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      分析层 (analyze_all.py)                 │
+│  └── 施压位置、再见处理、停止原因、对话轮数分布等图表        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚀 快速开始
+
+### 环境要求
+
+- Python 3.11+
+- 依赖包：`pandas`, `numpy`, `openpyxl`, `pyyaml`, `plotly`（可选，用于 HTML 图表）
+
+### 安装
+
+```bash
+# 克隆项目
+git clone <repository-url>
+cd module_based_dialogue_synthesis
+
+# 创建虚拟环境（推荐）
+conda env create -f env/dialogue_builder.yml
+conda activate dialogue_builder
+
+# 或使用 pip
+pip install pandas numpy openpyxl pyyaml plotly
+```
+
+### 准备数据
+
+1. **Excel 话术模板**：包含所有模块 sheet 和“链接施压话术” sheet（列定义详见 [数据准备](#数据准备)）。
+2. **概率矩阵**：Excel 文件，行列均为模块名，值为整数百分比。
+3. **案例文件**：文本文件，格式为 `- 字段：值`（示例见 `datas/xiaoying/cases_replace/`）。
+
+### 配置
+
+复制 `configs/general_Template.yaml` 为 `configs/my_config.yaml`，按需修改。
+
+### 运行
+
+```bash
+python scripts_general/main.py
+```
+
+---
+
+## ⚙️ 配置说明
+
+配置文件采用 YAML 格式，主要配置段如下：
 
 ```yaml
-# 需要施压的模块
-insert_nodes:
-  - "没钱"
-  - "失业"
-  - "破产"
-  - "生病住院"
-  - "未发工资"
-  - "工程款"
-  - "通用原因"
+# 基础配置
+task_name: "xiaoying"          # 任务名称，用于输出子目录
+num_paths: 1000                # 生成对话数量
+random_seed: 42                # 随机种子
 
-# 动态概率参数（推荐）
+# 数据路径
+excel_path: "data/xiaoying/template.xlsx"
+prob_path: "data/xiaoying/prob.xlsx"
+
+# 案例加载器 (支持 default / xiaoying)
+case_loader:
+  type: "xiaoying"             # 双目录模式
+  replace_dir: "datas/xiaoying/cases_replace"   # 占位数据
+  system_dir: "datas/xiaoying/cases_system"     # 系统提示
+
+# 模块定义
+modules:
+  - "身份确认"
+  - "告知"
+  - "没钱"
+  # ... 完整列表
+
+max_repeat:
+  "身份确认": 1
+  "没钱": 3
+  # ... 每个模块的最大重复次数
+
+a_set: ["没钱", "失业", "生病住院"]
+b_set: ["承诺还款", "三方", "转告"]
+terminal_modules: ["已还款"]
+
+# 施压话术配置
+insert_nodes: ["没钱", "失业", "生病住院"]
 pressure_dynamic_enabled: true
 pressure_start_prob: 0.02
 pressure_end_prob: 0.6
 pressure_curve_exponent: 2.5
 pressure_max_total: 3
-
-# 模块权重（可选，仅对 insert_nodes 内模块生效）
 module_pressure_weights:
-  没钱: 1.2
-  失业: 1.0
-  破产: 1.0
-  通用原因: 0.9
+  "没钱": 1.2
+  "失业": 1.0
 
-# 固定概率模式（当 dynamic_enabled = false 时使用）
-pressure_prob: 0.6
+# 再见逻辑
+goodbye_termination_prob: 0.3
+flexible_stop_prob: 0.3
+
+# 时间生成器
+time_generator:
+  type: "simple_natural"       # 当前仅支持 simple_natural
+
+# 条件解析器
+condition_parser: "keyword"    # keyword / 未来可扩展
+
+# 追踪与日志
+trace_enabled: true
+logging:
+  level: "INFO"
+  console: true
+  log_dir: "logs"
+
+# 自动分析
+auto_analysis:
+  enabled: true
+  format: "html"               # html 或 png
 ```
-
-### 效果验证
-
-- 动态概率使施压话术集中在对话中后段，避免开头连续施压。
-- 全局次数上限确保每条对话施压次数合理（通常 2~3 次）。
-- 可通过 trace 分析脚本（`analyze_traces.py`）生成施压位置直方图，调整参数直至分布符合预期。
 
 ---
 
-### 3.1.4 `utterance.py`
+## 📁 数据准备
 
-### 3.1.5 `condition.py`
+### Excel 话术模板
 
-### 3.1.6 `factory.py`
+**必须包含的列**：
 
-## trace 标签说明
+| 列名 | 说明 |
+|------|------|
+| `uid` | 唯一标识 |
+| `parent(继承)` | 父节点 uid，用于构建继承链 |
+| `repeat(次数)` | 支持的重复次数，如 `1` 或 `1/2/3` |
+| `conditions(条件)` | 条件表达式（当前支持关键词“逾期”） |
+| `human(客户)` | 客户话术，多个选项用 `/` 分隔 |
+| `assistant(专员)` | 专员话术，多个选项用 `/` 分隔 |
+| `flexible_stop(可选不继承)` | 是否允许后代链提前终止（1/0） |
+| `是否再见` | 是否可能触发对话终止（1/0） |
 
-| trace 标签                | 说明                                                                                                                                                                                                                                                     |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| module                  | 当前处理的模块名称                                                                                                                                                                                                                                              |
-| repeat                  | 该模块在当前路径上出现的次数                                                                                                                                                                                                                                         |
-| status                  | 模块处理的状态，可能的值：  <br>- `"processed"`：成功处理，生成了对话轮次。  <br>- `"skipped_no_data"`：该模块在 `df_dict` 中无对应DataFrame 或为空。  <br>- `"skipped_no_repeat_match"`：没有找到匹配当前 `repeat` 次数的行。  <br>- `"skipped_condition_mismatch"`：候选行均不满足案例条件（`conditions` 列评估为 `False`）。 |
-| turn_count              | 该模块贡献的对话轮次数。包括祖先链、当前行、后代链中所有成功添加的 `(user, assistant)` 对的数量。                                                                                                                                                                                            |
-| ancestor_count          | 祖先链中的话术行数量。这些行构成从根节点到当前选中行的完整对话历史。                                                                                                                                                                                                                     |
-| descendant_count        | 后代链中的话术行数量。随机从当前行的子节点中选择的一条分支上的节点数。                                                                                                                                                                                                                    |
-| stop_reason             | 如果该模块导致整个对话终止，记录终止原因；否则为 `null`。原因示例：  <br>- `"goodbye_in_ancestor_{uid}"`：祖先链中某个话术行触发了再见。  <br>- `"goodbye_in_current_{uid}"`：当前选中的行触发了再见。  <br>- `"goodbye_in_descendant_{uid}"`：后代链中某个话术行触发了再见。                                                     |
-| error                   | 保留字段，用于记录模块处理过程中捕获的异常信息（当前版本未使用）。                                                                                                                                                                                                                      |
-| selected_uid            | 从满足 `repeat` 和条件筛选的 `valid_rows` 中随机选中的话术行的 `uid`。                                                                                                                                                                                                     |
-| pressure_applied        | 是否在该模块处理完后附加了施压话术（依赖于模块是否在 `insert_nodes` 中且随机概率命中）。                                                                                                                                                                                                   |
-| pressure_segment_length | 施压话术片段包含的原始轮次数（片段中每个元素代表一轮对话，包含 `user` 和 `assistant`）。\|                                                                                                                                                                                               |
-| pressure_merge_last     | 是否将该片段的第一个助理话术合并到了上一条已有的助理消息中                                                                                                                                                                                                                          |
-| goodbye_triggered       | 是否触发再见                                                                                                                                                                                                                                                 |
-| goodbye_ignored         | 是否忽略再见                                                                                                                                                                                                                                                 |
+### 概率矩阵
 
-## 配置文件说明
+Excel 文件，第一行和第一列为模块名，单元格值为 0~100 的整数（表示百分比）。例如：
 
-配置文件 `configs/general.yaml` 包含所有业务参数，主要字段如下：
+|          | 身份确认 | 告知 | 没钱 |
+|----------|---------|------|------|
+| 身份确认 | 0       | 80   | 20   |
+| 告知     | 0       | 0    | 100  |
+| 没钱     | 0       | 0    | 60   | (剩余 40 跳转到 B 集)
 
-| 字段                         | 类型    | 说明                                                                                           |
-| -------------------------- | ----- | -------------------------------------------------------------------------------------------- |
-| `modules`                  | list  | 模块名称列表，必须与 Excel 中 sheet 名称一致                                                                |
-|                            |       |                                                                                              |
-| `start_module`             | str   | 路径起始模块，默认为 `modules` 第一个                                                                     |
-| `max_repeat`               | dict  | 每个模块在路径中最多出现的次数                                                                              |
-| `terminal_modules`         | list  | 终止模块（如 `["承诺还款", "已还款"]`）                                                                    |
-| `a_set` / `b_set`          | list  | A 集（自循环模块）和 B 集（循环模块）                                                                        |
-| `insert_nodes`             | list  | 需要附加施压话术的模块                                                                                  |
-| `pressure_prob`            | float | 施压话术触发概率（0~1）                                                                                |
-| `goodbye_termination_prob` | float | 遇到“是否再见=1”时终止对话的概率                                                                           |
-| `paths_cache`              | str   | 路径缓存模板，需包含 `{num_paths}` 和 `{seed}` 占位符，如 `"intermediate/all_paths_{num_paths}_{seed}.json"` |
-| `trace_enabled`            | bool  | 是否启用详细追踪（记录每条对话的决策过程）                                                                        |
-| `trace_output_dir`         | str   | 追踪数据输出目录，如 `"traces"`                                                                        |
-| `logging`                  | dict  | 日志配置（级别、目录、格式等）                                                                              |
-完整示例参见仓库中的 `configs/general.yaml`。
+### 案例文件
 
-***
+#### 单目录模式 (`default`)
 
-# 🧩四、安装与依赖
-
-## 环境要求
-
-- Python 3.9+
-
-- 建议使用虚拟环境（conda 或 venv）
-
-## 安装依赖
-
-`重建环境：`
-`conda env create -f path/to/dialogue_builder.yml`
-`指定新环境名：`
-`conda env create -n 新环境名 -f path/to/dialogue_builder.yml`
-
-后续处理可以查看项目：[[data_cleaning_and_augmentation_pipeline]]
-
-# 📄问题待解决
-
-1. trace 记录里面的merge_last报错  -->  bool值传入出错，==实际==是and~~语句~~的问题
-2. 文件时间戳一致性--> 问题不大，只是log的时间有一点点差异，可以不管
-3. 可选不继承--> 已经解决
- 1. 只判断current row 是否需要继承，后继还需要判断吗？
- 2. 先判断是否继承，再添加对话  VS 是否再见：先添加对话再判断
-
-## 项目结构
+每个 `.txt` 文件同时作为**占位数据**和**系统提示**，格式如下：
 
 ```
-├── .pytest_cache/
-│   ├── v/
-│   ├── .gitignore
-│   ├── CACHEDIR.TAG
-│   └── README.md
-├── configs/
-│   ├── general.yaml
-│   ├── general_Template.yaml
-│   └── general_xiaoying.yaml
-├── datas/
-│   ├── cases/
-│   ├── General_regulations/
-│   ├── xiaoying/
-│   ├── yangqianguan/
-│   └── 路径生成中的特殊规则.md
-├── env/
-│   └── dialogue_builder.yml
-├── output/
-│   ├── general_100_42/
-│   ├── general_40000_42/
-│   ├── general_4000_42/
-│   ├── general_>_100_42/
-│   ├── general_>_4000_42/
-│   ├── general_v1_40000_42/
-│   ├── general_v2_40000_42/
-│   ├── paths/
-│   └── xiaoying_1000_42/
-├── scripts_general/
-│   ├── core/
-│   ├── analyze_all.py
-│   └── main.py
-├── scripts_test/
-│   ├── dataset_process.py
-│   ├── prob_shape.py
-│   ├── process.ipynb
-│   └── Series.py
-├── testing/
-│   ├── __pycache__/
-│   └── __init__.py
-├── .gitignore
-├── generate_structure_exclude_data.py
-├── pytest.ini
-└── README.md
+- 客服电话：952592
+- 客户姓名：张三
+- 逾期天数：30
+- 逾期金额：5000元
+...
 ```
 
-## 项目结构
+#### 双目录模式 (`xiaoying`)
+
+- **replace_dir**：存放占位数据文件（用于填充对话中的 `{变量}`），格式同上。
+- **system_dir**：存放系统提示文本（直接作为 system 消息内容），可包含多行自由文本。
+
+两个目录中的文件按文件名排序后一一对应，数量不等时循环复用。
+
+---
+
+## ▶️ 运行生成
+
+### 基本运行
+
+```bash
+python scripts_general/main.py
+```
+
+### 命令行参数（仅针对分析脚本）
+
+分析脚本 `analyze_all.py` 支持独立运行：
+
+```bash
+# 分析指定 trace 文件，自动生成时间戳子目录
+python scripts_general/analyze_all.py --trace output/xiaoying_1000_42/intermediate/traces/traces_20260611_142040.json
+
+# 指定输出目录和图表格式
+python scripts_general/analyze_all.py --trace traces.json --output_dir my_analysis --format png
+```
+
+### 断点续传
+
+- 检查点文件：`output/{task_dir}/checkpoint.json`
+- 每生成 `checkpoint_interval` 条对话自动保存
+- 再次运行 `main.py` 会自动恢复
+
+---
+
+## 🧪 测试
+
+项目使用 `pytest` 进行单元测试，覆盖核心模块。
+
+```bash
+# 运行所有测试
+pytest scripts_general/testing/ -v
+
+# 运行特定测试文件
+pytest scripts_general/testing/test_case_time.py -v
+```
+
+测试覆盖：
+
+- 时间生成器格式验证
+- 案例加载器（default / xiaoying）
+- 条件解析器
+- 数据加载与解析（含金额数值提取）
+- 工厂模式创建对象
+
+---
+
+## 📂 输出结构
+
+运行完成后，输出目录结构如下：
 
 ```
-├── .pytest_cache/
-│   ├── v/
-│   ├── .gitignore
-│   ├── CACHEDIR.TAG
-│   └── README.md
-├── configs/
-│   ├── general.yaml
-│   ├── general_Template.yaml
-│   └── general_xiaoying.yaml
-├── datas/
-│   ├── cases/
-│   ├── General_regulations/
-│   ├── xiaoying/
-│   ├── yangqianguan/
-│   └── 路径生成中的特殊规则.md
-├── env/
-│   └── dialogue_builder.yml
-├── output/
-│   ├── general_100_42/
-│   ├── general_40000_42/
-│   ├── general_4000_42/
-│   ├── general_>_100_42/
-│   ├── general_>_4000_42/
-│   ├── general_v1_40000_42/
-│   ├── general_v2_40000_42/
-│   ├── paths/
-│   └── xiaoying_1000_42/
-├── scripts_general/
-│   ├── core/
-│   ├── testing/
-│   ├── analyze_all.py
-│   └── main.py
-├── scripts_test/
-│   ├── dataset_process.py
-│   ├── prob_shape.py
-│   ├── process.ipynb
-│   └── Series.py
-├── .gitignore
-├── generate_structure_exclude_data.py
-├── pytest.ini
-└── README.md
+output/xiaoying_1000_42/                     # 任务目录
+├── general_dialogues_20260611_142040.json   # 最终对话数据
+├── checkpoint.json                          # 检查点（生成完成后自动删除）
+├── intermediate/                            # 中间文件
+│   ├── logs/                                # 运行日志
+│   │   └── dialogue_builder_20260611_142040.log
+│   ├── traces/                              # 追踪数据（trace_enabled=True）
+│   │   └── traces_20260611_142040.json
+│   └── analysis/                            # 自动分析报告
+│       └── 20260611_142040/                 # 按时间戳分组
+│           ├── pressure_position_histogram.html
+│           ├── goodbye_position_histogram.html
+│           ├── stop_reason_bar.html
+│           ├── dialogue_length_histogram.html
+│           ├── goodbye_handling_bar.html
+│           └── analysis_report.txt
+└── auto_analysis/                           # 若配置了 auto_analysis
+    └── ... (同 analysis 结构)
 ```
+
+此外，路径缓存独立存放于：
+
+```
+output/paths/all_paths_{num_paths}_{seed}.json
+```
+
+---
+
+## 🔧 扩展开发
+
+### 1. 添加新的条件解析器
+
+1. 继承 `ConditionEvaluator`，实现 `evaluate` 方法。
+2. 在 `factory.py` 的 `create_condition_evaluator` 中添加分支。
+3. 配置文件中指定 `condition_parser: "my_parser"`。
+
+### 2. 添加新的时间生成器
+
+1. 继承 `TimeGenerator`，实现 `generate` 方法。
+2. 在 `time_generator.py` 的 `create_time_generator` 中添加分支。
+3. 配置 `time_generator.type: "my_generator"`。
+
+### 3. 添加新的案例加载器
+
+1. 继承 `CaseLoader`，实现 `load` 方法。
+2. 在 `factory.py` 的 `create_case_loader` 中添加分支。
+3. 配置 `case_loader.type: "my_loader"` 及相应参数。
+
+### 4. 调整动态施压曲线
+
+修改 `config` 中的 `pressure_start_prob`, `pressure_end_prob`, `pressure_curve_exponent` 等参数，可控制施压话术在对话中的分布。
+
+---
+
+## ❓ 常见问题
+
+### Q: 生成对话数量少于预期？
+
+- 检查 `num_paths` 是否超过可能的路径组合数（有限状态机限制）。
+- 增大 `max_repeat` 或减少终止模块可增加多样性。
+
+### Q: 施压话术集中在对话开头？
+
+- 确认 `pressure_dynamic_enabled: true`
+- 降低 `pressure_start_prob` (如 0.02)，增大 `pressure_curve_exponent` (如 2.5)
+- 检查早期模块的 `module_pressure_weights` 是否设置过高。
+
+### Q: 金额字段包含“元”导致转换错误？
+
+已修复：`parse_case_info` 会自动提取数字部分，同时保留原始字符串。无需额外处理。
+
+### Q: 如何禁用自动分析？
+
+在配置文件中设置 `auto_analysis.enabled: false`。
+
+### Q: 如何切换到单目录案例加载？
+
+配置 `case_loader.type: "default"` 并指定 `cases_dir`。
+
+---
+
+## 📝 许可证
+
+[待补充]
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request。请确保新增代码包含单元测试，并遵循现有代码风格。
+
+---
+
+**最后更新**：2026-06-11
