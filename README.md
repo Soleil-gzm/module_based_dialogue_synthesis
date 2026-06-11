@@ -236,3 +236,97 @@ pressure_prob: 0.6
 3. 可选不继承--> 已经解决
  1. 只判断current row 是否需要继承，后继还需要判断吗？
  2. 先判断是否继承，再添加对话  VS 是否再见：先添加对话再判断
+
+## 项目结构
+
+```
+├── .pytest_cache/
+│   ├── v/
+│   ├── .gitignore
+│   ├── CACHEDIR.TAG
+│   └── README.md
+├── configs/
+│   ├── general.yaml
+│   ├── general_Template.yaml
+│   └── general_xiaoying.yaml
+├── datas/
+│   ├── cases/
+│   ├── General_regulations/
+│   ├── xiaoying/
+│   ├── yangqianguan/
+│   └── 路径生成中的特殊规则.md
+├── env/
+│   └── dialogue_builder.yml
+├── output/
+│   ├── general_100_42/
+│   ├── general_40000_42/
+│   ├── general_4000_42/
+│   ├── general_>_100_42/
+│   ├── general_>_4000_42/
+│   ├── general_v1_40000_42/
+│   ├── general_v2_40000_42/
+│   ├── paths/
+│   └── xiaoying_1000_42/
+├── scripts_general/
+│   ├── core/
+│   ├── analyze_all.py
+│   └── main.py
+├── scripts_test/
+│   ├── dataset_process.py
+│   ├── prob_shape.py
+│   ├── process.ipynb
+│   └── Series.py
+├── testing/
+│   ├── __pycache__/
+│   └── __init__.py
+├── .gitignore
+├── generate_structure_exclude_data.py
+├── pytest.ini
+└── README.md
+```
+
+## 项目结构
+
+```
+├── .pytest_cache/
+│   ├── v/
+│   ├── .gitignore
+│   ├── CACHEDIR.TAG
+│   └── README.md
+├── configs/
+│   ├── general.yaml
+│   ├── general_Template.yaml
+│   └── general_xiaoying.yaml
+├── datas/
+│   ├── cases/
+│   ├── General_regulations/
+│   ├── xiaoying/
+│   ├── yangqianguan/
+│   └── 路径生成中的特殊规则.md
+├── env/
+│   └── dialogue_builder.yml
+├── output/
+│   ├── general_100_42/
+│   ├── general_40000_42/
+│   ├── general_4000_42/
+│   ├── general_>_100_42/
+│   ├── general_>_4000_42/
+│   ├── general_v1_40000_42/
+│   ├── general_v2_40000_42/
+│   ├── paths/
+│   └── xiaoying_1000_42/
+├── scripts_general/
+│   ├── core/
+│   ├── testing/
+│   ├── analyze_all.py
+│   └── main.py
+├── scripts_test/
+│   ├── dataset_process.py
+│   ├── prob_shape.py
+│   ├── process.ipynb
+│   └── Series.py
+├── .gitignore
+├── generate_structure_exclude_data.py
+├── pytest.ini
+└── README.md
+```

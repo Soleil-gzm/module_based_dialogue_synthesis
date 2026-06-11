@@ -18,6 +18,7 @@ from core.logger import get_logger, init_logger
 from core.path_generator import PathGenerator
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
+from core.factory import create_case_loader, create_time_generator
 
 
 def save_checkpoint(dialogues: list, next_index: int, checkpoint_file: str):
@@ -101,7 +102,12 @@ def main():
     pressure_manager = PressureManager(pressure_df, rng, config)
 
     # 7. 条件解析器
+    # 条件解析器
     condition_evaluator = create_condition_evaluator(config)
+    # 时间解析器
+    time_gen = create_time_generator(config)   # 新增
+    case_loader = create_case_loader(config)
+    cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)   # 传入 time_gen
 
     # 8. 路径生成（使用独立于任务的缓存目录）
     # 路径缓存放在 output_root/paths/ 下，文件名由模板决定
