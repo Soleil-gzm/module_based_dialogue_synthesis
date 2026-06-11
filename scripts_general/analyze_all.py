@@ -14,8 +14,8 @@ import re
 from collections import Counter, defaultdict
 
 # ========== 硬编码输入输出 ==========
-INPUT_TRACE_FILE = "output/general_v1_40000_42/intermediate/traces/traces_20260610_173304.json"  # 修改为实际文件
-OUTPUT_DIR = "output/general_v1_40000_42/intermediate/analysis"
+INPUT_TRACE_FILE = "output/xiaoying_1000_42/intermediate/traces/traces_20260611_132939.json"  # 修改为实际文件
+OUTPUT_DIR = "output/xiaoying_1000_42/intermediate/analysis"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # 输出文件（HTML 交互式）
@@ -127,6 +127,7 @@ def simplify_reason(reason):
 #         "total_conversations": len(traces),
 #     }
 
+
 def analyze(traces):
     # 施压位置（归一化）
     pressure_positions = []
@@ -138,9 +139,9 @@ def analyze(traces):
     dialogue_lengths = []
     # 再见处理统计
     goodbye_handling = {
-        "goodbye_triggered": 0,   # 再见被触发且对话终止
-        "goodbye_ignored": 0,     # 再见被忽略（未终止）
-        "no_goodbye": 0,          # 从未出现再见
+        "goodbye_triggered": 0,  # 再见被触发且对话终止
+        "goodbye_ignored": 0,  # 再见被忽略（未终止）
+        "no_goodbye": 0,  # 从未出现再见
     }
 
     for trace in traces:
@@ -199,6 +200,7 @@ def analyze(traces):
         "goodbye_handling": goodbye_handling,
         "total_conversations": len(traces),
     }
+
 
 def create_histogram(data, title, xlabel, ylabel, output_html, nbins=20):
     if not data:

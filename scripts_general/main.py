@@ -13,7 +13,7 @@ import pandas as pd
 from core.config import load_config
 from core.data_loader import load_cases, load_prob_matrix, load_sheets
 from core.dialogue_builder import DialogueBuilder
-from core.factory import create_condition_evaluator
+from core.factory import create_case_loader, create_condition_evaluator
 from core.logger import get_logger, init_logger
 from core.path_generator import PathGenerator
 from core.pressure_manager import PressureManager
@@ -42,7 +42,7 @@ def load_checkpoint(checkpoint_file: str):
 
 def main():
     # 1. 加载配置
-    config_path = "configs/general.yaml"
+    config_path = "configs/general_xiaoying.yaml"
     config = load_config(config_path)
     logger = None  # 稍后初始化
 
@@ -92,7 +92,8 @@ def main():
 
     logger.info("加载案例...")
     cases_dir = config.get("cases_dir")
-    cases, prompts = load_cases(cases_dir, rng=rng)
+    case_loader = create_case_loader(config)
+    cases, prompts = case_loader.load(rng=rng)
     logger.info(f"加载案例数量: {len(cases)}")
 
     # 6. 加载施压话术表
