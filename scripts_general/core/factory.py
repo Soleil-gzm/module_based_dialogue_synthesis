@@ -2,6 +2,7 @@ from core.case_loader import CaseLoader, DefaultCaseLoader, XiaoyingCaseLoader
 from core.condition import ConditionEvaluator, KeywordConditionEvaluator
 from core.config import Config
 from core.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
+from core.analyzer import Analyzer,DefaultAnalyzer
 
 
 def create_condition_evaluator(config: Config) -> ConditionEvaluator:
@@ -46,3 +47,28 @@ def create_time_generator(config: Config) -> TimeGenerator:
     #     return RelativeTimeGenerator()
     else:
         raise ValueError(f"Unknown time_generator type: {gen_type}")
+    
+def create_analyzer(config) -> Analyzer:
+    """工厂函数：根据配置创建分析器"""
+    analyzer_cfg = config.get("analyzer", {})
+    ana_type = analyzer_cfg.get("type", "default")
+    if ana_type == "default":
+        fmt = analyzer_cfg.get("format", "html")
+        
+        # 将配置中的压力参数键名映射为 DefaultAnalyzer 期望的简化键名
+        pressure_config = {}
+        key_mapping = {
+            "pressure_start_prob": "start_prob",
+            "pressure_end_prob": "end_prob",
+            "pressure_curve_exponent": "exponent",
+            "pressure_max_total": "max_total",
+            "pressure_position_mode": "mode",
+        }
+        for cfg_key, simple_key in key_mapping.items():
+            value = config.get(cfg_key)
+            if value is not None:
+                pressure_config[simple_key] = value
+        
+        return DefaultAnalyzer(format=fmt, pressure_config=pressure_config)
+    else:
+        raise ValueError(f"Unknown analyzer type: {ana_type}")

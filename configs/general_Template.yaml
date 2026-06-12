@@ -1,7 +1,37 @@
-company: "通用催收"
-start_module: "身份确认"
+# ============================================
+# 项目基础配置
+# ============================================
+company: "placeholder"          # 公司标识，用于区分
+start_module: "身份确认"        # 起始模块
+task_name: "general"            # 任务名称（最终输出子目录为 {task_name}_{num_paths}_{seed}）
+output_dir: "output"            # 根输出目录
 
-modules:
+# ============================================
+# 生成数量与随机种子
+# ============================================
+num_paths: 40000                # 生成的对话数量
+random_seed: 42                 # 随机种子（保证可复现）
+checkpoint_interval: 5000       # 断点续传间隔（条数）
+
+# ============================================
+# 数据文件路径
+# ============================================
+excel_path: "datas/General_regulations/【生成式通用】电催话术通用模板-首催 - 20260330.xlsx"
+prob_path: "datas/General_regulations/prob.xlsx"
+
+# 案例加载器配置
+case_loader:
+  type: "default"               # default 或 xiaoying
+  # default 模式需要 cases_dir
+  cases_dir: "datas/cases"
+  # xiaoying 模式需要以下两个目录（注释掉不用的）
+  # replace_dir: "datas/xiaoying/cases_replace"
+  # system_dir: "datas/xiaoying/cases_system"
+
+# ============================================
+# 模块定义与业务规则
+# ============================================
+modules:                        # 所有模块（顺序无关，但会用作概率矩阵行列）
   - "身份确认"
   - "告知"
   - "信息核实"
@@ -28,6 +58,7 @@ modules:
   - "忘记还款"
   - "盗刷"
 
+# 模块重复次数限制
 max_repeat:
   身份确认: 4
   告知: 1
@@ -55,6 +86,7 @@ max_repeat:
   忘记还款: 4
   盗刷: 4
 
+# A/B 集规则（路径生成用）
 a_set:
   - "通用原因"
   - "否认办理业务"
@@ -78,10 +110,12 @@ b_set:
   - "诉求"
   - "承诺还款"
 
+# 终止模块（遇到这些模块时路径结束）
 terminal_modules:
   - "承诺还款"
   - "已还款"
 
+# 可附加施压话术的模块
 insert_nodes:
   - "失业"
   - "破产"
@@ -91,31 +125,76 @@ insert_nodes:
   - "通用原因"
   - "没钱"
 
-# 施压概率
-pressure_prob: 0.6
+# ============================================
+# 施压话术配置
+# ============================================
+pressure_prob: 0.3                     # 固定概率（仅当 pressure_dynamic_enabled=false 时使用）
 
-# 条件解析器类型: "keyword" (当前简化版), "simple_eval" (未来可扩展)
-condition_parser: "keyword"
+pressure_dynamic_enabled: true         # 是否启用动态概率
+pressure_start_prob: 0.02              # 路径开头概率
+pressure_end_prob: 0.6                 # 路径末尾概率
+pressure_curve_exponent: 2.5           # 指数曲线（越大后期增长越快）
+pressure_max_total: 3                  # 每条对话最多施压次数
+pressure_position_mode: "normalized"   # 概率位置模式：normalized 或 absolute
+max_expected_modules: 15               # 绝对模式下的最大期望模块数（用于映射 idx）
 
-# 路径生成配置
-num_paths: 40000
-random_seed: 42
-paths_cache: "intermediate/all_paths.json"
-checkpoint_interval: 5000   # 每生成5000条对话保存一次检查点
+# 模块权重（仅对 insert_nodes 中的模块有效，权重为乘数）
+module_pressure_weights:
+  没钱: 1.2
+  失业: 1.0
+  破产: 1.0
+  生病住院: 1.0
+  未发工资: 1.0
+  工程款: 1.0
+  通用原因: 0.9
 
-# 数据文件路径
-excel_path: "datas/General_regulations/【生成式通用】电催话术通用模板-首催 - 20260330.xlsx"
-prob_path: "datas/General_regulations/prob.xlsx"
-cases_dir: "datas/cases"
+# ============================================
+# 再见终止与继承链
+# ============================================
+goodbye_termination_prob: 0.7          # 遇到“是否再见=1”时终止对话的概率
+flexible_stop_prob: 0.3                # 后代链随机停止概率（当 flexible_stop=1 时）
 
-# 输出配置
-output_dir: "output"
+# ============================================
+# 解析器配置
+# ============================================
+condition_parser: "keyword"            # 条件解析器：keyword（当前）或 simple_eval（未来）
+time_generator:
+  type: "simple_natural"               # 时间生成器：simple_natural（当前）
 
-# 日志配置
+# ============================================
+# 追踪与日志
+# ============================================
+trace_enabled: true                    # 是否生成详细追踪文件（JSON）
 logging:
-  level: "INFO"
-  log_dir: "logs"
+  level: "DEBUG"
   file_prefix: "dialogue_builder"
   console: true
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
   datefmt: "%Y-%m-%d %H:%M:%S"
+
+# ============================================
+# 自动分析（生成对话后自动分析 trace）
+# ============================================
+auto_analysis:
+  enabled: true                        # 是否启用自动分析
+  format: "html"                       # 图表格式：html 或 png
+
+# ============================================
+# 分析器配置（用于独立分析或自动分析）
+# ============================================
+analyzer:
+  type: "default"                      # 分析器类型（当前仅 default）
+  format: "html"                       # 图表格式（可与 auto_analysis.format 保持一致）
+
+# ============================================
+# 扩展列名（若 Excel 列名不同可修改）
+# ============================================
+keep_columns:
+  - "uid"
+  - "parent(继承)"
+  - "repeat(次数)"
+  - "conditions(条件)"
+  - "human(客户)"
+  - "assistant(专员)"
+  - "flexible_stop(可选不继承)"
+  - "是否再见"

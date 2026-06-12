@@ -44,7 +44,7 @@ def load_checkpoint(checkpoint_file: str):
 
 def main():
     # 1. 加载配置
-    config_path = "configs/general.yaml"
+    config_path = "configs/general_xiaoying.yaml"
     config = load_config(config_path)
     logger = None  # 稍后初始化
 
@@ -191,39 +191,25 @@ def main():
     if config.get("auto_analysis.enabled", False):
         trace_file = os.path.join(traces_dir, f"traces_{timestamp}.json")
         if os.path.exists(trace_file):
-            # 构建期望的路径：intermediate/analysis/时间戳
-            analysis_output = os.path.join(
-                task_dir, "intermediate", "analysis", timestamp
-            )
+            analysis_output = os.path.join(task_dir, "intermediate", "analysis", timestamp)
             plot_format = config.get("auto_analysis.format", "html")
             try:
-                import subprocess
-
-                # 使用当前 Python 解释器执行 analyze_all.py 脚本
-                script_path = os.path.join(os.path.dirname(__file__), "analyze_all.py")
-                cmd = [
-                    sys.executable,
-                    script_path,
-                    "--trace",
-                    trace_file,
-                    "--output_dir",
-                    analysis_output,
-                    "--format",
-                    plot_format,
-                ]
-                logger.info(f"开始自动分析，命令: {' '.join(cmd)}")
-                result = subprocess.run(
-                    cmd, capture_output=True, text=True, check=False
-                )
-                if result.returncode == 0:
-                    logger.info(f"自动分析完成，报告保存在 {analysis_output}")
-                    logger.debug(f"分析输出:\n{result.stdout}")
-                else:
-                    logger.error(
-                        f"自动分析失败 (返回码 {result.returncode}):\n{result.stderr}"
-                    )
+                from core.analyzer import DefaultAnalyzer
+                # 读取压力配置（用于图表标注）
+                pressure_config = {
+                    "start_prob": config.get("pressure_start_prob"),
+                    "end_prob": config.get("pressure_end_prob"),
+                    "exponent": config.get("pressure_curve_exponent"),
+                    "max_total": config.get("pressure_max_total"),
+                    "mode": config.get("pressure_position_mode", "normalized"),
+                }
+                # 过滤 None
+                pressure_config = {k: v for k, v in pressure_config.items() if v is not None}
+                analyzer = DefaultAnalyzer(format=plot_format, pressure_config=pressure_config)
+                analyzer.analyze(trace_file, analysis_output)
+                logger.info(f"自动分析完成，报告保存在 {analysis_output}")
             except Exception as e:
-                logger.error(f"调用分析脚本时出错: {e}", exc_info=True)
+                logger.error(f"自动分析失败: {e}", exc_info=True)
         else:
             logger.warning(f"未找到 trace 文件 {trace_file}，跳过自动分析")
 

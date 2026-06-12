@@ -43,6 +43,9 @@ class DialogueBuilder:
         self.pressure_curve_exponent = config.get("pressure_curve_exponent", 2.0)
         self.pressure_max_total = config.get("pressure_max_total", 3)
         self.module_pressure_weights = config.get("module_pressure_weights", {})
+        # 施压概率位置模式
+        self.pressure_position_mode = config.get("pressure_position_mode", "normalized")  # "normalized" 或 "absolute"
+        self.max_expected_modules = config.get("max_expected_modules", 15)  # 绝对模式下期望的最大模块数
 
         # 辅助变量（每次 build 时重置）
         self.pressure_count = 0
@@ -248,12 +251,11 @@ class DialogueBuilder:
 
         # 计算动态概率
         if self.pressure_dynamic_enabled and total > 1:
-            t = idx / (total - 1)  # 归一化位置 0~1
-            # 指数曲线插值
-            prob = self.pressure_start_prob + (
-                self.pressure_end_prob - self.pressure_start_prob
-            ) * (t**self.pressure_curve_exponent)
-            # 模块权重
+            if self.pressure_position_mode == "normalized":
+                t = idx / (total - 1)
+            else:  # absolute
+                t = min(1.0, idx / self.max_expected_modules)
+            prob = self.pressure_start_prob + (self.pressure_end_prob - self.pressure_start_prob) * (t ** self.pressure_curve_exponent)
             weight = self.module_pressure_weights.get(node, 1.0)
             prob = min(1.0, prob * weight)
         else:
