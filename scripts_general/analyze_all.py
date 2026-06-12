@@ -50,9 +50,7 @@ def simplify_reason(reason):
         return reason
     return re.sub(r"_\d+$", "", reason)
 
-
 def analyze(traces):
-    """分析 traces 数据，返回统计字典"""
     pressure_positions = []
     goodbye_normalized = []
     stop_reason_counter = Counter()
@@ -60,8 +58,7 @@ def analyze(traces):
     goodbye_handling = {
         "triggered_and_stopped": 0,
         "triggered_but_not_stopped": 0,
-        "ignored_no_trigger": 0,
-        "no_goodbye": 0,
+        "natural_end": 0,
     }
 
     for trace in traces:
@@ -70,18 +67,14 @@ def analyze(traces):
         final_reason = trace.get("final_stop_reason", None)
         path_len = len(path)
 
-        # 停止原因
         if final_reason:
             simplified = simplify_reason(final_reason)
             stop_reason_counter[simplified] += 1
 
-        # 对话轮数
         total_turns = sum(mod.get("turn_count", 0) for mod in modules)
         dialogue_lengths.append(total_turns)
 
-        # 再见处理结果
         has_triggered = any(mod.get("goodbye_triggered", False) for mod in modules)
-        has_ignored = any(mod.get("goodbye_ignored", False) for mod in modules)
         is_stopped = final_reason and final_reason.startswith("goodbye")
 
         if has_triggered:
@@ -89,12 +82,9 @@ def analyze(traces):
                 goodbye_handling["triggered_and_stopped"] += 1
             else:
                 goodbye_handling["triggered_but_not_stopped"] += 1
-        elif has_ignored:
-            goodbye_handling["ignored_no_trigger"] += 1
         else:
-            goodbye_handling["no_goodbye"] += 1
+            goodbye_handling["natural_end"] += 1
 
-        # 再见触发位置（归一化）
         if has_triggered:
             trigger_idx = None
             for idx, mod in enumerate(modules):
@@ -107,7 +97,6 @@ def analyze(traces):
                 else:
                     goodbye_normalized.append(0.0)
 
-        # 施压位置
         for idx, mod in enumerate(modules):
             if mod.get("pressure_applied", False):
                 if path_len > 1:
@@ -123,7 +112,6 @@ def analyze(traces):
         "goodbye_handling": goodbye_handling,
         "total_conversations": len(traces),
     }
-
 
 def create_histogram(data, title, xlabel, ylabel, output_html, nbins=20):
     if not data:
@@ -181,31 +169,29 @@ def save_report(stats, output_file):
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("=== Trace Analysis Report ===\n")
         f.write(f"Total conversations: {stats['total_conversations']}\n")
+        
         f.write("\nStop reason distribution:\n")
-        for reason, cnt in sorted(
-            stats["stop_reason_counter"].items(), key=lambda x: x[1], reverse=True
-        ):
+        for reason, cnt in sorted(stats["stop_reason_counter"].items(), key=lambda x: x[1], reverse=True):
             f.write(f"  {reason}: {cnt}\n")
+        
         f.write("\nGoodbye handling:\n")
-        for k, v in stats["goodbye_handling"].items():
-            f.write(f"  {k}: {v}\n")
+        f.write(f"  triggered_and_stopped (直接触发再见并停止): {stats['goodbye_handling']['triggered_and_stopped']}\n")
+        f.write(f"  triggered_but_not_stopped (触发再见但忽略): {stats['goodbye_handling']['triggered_but_not_stopped']}\n")
+        f.write(f"  natural_end (自然结束，未触发再见): {stats['goodbye_handling']['natural_end']}\n")
+        
         if stats["pressure_positions"]:
             arr = np.array(stats["pressure_positions"])
-            f.write(
-                f"\nPressure position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n"
-            )
+            f.write(f"\nPressure position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n")
+        
         if stats["goodbye_normalized"]:
             arr = np.array(stats["goodbye_normalized"])
-            f.write(
-                f"Goodbye trigger position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n"
-            )
+            f.write(f"Goodbye trigger position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n")
+        
         if stats["dialogue_lengths"]:
             arr = np.array(stats["dialogue_lengths"])
-            f.write(
-                f"Dialogue length (number of turns) mean: {np.mean(arr):.2f}, median: {np.median(arr):.2f}, min: {np.min(arr)}, max: {np.max(arr)}\n"
-            )
+            f.write(f"Dialogue length (number of turns) mean: {np.mean(arr):.2f}, median: {np.median(arr):.2f}, min: {np.min(arr)}, max: {np.max(arr)}\n")
+    
     print(f"Report saved: {output_file}")
-
 
 def generate_html_charts(stats, output_dir):
     """使用 plotly 生成 HTML 图表"""

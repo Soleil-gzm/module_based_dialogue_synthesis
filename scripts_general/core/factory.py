@@ -37,7 +37,7 @@ def create_case_loader(config: Config) -> CaseLoader:
 
 
 def create_time_generator(config: Config) -> TimeGenerator:
-    """工厂方法：根据配置创建时间生成器"""
+    """工厂方法：根据配置创建随机时间占用符时间生成器"""
     gen_type = config.get("time_generator.type", "simple_natural")
     if gen_type == "simple_natural":
         return SimpleNaturalTimeGenerator()

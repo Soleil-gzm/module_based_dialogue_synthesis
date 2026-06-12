@@ -44,7 +44,7 @@ def load_checkpoint(checkpoint_file: str):
 
 def main():
     # 1. 加载配置
-    config_path = "configs/general_xiaoying.yaml"
+    config_path = "configs/general.yaml"
     config = load_config(config_path)
     logger = None  # 稍后初始化
 

@@ -5,7 +5,7 @@ company: "通用催收"
 start_module: "身份确认"
 
 # 任务标识（仅名称，不含数量和种子，程序会自动组合）
-task_name: "general_v2"
+task_name: "general_test"
 
 # 根输出目录
 output_dir: "output"
@@ -32,6 +32,74 @@ checkpoint_interval: 5000
 excel_path: "datas/General_regulations/【生成式通用】电催话术通用模板-首催 - 20260330.xlsx"
 prob_path: "datas/General_regulations/prob.xlsx"
 cases_dir: "datas/cases"
+
+# 新增加载器配置
+case_loader:
+  type: "xiaoying"
+  replace_dir: "datas/xiaoying/cases_replace"
+  system_dir: "datas/xiaoying/cases_system"
+
+# ============================================
+# 施压话术配置
+# ============================================
+# 固定施压概率（仅在 pressure_dynamic_enabled=false 时使用）
+pressure_prob: 0.3
+
+# 动态施压概率开关
+pressure_dynamic_enabled: true
+pressure_start_prob: 0.02        # 路径开头概率
+pressure_end_prob: 0.6           # 路径末尾概率
+pressure_curve_exponent: 2.5     # 指数，越大后期增长越快
+pressure_max_total: 3            # 每条对话最多施压次数（设置很大如999可视为无限制）
+
+# 模块权重（仅 insert_nodes 中的模块，默认权重为1.0）
+module_pressure_weights:
+  没钱: 1.2
+  失业: 1.0
+  破产: 1.0
+  生病住院: 1.0
+  未发工资: 1.0
+  工程款: 1.0
+  通用原因: 0.9
+
+# ============================================
+# 再见终止与继承链停止概率
+# ============================================
+goodbye_termination_prob: 0.7      # 遇到“是否再见=1”时终止对话的概率
+flexible_stop_prob: 0.3           # 后代链停止概率（当 flexible_stop=1 时）
+
+# ============================================
+# 解析器
+# ============================================
+# 条件解析器
+condition_parser: "keyword"        # keyword | simple_eval (future)
+# 时间生成器配置
+time_generator:
+  type: "simple_natural"   # 可选: simple_natural
+
+# ============================================
+# 追踪配置
+# ============================================
+trace_enabled: true                # 是否启用详细追踪（生成 trace 文件）
+
+# ============================================
+# 日志配置
+# ============================================
+logging:
+  level: "DEBUG"
+  # log_dir 不再需要，程序会自动放到任务子目录下的 intermediate/logs/
+  file_prefix: "dialogue_builder"
+  console: true
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  datefmt: "%Y-%m-%d %H:%M:%S"
+
+# ============================================
+# 自动分析配置
+# ============================================
+auto_analysis:
+  enabled: true          # 是否在生成对话后自动运行分析
+  output_dir: "intermediate/analysis" # 相对于任务目录的输出子目录
+  format: "html"         # "html" 或 "png"
 
 # ============================================
 # 模块定义
@@ -130,39 +198,6 @@ insert_nodes:
   - "通用原因"
   - "没钱"
 
-# ============================================
-# 施压话术配置
-# ============================================
-# 固定施压概率（仅在 pressure_dynamic_enabled=false 时使用）
-pressure_prob: 0.3
-
-# 动态施压概率开关
-pressure_dynamic_enabled: true
-pressure_start_prob: 0.02        # 路径开头概率
-pressure_end_prob: 0.6           # 路径末尾概率
-pressure_curve_exponent: 2.5     # 指数，越大后期增长越快
-pressure_max_total: 3            # 每条对话最多施压次数（设置很大如999可视为无限制）
-
-# 模块权重（仅 insert_nodes 中的模块，默认权重为1.0）
-module_pressure_weights:
-  没钱: 1.2
-  失业: 1.0
-  破产: 1.0
-  生病住院: 1.0
-  未发工资: 1.0
-  工程款: 1.0
-  通用原因: 0.9
-
-# ============================================
-# 再见终止与继承链停止概率
-# ============================================
-goodbye_termination_prob: 0.7      # 遇到“是否再见=1”时终止对话的概率
-flexible_stop_prob: 0.3           # 后代链停止概率（当 flexible_stop=1 时）
-
-# ============================================
-# 条件解析器
-# ============================================
-condition_parser: "keyword"        # keyword | simple_eval (future)
 
 # ============================================
 # 扩展列名（若 Excel 列名不同可修改）
@@ -177,19 +212,3 @@ keep_columns:
   - "flexible_stop(可选不继承)"
   - "是否再见"
 
-# ============================================
-# 追踪配置
-# ============================================
-trace_enabled: true                # 是否启用详细追踪（生成 trace 文件）
-# 注意：trace_output_dir 不再需要，程序会自动放到任务子目录下的 intermediate/traces/
-
-# ============================================
-# 日志配置
-# ============================================
-logging:
-  level: "DEBUG"
-  # log_dir 不再需要，程序会自动放到任务子目录下的 intermediate/logs/
-  file_prefix: "dialogue_builder"
-  console: true
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  datefmt: "%Y-%m-%d %H:%M:%S"
