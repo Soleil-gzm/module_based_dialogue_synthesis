@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 from core.condition import ConditionEvaluator
 from core.config import Config
+from core.factory import create_pressure_strategy
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
 from core.trace import TraceCollector
@@ -44,8 +45,7 @@ class DialogueBuilder:
         self.pressure_max_total = config.get("pressure_max_total", 3)
         self.module_pressure_weights = config.get("module_pressure_weights", {})
         # 施压概率位置模式
-        self.pressure_position_mode = config.get("pressure_position_mode", "normalized")  # "normalized" 或 "absolute"
-        self.max_expected_modules = config.get("max_expected_modules", 15)  # 绝对模式下期望的最大模块数
+        self.pressure_strategy = create_pressure_strategy(config)
 
         # 辅助变量（每次 build 时重置）
         self.pressure_count = 0
@@ -240,8 +240,8 @@ class DialogueBuilder:
         repeat: int,
         case: Dict[str, Any],
         messages: List[Dict],
-        idx: int,  # 当前模块在路径中的索引（从0开始）
-        total: int,  # 路径总模块数
+        idx: int,
+        total: int,
     ):
         """根据动态概率决定是否附加施压话术（带全局次数限制）"""
         if node not in self.insert_nodes:
@@ -251,11 +251,11 @@ class DialogueBuilder:
 
         # 计算动态概率
         if self.pressure_dynamic_enabled and total > 1:
-            if self.pressure_position_mode == "normalized":
-                t = idx / (total - 1)
-            else:  # absolute
-                t = min(1.0, idx / self.max_expected_modules)
-            prob = self.pressure_start_prob + (self.pressure_end_prob - self.pressure_start_prob) * (t ** self.pressure_curve_exponent)
+            # 使用策略计算归一化位置 t
+            t = self.pressure_strategy.get_normalized_position(idx, total)
+            prob = self.pressure_start_prob + (
+                self.pressure_end_prob - self.pressure_start_prob
+            ) * (t**self.pressure_curve_exponent)
             weight = self.module_pressure_weights.get(node, 1.0)
             prob = min(1.0, prob * weight)
         else:

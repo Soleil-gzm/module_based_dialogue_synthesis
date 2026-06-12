@@ -191,21 +191,39 @@ def main():
     if config.get("auto_analysis.enabled", False):
         trace_file = os.path.join(traces_dir, f"traces_{timestamp}.json")
         if os.path.exists(trace_file):
-            analysis_output = os.path.join(task_dir, "intermediate", "analysis", timestamp)
+            analysis_output = os.path.join(
+                task_dir, "intermediate", "analysis", timestamp
+            )
             plot_format = config.get("auto_analysis.format", "html")
             try:
                 from core.analyzer import DefaultAnalyzer
+
                 # 读取压力配置（用于图表标注）
                 pressure_config = {
                     "start_prob": config.get("pressure_start_prob"),
                     "end_prob": config.get("pressure_end_prob"),
                     "exponent": config.get("pressure_curve_exponent"),
                     "max_total": config.get("pressure_max_total"),
-                    "mode": config.get("pressure_position_mode", "normalized"),
+                    "mode": config.get("pressure_strategy", {}).get(
+                        "type", "normalized"
+                    ),
                 }
+                # 如果是 sigmoid 策略，添加 slope
+                strategy_cfg = config.get("pressure_strategy", {})
+                if strategy_cfg.get("type") == "sigmoid":
+                    pressure_config["slope"] = strategy_cfg.get("slope", 10.0)
+                # 如果是 absolute 策略，添加 max_expected_modules
+                if strategy_cfg.get("type") == "absolute":
+                    pressure_config["max_expected"] = config.get(
+                        "max_expected_modules", 15
+                    )
                 # 过滤 None
-                pressure_config = {k: v for k, v in pressure_config.items() if v is not None}
-                analyzer = DefaultAnalyzer(format=plot_format, pressure_config=pressure_config)
+                pressure_config = {
+                    k: v for k, v in pressure_config.items() if v is not None
+                }
+                analyzer = DefaultAnalyzer(
+                    format=plot_format, pressure_config=pressure_config
+                )
                 analyzer.analyze(trace_file, analysis_output)
                 logger.info(f"自动分析完成，报告保存在 {analysis_output}")
             except Exception as e:

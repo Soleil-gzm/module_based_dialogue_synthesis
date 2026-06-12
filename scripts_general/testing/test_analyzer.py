@@ -8,19 +8,13 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
-import pytest
 import numpy as np
-
+import pytest
 # 导入被测模块（需要将 scripts_general 加入 sys.path，参见 conftest.py 或使用相对导入）
-from core.analyzer import (
-    extract_timestamp_from_filename,
-    simplify_reason,
-    analyze_traces_data,
-    DefaultAnalyzer,
-)
-
-from core.factory import create_analyzer
+from core.analyzer import (DefaultAnalyzer, analyze_traces_data,
+                           extract_timestamp_from_filename, simplify_reason)
 from core.config import Config
+from core.factory import create_analyzer
 
 
 # ========== 辅助函数：生成模拟 trace 数据 ==========
@@ -83,15 +77,33 @@ class TestAnalyzeTracesData:
             make_trace(
                 path=["A", "B"],
                 modules=[
-                    {"module": "A", "turn_count": 2, "goodbye_triggered": False, "goodbye_ignored": False, "pressure_applied": False},
-                    {"module": "B", "turn_count": 3, "goodbye_triggered": False, "goodbye_ignored": False, "pressure_applied": False},
+                    {
+                        "module": "A",
+                        "turn_count": 2,
+                        "goodbye_triggered": False,
+                        "goodbye_ignored": False,
+                        "pressure_applied": False,
+                    },
+                    {
+                        "module": "B",
+                        "turn_count": 3,
+                        "goodbye_triggered": False,
+                        "goodbye_ignored": False,
+                        "pressure_applied": False,
+                    },
                 ],
                 final_reason="path_natural_end",
             ),
             make_trace(
                 path=["X"],
                 modules=[
-                    {"module": "X", "turn_count": 1, "goodbye_triggered": True, "goodbye_ignored": False, "pressure_applied": True},
+                    {
+                        "module": "X",
+                        "turn_count": 1,
+                        "goodbye_triggered": True,
+                        "goodbye_ignored": False,
+                        "pressure_applied": True,
+                    },
                 ],
                 final_reason="goodbye_in_current_123",
             ),
@@ -115,8 +127,20 @@ class TestAnalyzeTracesData:
             make_trace(
                 path=["A", "B"],
                 modules=[
-                    {"module": "A", "turn_count": 1, "goodbye_triggered": True, "goodbye_ignored": True, "pressure_applied": False},
-                    {"module": "B", "turn_count": 1, "goodbye_triggered": False, "goodbye_ignored": False, "pressure_applied": False},
+                    {
+                        "module": "A",
+                        "turn_count": 1,
+                        "goodbye_triggered": True,
+                        "goodbye_ignored": True,
+                        "pressure_applied": False,
+                    },
+                    {
+                        "module": "B",
+                        "turn_count": 1,
+                        "goodbye_triggered": False,
+                        "goodbye_ignored": False,
+                        "pressure_applied": False,
+                    },
                 ],
                 final_reason="path_natural_end",  # 最终未因为再见停止
             ),
@@ -132,9 +156,27 @@ class TestAnalyzeTracesData:
             make_trace(
                 path=["A", "B", "C"],
                 modules=[
-                    {"module": "A", "turn_count": 1, "pressure_applied": False, "goodbye_triggered": False, "goodbye_ignored": False},
-                    {"module": "B", "turn_count": 1, "pressure_applied": True, "goodbye_triggered": False, "goodbye_ignored": False},
-                    {"module": "C", "turn_count": 1, "pressure_applied": True, "goodbye_triggered": False, "goodbye_ignored": False},
+                    {
+                        "module": "A",
+                        "turn_count": 1,
+                        "pressure_applied": False,
+                        "goodbye_triggered": False,
+                        "goodbye_ignored": False,
+                    },
+                    {
+                        "module": "B",
+                        "turn_count": 1,
+                        "pressure_applied": True,
+                        "goodbye_triggered": False,
+                        "goodbye_ignored": False,
+                    },
+                    {
+                        "module": "C",
+                        "turn_count": 1,
+                        "pressure_applied": True,
+                        "goodbye_triggered": False,
+                        "goodbye_ignored": False,
+                    },
                 ],
                 final_reason=None,
             ),
@@ -153,8 +195,20 @@ class TestDefaultAnalyzer:
             make_trace(
                 path=["A", "B"],
                 modules=[
-                    {"module": "A", "turn_count": 2, "goodbye_triggered": False, "goodbye_ignored": False, "pressure_applied": False},
-                    {"module": "B", "turn_count": 3, "goodbye_triggered": True, "goodbye_ignored": False, "pressure_applied": True},
+                    {
+                        "module": "A",
+                        "turn_count": 2,
+                        "goodbye_triggered": False,
+                        "goodbye_ignored": False,
+                        "pressure_applied": False,
+                    },
+                    {
+                        "module": "B",
+                        "turn_count": 3,
+                        "goodbye_triggered": True,
+                        "goodbye_ignored": False,
+                        "pressure_applied": True,
+                    },
                 ],
                 final_reason="goodbye_in_current_456",
             ),
@@ -187,7 +241,9 @@ class TestDefaultAnalyzer:
         mock_fig = MagicMock()
         mock_figure.return_value = mock_fig
         with tempfile.TemporaryDirectory() as out_dir:
-            analyzer = DefaultAnalyzer(format="html", pressure_config={"start_prob": 0.02})
+            analyzer = DefaultAnalyzer(
+                format="html", pressure_config={"start_prob": 0.02}
+            )
             analyzer.analyze(sample_trace_file, out_dir)
             # 验证 write_html 被调用（至少一次）
             assert mock_fig.write_html.called
@@ -215,7 +271,9 @@ class TestDefaultAnalyzer:
                         "max_total": 2,
                         "mode": "absolute",
                     }
-                    analyzer = DefaultAnalyzer(format="html", pressure_config=pressure_config)
+                    analyzer = DefaultAnalyzer(
+                        format="html", pressure_config=pressure_config
+                    )
                     # 手动准备一个最小的 stats，避免从文件加载
                     stats = {
                         "pressure_positions": [0.5],
@@ -236,14 +294,16 @@ class TestDefaultAnalyzer:
 # ========== 4. 工厂函数测试 ==========
 class TestCreateAnalyzer:
     def test_create_default_analyzer(self):
-        config = Config({
-            "analyzer": {"type": "default", "format": "png"},
-            "pressure_start_prob": 0.02,
-            "pressure_end_prob": 0.6,
-            "pressure_curve_exponent": 2.5,
-            "pressure_max_total": 3,
-            "pressure_position_mode": "absolute",
-        })
+        config = Config(
+            {
+                "analyzer": {"type": "default", "format": "png"},
+                "pressure_start_prob": 0.02,
+                "pressure_end_prob": 0.6,
+                "pressure_curve_exponent": 2.5,
+                "pressure_max_total": 3,
+                "pressure_position_mode": "absolute",
+            }
+        )
         analyzer = create_analyzer(config)
         assert isinstance(analyzer, DefaultAnalyzer)
         assert analyzer.format == "png"

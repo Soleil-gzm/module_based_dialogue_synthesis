@@ -18,7 +18,7 @@ import os
 import sys
 
 # 添加项目根目录到 sys.path（方便直接运行）
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.analyzer import DefaultAnalyzer, extract_timestamp_from_filename
 
@@ -27,8 +27,14 @@ def main():
     parser = argparse.ArgumentParser(description="分析 trace 文件并生成报告")
     parser.add_argument("--trace", type=str, help="trace JSON 文件路径")
     parser.add_argument("--output_dir", type=str, help="输出目录（默认自动生成）")
-    parser.add_argument("--format", choices=["html", "png"], default="html", help="图表格式")
-    parser.add_argument("--pressure-config", type=str, help='JSON 格式的压力参数，例如 \'{"start_prob":0.02}\'')
+    parser.add_argument(
+        "--format", choices=["html", "png"], default="html", help="图表格式"
+    )
+    parser.add_argument(
+        "--pressure-config",
+        type=str,
+        help="JSON 格式的压力参数，例如 '{\"start_prob\":0.02}'",
+    )
     args = parser.parse_args()
 
     # 确定 trace 路径
@@ -36,7 +42,9 @@ def main():
         trace_path = args.trace
     else:
         # 硬编码后备路径（可根据需要修改）
-        trace_path = "output/general_4000_42/intermediate/traces/traces_20260610_155816.json"
+        trace_path = (
+            "output/general_4000_42/intermediate/traces/traces_20260610_155816.json"
+        )
         print(f"未指定 --trace，使用硬编码路径: {trace_path}")
 
     if not os.path.exists(trace_path):

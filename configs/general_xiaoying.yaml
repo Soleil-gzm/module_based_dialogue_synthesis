@@ -132,8 +132,17 @@ pressure_start_prob: 0.02              # 路径开头概率
 pressure_end_prob: 0.6                 # 路径末尾概率
 pressure_curve_exponent: 2.5           # 指数曲线（越大后期增长越快）
 pressure_max_total: 3                  # 每条对话最多施压次数
-pressure_position_mode: "normalized"   # 概率位置模式：normalized 或 absolute
+# pressure_position_mode: "normalized"   # 概率位置模式：normalized 或 absolute，影响施压话术的施加位置和图表展示
 max_expected_modules: 15               # 绝对模式下的最大期望模块数（用于映射 idx）
+
+# =============================================================
+# 施压概率策略（影响 t 值的计算方法，即影响施压话术的施加位置和图表展示）
+# =============================================================
+pressure_strategy:
+  type: "absolute"          # normalized | absolute | sigmoid | linear_decay
+  # 以下参数仅在特定策略下使用
+  slope: 10.0                 # sigmoid 策略的斜率
+  # max_expected_modules 在 absolute 策略中通过顶层配置设置（已存在）
 
 # 模块权重（仅对 insert_nodes 中的模块有效，权重为乘数）
 module_pressure_weights:

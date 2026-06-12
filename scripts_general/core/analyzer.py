@@ -16,6 +16,7 @@ import numpy as np
 try:
     import plotly.express as px
     import plotly.graph_objects as go
+
     HAS_PLOTLY = True
 except ImportError:
     HAS_PLOTLY = False
@@ -29,6 +30,7 @@ def extract_timestamp_from_filename(filepath: str) -> str:
     if match:
         return match.group(1)
     import time
+
     return time.strftime("%Y%m%d_%H%M%S", time.localtime(os.path.getmtime(filepath)))
 
 
@@ -117,7 +119,7 @@ class DefaultAnalyzer(Analyzer):
     """默认分析器：生成 HTML/PNG 图表和文本报告"""
 
     def __init__(self, format: str = "html", pressure_config: Optional[Dict] = None):
-        self.format = format          # "html" 或 "png"
+        self.format = format  # "html" 或 "png"
         self.pressure_config = pressure_config or {}
 
     def _save_text_report(self, stats: Dict, output_file: str):
@@ -125,29 +127,53 @@ class DefaultAnalyzer(Analyzer):
             f.write("=== Trace Analysis Report ===\n")
             f.write(f"Total conversations: {stats['total_conversations']}\n")
             f.write("\nStop reason distribution:\n")
-            for reason, cnt in sorted(stats["stop_reason_counter"].items(), key=lambda x: x[1], reverse=True):
+            for reason, cnt in sorted(
+                stats["stop_reason_counter"].items(), key=lambda x: x[1], reverse=True
+            ):
                 f.write(f"  {reason}: {cnt}\n")
             f.write("\nGoodbye handling:\n")
-            f.write(f"  triggered_and_stopped (直接触发再见并停止): {stats['goodbye_handling']['triggered_and_stopped']}\n")
-            f.write(f"  triggered_but_not_stopped (触发再见但忽略): {stats['goodbye_handling']['triggered_but_not_stopped']}\n")
-            f.write(f"  natural_end (自然结束，未触发再见): {stats['goodbye_handling']['natural_end']}\n")
+            f.write(
+                f"  triggered_and_stopped (直接触发再见并停止): {stats['goodbye_handling']['triggered_and_stopped']}\n"
+            )
+            f.write(
+                f"  triggered_but_not_stopped (触发再见但忽略): {stats['goodbye_handling']['triggered_but_not_stopped']}\n"
+            )
+            f.write(
+                f"  natural_end (自然结束，未触发再见): {stats['goodbye_handling']['natural_end']}\n"
+            )
             if stats["pressure_positions"]:
                 arr = np.array(stats["pressure_positions"])
-                f.write(f"\nPressure position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n")
+                f.write(
+                    f"\nPressure position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n"
+                )
             if stats["goodbye_normalized"]:
                 arr = np.array(stats["goodbye_normalized"])
-                f.write(f"Goodbye trigger position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n")
+                f.write(
+                    f"Goodbye trigger position (normalized) mean: {np.mean(arr):.3f}, median: {np.median(arr):.3f}, std: {np.std(arr):.3f}\n"
+                )
             if stats["dialogue_lengths"]:
                 arr = np.array(stats["dialogue_lengths"])
-                f.write(f"Dialogue length (number of turns) mean: {np.mean(arr):.2f}, median: {np.median(arr):.2f}, min: {np.min(arr)}, max: {np.max(arr)}\n")
+                f.write(
+                    f"Dialogue length (number of turns) mean: {np.mean(arr):.2f}, median: {np.median(arr):.2f}, min: {np.min(arr)}, max: {np.max(arr)}\n"
+                )
         print(f"Report saved: {output_file}")
 
     def _create_histogram(self, data, title, xlabel, ylabel, output_html, nbins=20):
         if not data:
             print(f"警告: 没有数据可绘制 {title}")
             return
-        fig = go.Figure(data=[go.Histogram(x=data, nbinsx=nbins, marker_color="#1f77b4", opacity=0.75)])
-        fig.update_layout(title=title, xaxis_title=xlabel, yaxis_title=ylabel, template="plotly_white", bargap=0.1)
+        fig = go.Figure(
+            data=[
+                go.Histogram(x=data, nbinsx=nbins, marker_color="#1f77b4", opacity=0.75)
+            ]
+        )
+        fig.update_layout(
+            title=title,
+            xaxis_title=xlabel,
+            yaxis_title=ylabel,
+            template="plotly_white",
+            bargap=0.1,
+        )
         fig.write_html(output_html)
         print(f"保存直方图: {output_html}")
 
@@ -160,9 +186,24 @@ class DefaultAnalyzer(Analyzer):
         else:
             categories = list(counter_or_dict.keys())
             counts = list(counter_or_dict.values())
-        fig = go.Figure(data=[go.Bar(x=categories, y=counts, text=counts, textposition="auto",
-                                     marker_color=px.colors.qualitative.Plotly[:len(categories)])])
-        fig.update_layout(title=title, xaxis_title=xlabel, yaxis_title=ylabel, template="plotly_white", xaxis_tickangle=-45)
+        fig = go.Figure(
+            data=[
+                go.Bar(
+                    x=categories,
+                    y=counts,
+                    text=counts,
+                    textposition="auto",
+                    marker_color=px.colors.qualitative.Plotly[: len(categories)],
+                )
+            ]
+        )
+        fig.update_layout(
+            title=title,
+            xaxis_title=xlabel,
+            yaxis_title=ylabel,
+            template="plotly_white",
+            xaxis_tickangle=-45,
+        )
         fig.write_html(output_html)
         print(f"保存条形图: {output_html}")
 
@@ -172,46 +213,73 @@ class DefaultAnalyzer(Analyzer):
             return
 
         # 构建副标题（压力参数）
-        subtitle = ""
+        subtitle_parts = []
         if self.pressure_config:
-            subtitle = (f"<br><sub>动态施压参数: start={self.pressure_config.get('start_prob')}, "
-                        f"end={self.pressure_config.get('end_prob')}, exponent={self.pressure_config.get('exponent')}, "
-                        f"max_total={self.pressure_config.get('max_total')}, mode={self.pressure_config.get('mode')}</sub>")
+            for key, value in self.pressure_config.items():
+                subtitle_parts.append(f"{key}={value}")
+        subtitle = (
+            "<br><sub>" + ", ".join(subtitle_parts) + "</sub>" if subtitle_parts else ""
+        )
 
         # 施压位置
         self._create_histogram(
             stats["pressure_positions"],
             f"Pressure Utterance Position Distribution{subtitle}",
-            "Normalized Position (0=start, 1=end)", "Frequency",
-            os.path.join(output_dir, "pressure_position_histogram.html")
+            "Normalized Position (0=start, 1=end)",
+            "Frequency",
+            os.path.join(output_dir, "pressure_position_histogram.html"),
         )
+
+        # subtitle = ""
+        # if self.pressure_config:
+        #     subtitle = (
+        #         f"<br><sub>动态施压参数: start={self.pressure_config.get('start_prob')}, "
+        #         f"end={self.pressure_config.get('end_prob')}, exponent={self.pressure_config.get('exponent')}, "
+        #         f"max_total={self.pressure_config.get('max_total')}, mode={self.pressure_config.get('mode')}</sub>"
+        #     )
+
+        # # 施压位置
+        # self._create_histogram(
+        #     stats["pressure_positions"],
+        #     f"Pressure Utterance Position Distribution{subtitle}",
+        #     "Normalized Position (0=start, 1=end)",
+        #     "Frequency",
+        #     os.path.join(output_dir, "pressure_position_histogram.html"),
+        # )
         # 再见触发位置
         if stats["goodbye_normalized"]:
             self._create_histogram(
                 stats["goodbye_normalized"],
                 f"Goodbye Trigger Position Distribution{subtitle}",
-                "Normalized Position (0=start, 1=end)", "Frequency",
-                os.path.join(output_dir, "goodbye_position_histogram.html")
+                "Normalized Position (0=start, 1=end)",
+                "Frequency",
+                os.path.join(output_dir, "goodbye_position_histogram.html"),
             )
         else:
             print("No goodbye triggers found, skipping goodbye position histogram.")
         # 停止原因
         self._create_bar_chart(
             stats["stop_reason_counter"],
-            "Stop Reason Distribution", "Stop Reason", "Number of Conversations",
-            os.path.join(output_dir, "stop_reason_bar.html")
+            "Stop Reason Distribution",
+            "Stop Reason",
+            "Number of Conversations",
+            os.path.join(output_dir, "stop_reason_bar.html"),
         )
         # 对话轮数
         self._create_histogram(
             stats["dialogue_lengths"],
-            "Dialogue Length Distribution", "Number of Turns (user+assistant pairs)", "Frequency",
-            os.path.join(output_dir, "dialogue_length_histogram.html")
+            "Dialogue Length Distribution",
+            "Number of Turns (user+assistant pairs)",
+            "Frequency",
+            os.path.join(output_dir, "dialogue_length_histogram.html"),
         )
         # 再见处理结果
         self._create_bar_chart(
             stats["goodbye_handling"],
-            "Goodbye Handling Outcome", "Category", "Number of Conversations",
-            os.path.join(output_dir, "goodbye_handling_bar.html")
+            "Goodbye Handling Outcome",
+            "Category",
+            "Number of Conversations",
+            os.path.join(output_dir, "goodbye_handling_bar.html"),
         )
 
     def _generate_png_charts(self, stats: Dict, output_dir: str):
@@ -223,7 +291,9 @@ class DefaultAnalyzer(Analyzer):
             plt.ylabel("Frequency")
             plt.title("Pressure Utterance Position Distribution")
             plt.grid(True)
-            plt.savefig(os.path.join(output_dir, "pressure_position_histogram.png"), dpi=150)
+            plt.savefig(
+                os.path.join(output_dir, "pressure_position_histogram.png"), dpi=150
+            )
             plt.close()
         if stats["goodbye_normalized"]:
             plt.figure()
@@ -232,7 +302,9 @@ class DefaultAnalyzer(Analyzer):
             plt.ylabel("Frequency")
             plt.title("Goodbye Trigger Position Distribution")
             plt.grid(True)
-            plt.savefig(os.path.join(output_dir, "goodbye_position_histogram.png"), dpi=150)
+            plt.savefig(
+                os.path.join(output_dir, "goodbye_position_histogram.png"), dpi=150
+            )
             plt.close()
         if stats["stop_reason_counter"]:
             categories = list(stats["stop_reason_counter"].keys())
@@ -252,7 +324,9 @@ class DefaultAnalyzer(Analyzer):
             plt.ylabel("Frequency")
             plt.title("Dialogue Length Distribution")
             plt.grid(True)
-            plt.savefig(os.path.join(output_dir, "dialogue_length_histogram.png"), dpi=150)
+            plt.savefig(
+                os.path.join(output_dir, "dialogue_length_histogram.png"), dpi=150
+            )
             plt.close()
         if stats["goodbye_handling"]:
             categories = list(stats["goodbye_handling"].keys())
@@ -285,6 +359,6 @@ class DefaultAnalyzer(Analyzer):
         elif self.format == "png":
             self._generate_png_charts(stats, output_dir)
         else:
-            print(f"Format '{self.format}' not supported or plotly missing, skipping charts.")
-
-
+            print(
+                f"Format '{self.format}' not supported or plotly missing, skipping charts."
+            )
