@@ -8,8 +8,12 @@ from core.factory import create_pressure_strategy
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
 from core.trace import TraceCollector
-from core.utterance import (fill_placeholders, get_ancestors,
-                            get_random_descendant_chain, sample_utterance)
+from core.utterance import (
+    fill_placeholders,
+    get_ancestors,
+    get_random_descendant_chain,
+    sample_utterance,
+)
 
 
 class DialogueBuilder:
@@ -152,12 +156,16 @@ class DialogueBuilder:
 
         # 获得前后继承链
         ancestors = get_ancestors(row["uid"], df_node)
-        descendant_chain = get_random_descendant_chain(
+        descendant_chain, flexible_stopped = get_random_descendant_chain(
             row["uid"],
             df_node,
             self.rng,
             flexible_stop_prob=self.config.get("flexible_stop_prob", 0.3),
         )
+        if flexible_stopped:
+            self.trace_collector.set_module_flexible_stop(
+                self._current_module_trace, True
+            )
 
         turn_list = []
         stop_reason = ""
@@ -264,13 +272,17 @@ class DialogueBuilder:
         if self.rng.random() > prob:  # 不施压
             return
 
-        pressure_segment, has_customer_first = (
+        pressure_segment, has_customer_first, flexible_stopped = (
             self.pressure_manager.get_pressure_segment(
                 repeat, case, self.condition_evaluator, module_name=node
             )
         )
         if not pressure_segment:
             return
+            # 记录 flexible_stop 触发情况
+        # if flexible_stopped:
+        #     self.trace_collector.set_module_flexible_stop(self._current_module_trace, True)
+        #         self.pressure_count += 1
 
         should_merge = (not has_customer_first) and (len(messages) > 0)
         if should_merge:
@@ -284,7 +296,6 @@ class DialogueBuilder:
             seg_len=len(pressure_segment),
             merge_last=should_merge,
         )
-        self.pressure_count += 1
 
     def build(
         self, path: List[str], case: Dict[str, Any], prompt_text: str

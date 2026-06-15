@@ -1,5 +1,5 @@
 import random
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 from core.random_service import RandomService
@@ -15,6 +15,26 @@ def sample_utterance(row: pd.Series, is_human: bool, rng: RandomService) -> str:
     if not options:
         return ""
     return rng.choice(options)
+
+
+def should_stop_by_flexible(
+    row: pd.Series, rng: RandomService, stop_prob: float
+) -> bool:
+    """
+    判断当前行是否因 flexible_stop 而应停止继续处理（后代链或当前行后续）
+    :param row: 话术行（包含 flexible_stop(可选不继承) 字段）
+    :param rng: 随机服务
+    :param stop_prob: 停止概率（配置文件中的 flexible_stop_prob）
+    :return: True 表示应停止（不再向后继承或继续），False 表示继续
+    """
+    flex_stop_val = row.get("flexible_stop(可选不继承)", 0)
+    # 转换为整数，兼容字符串或数字
+    try:
+        flex_stop = int(flex_stop_val)
+    except (ValueError, TypeError):
+        flex_stop = 0
+    # 只有当字段为1且随机数小于停止概率时才停止
+    return flex_stop == 1 and rng.random() <= stop_prob
 
 
 def get_ancestors(uid: int, df: pd.DataFrame) -> List[pd.Series]:
@@ -41,23 +61,39 @@ def get_random_descendant_chain(
     rng: RandomService,
     flexible_stop_prob: float = 0.3,
     max_depth: int = 10,
-) -> List[pd.Series]:
-    """递归获取一条随机的后代链，使用注入的随机服务"""
+) -> Tuple[List[pd.Series], bool]:
+    """
+    获取从当前行（uid）开始的一条随机后代链（不包含当前行本身，只包含子节点及以下）。
+    返回 (chain, stopped_by_flexible)，其中 chain 为后代行列表（可能有0个或多个）。
+    该函数返回的后代链不包含起始行（因为起始行已经由调用方单独输出），只包含子节点及以下。起始行自身的停止判断用于决定是否禁止任何后代。
+    """
+    # 首先获取当前行（起始行）
+    current_rows = df[df["uid"] == uid]
+    if current_rows.empty:
+        return [], False
+    current_row = current_rows.iloc[0]
+
+    # 检查当前行是否因 flexible_stop 而应停止（没有后代）
+    if should_stop_by_flexible(current_row, rng, flexible_stop_prob):
+        return [], True
+
+    # 继续递归获取子节点
     children = df[df["parent(继承)"] == uid]
     if children.empty or max_depth <= 0:
-        return []
-    child_row = children.sample(n=1, random_state=rng.randint(0, 2**32 - 1)).iloc[
-        0
-    ]  # pandas sample 支持 random_state
+        return [], False
+
+    child_row = children.sample(n=1, random_state=rng.randint(0, 2**32 - 1)).iloc[0]
     chain = [child_row]
-    flex_stop = child_row.get("flexible_stop(可选不继承)", 0)
-    if pd.notna(flex_stop) and flex_stop == 1 and rng.random() < flexible_stop_prob:
-        return chain
-    deeper = get_random_descendant_chain(
+
+    # 检查该子节点是否应停止
+    if should_stop_by_flexible(child_row, rng, flexible_stop_prob):
+        return chain, True
+
+    deeper, deeper_stop = get_random_descendant_chain(
         child_row["uid"], df, rng, flexible_stop_prob, max_depth - 1
     )
     chain.extend(deeper)
-    return chain
+    return chain, deeper_stop
 
 
 def fill_placeholders(text: str, case: Dict[str, Any]) -> str:

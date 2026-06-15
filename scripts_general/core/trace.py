@@ -103,3 +103,7 @@ class TraceCollector:
         if self.enabled and self.data:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
+
+    def set_module_flexible_stop(self, module_trace: Dict, triggered: bool):
+        if self.enabled:
+            module_trace["flexible_stop_triggered"] = triggered

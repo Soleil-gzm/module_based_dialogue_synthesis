@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 from core.config import Config
 from core.random_service import RandomService
-from core.utterance import (get_ancestors, get_random_descendant_chain,
-                            sample_utterance)
+from core.utterance import get_ancestors, get_random_descendant_chain, sample_utterance
+from core.trace import TraceCollector
 
 logger = logging.getLogger("DialogueBuilder")
 
@@ -71,7 +71,7 @@ class PressureManager:
 
         # 获取祖先和后代链
         ancestors = get_ancestors(row["uid"], self.df)
-        descendant_chain = get_random_descendant_chain(
+        descendant_chain, flexible_stopped = get_random_descendant_chain(
             row["uid"], self.df, self.rng, flexible_stop_prob=self.flexible_stop_prob
         )
 
@@ -95,4 +95,4 @@ class PressureManager:
 
         # 判断第一轮是否有客户话术
         has_customer_first = bool(segment[0].get("user")) if segment else False
-        return segment, has_customer_first
+        return segment, has_customer_first, flexible_stopped
