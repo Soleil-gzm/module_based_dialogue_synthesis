@@ -3,21 +3,21 @@
 # ============================================
 company: "placeholder"          # 公司标识，用于区分
 start_module: "身份确认"        # 起始模块
-task_name: "xiaoying_test"            # 任务名称（最终输出子目录为 {task_name}_{num_paths}_{seed}）
+task_name: "xiaoying"            # 任务名称（最终输出子目录为 {task_name}_{num_paths}_{seed}）
 output_dir: "output"            # 根输出目录
 
 # ============================================
 # 生成数量与随机种子
 # ============================================
-num_paths: 1000                # 生成的对话数量
+num_paths: 4000               # 生成的对话数量
 random_seed: 42                 # 随机种子（保证可复现）
 checkpoint_interval: 5000       # 断点续传间隔（条数）
 
 # ============================================
 # 数据文件路径
 # ============================================
-excel_path: "datas/General_regulations/【生成式通用】电催话术通用模板-首催 - 20260330.xlsx"
-prob_path: "datas/General_regulations/prob.xlsx"
+excel_path: "datas/xiaoying/【生成式通用后端】电催话术通用模板-首催20260609.xlsx"
+prob_path: "datas/xiaoying/prob.xlsx"
 
 # 案例加载器配置
 case_loader:
@@ -139,7 +139,7 @@ max_expected_modules: 15               # 绝对模式下的最大期望模块数
 # 施压概率策略（影响 t 值的计算方法，即影响施压话术的施加位置和图表展示）
 # =============================================================
 pressure_strategy:
-  type: "absolute"          # normalized | absolute | sigmoid | linear_decay
+  type: "sigmoid"          # normalized | absolute | sigmoid | linear_decay
   # 以下参数仅在特定策略下使用
   slope: 10.0                 # sigmoid 策略的斜率
   # max_expected_modules 在 absolute 策略中通过顶层配置设置（已存在）
@@ -158,7 +158,7 @@ module_pressure_weights:
 # 再见终止与继承链
 # ============================================
 goodbye_termination_prob: 0.7          # 遇到“是否再见=1”时终止对话的概率
-flexible_stop_prob: 0.3                # 后代链随机停止概率（当 flexible_stop=1 时）
+flexible_stop_prob: 1               # 后代链随机停止概率（当 flexible_stop=1 时）
 
 # ============================================
 # 解析器配置

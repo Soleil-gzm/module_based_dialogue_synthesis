@@ -231,6 +231,5 @@ def main():
         else:
             logger.warning(f"未找到 trace 文件 {trace_file}，跳过自动分析")
 
-
 if __name__ == "__main__":
     main()
