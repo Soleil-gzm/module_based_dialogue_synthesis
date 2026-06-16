@@ -53,59 +53,51 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
     for trace in traces:
         path = trace.get("path", [])
         modules = trace.get("modules", [])
-        final_reason = trace.get("overall_stop_reason", None)  # 注意字段名变化
+        final_reason = trace.get("overall_stop_reason", None)
         path_len = len(path)
 
         if final_reason:
             simplified = simplify_reason(final_reason)
             stop_reason_counter[simplified] += 1
 
-        # 计算总轮数（使用顶层 total_turns，若无则回退到累加模块 turn_count）
         total_turns = trace.get(
             "total_turns", sum(mod.get("turn_count", 0) for mod in modules)
         )
         dialogue_lengths.append(total_turns)
 
-        # 统计再见处理结果：检查每个模块的 goodbye 子对象
-        has_triggered = False
-        has_ignored = False
-        for mod in modules:
-            goodbye = mod.get("goodbye", {})
-            if goodbye.get("goodbye_triggered", False):
-                has_triggered = True
-            # 如果 goodbye_value=1 且 没有触发，则视为忽略
-            if goodbye.get("goodbye_value") == 1 and not goodbye.get("goodbye_triggered", False):
-                has_ignored = True
-        is_stopped = final_reason and final_reason.startswith("goodbye")
+        # 分析再见情况
+        has_goodbye_value_1 = False
+        has_goodbye_triggered = False
+        goodbye_trigger_idx = None  # 记录第一个触发再见的位置索引
 
-        if has_triggered:
-            if is_stopped:
+        # 再见的归一化pos
+        for idx, mod in enumerate(modules):
+            goodbye = mod.get("goodbye", {})
+            if goodbye.get("goodbye_value") == 1:  # 该模块有再见标志
+                has_goodbye_value_1 = True
+                if goodbye.get("goodbye_triggered", False):  # 实际触发了再见
+                    has_goodbye_triggered = True
+                    if goodbye_trigger_idx is None:  # 只记录第一次触发
+                        goodbye_trigger_idx = idx
+
+        # 判断再见处理结果
+        if has_goodbye_value_1:
+            if has_goodbye_triggered:
+                # 至少有一个触发再见
                 goodbye_handling["triggered_and_stopped"] += 1
+                # 记录触发再见的位置（只取第一个触发的位置）
+                if goodbye_trigger_idx is not None:
+                    if path_len > 1:
+                        goodbye_normalized.append(goodbye_trigger_idx / (path_len - 1))
+                    else:
+                        goodbye_normalized.append(0.0)
             else:
-                goodbye_handling["triggered_but_not_stopped"] += 1
-        elif has_ignored:
-            # 如果只有忽略而没有触发，也归为 triggered_but_not_stopped？或者单独分类？
-            # 根据原逻辑，忽略计入 triggered_but_not_stopped，因为触发过再见但未停止。
-            goodbye_handling["triggered_but_not_stopped"] += 1
+                # 有再见行但全部未触发
+                goodbye_handling["ignored"] += 1
         else:
             goodbye_handling["natural_end"] += 1
-        # 再见触发位置仍使用 trigger_idx，只针对 goodbye_triggered 为 True 的模块
 
-        # 再见触发位置（仅当有 goodbye_triggered 时）
-        if has_triggered:
-            trigger_idx = None
-            for idx, mod in enumerate(modules):
-                goodbye = mod.get("goodbye", {})
-                if goodbye.get("goodbye_triggered", False):
-                    trigger_idx = idx
-                    break
-            if trigger_idx is not None:
-                if path_len > 1:
-                    goodbye_normalized.append(trigger_idx / (path_len - 1))
-                else:
-                    goodbye_normalized.append(0.0)
-
-        # 施压位置（从 pressure.applied 获取）
+        # 施压归一化pos
         for idx, mod in enumerate(modules):
             pressure = mod.get("pressure", {})
             if pressure.get("applied", False):
@@ -146,13 +138,13 @@ class DefaultAnalyzer(Analyzer):
                 f.write(f"  {reason}: {cnt}\n")
             f.write("\nGoodbye handling:\n")
             f.write(
-                f"  triggered_and_stopped (直接触发再见并停止): {stats['goodbye_handling']['triggered_and_stopped']}\n"
+                f"  triggered_and_stopped (再见触发并停止): {stats['goodbye_handling']['triggered_and_stopped']}\n"
             )
             f.write(
-                f"  triggered_but_not_stopped (触发再见但忽略): {stats['goodbye_handling']['triggered_but_not_stopped']}\n"
+                f"  triggered_but_not_stopped (再见存在但被忽略): {stats['goodbye_handling']['triggered_but_not_stopped']}\n"
             )
             f.write(
-                f"  natural_end (自然结束，未触发再见): {stats['goodbye_handling']['natural_end']}\n"
+                f"  natural_end (无再见行，自然结束): {stats['goodbye_handling']['natural_end']}\n"
             )
             if stats["pressure_positions"]:
                 arr = np.array(stats["pressure_positions"])
