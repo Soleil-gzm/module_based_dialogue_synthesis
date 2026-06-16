@@ -106,7 +106,6 @@ def parse_case_info(
         elif line.startswith("- 逾期金额："):
             raw = line.split("：")[1].strip()
             data["逾期金额"] = raw
-            # 提取数值
             match = re.search(r"[\d.]+", raw)
             data["逾期金额_数值"] = float(match.group()) if match else 0.0
         elif line.startswith("- 总欠款："):
@@ -138,32 +137,32 @@ def parse_case_info(
     # 获取逾期金额数值（用于随机金额生成）
     overdue_amount = data.get("逾期金额_数值", 0.0)
 
-    # 生成随机金额：逾期金额的 30%~70%
+    # 生成随机字段
     if rng is not None:
-        random_ratio = rng.uniform(0.3, 0.7)
-        random_digits = rng.randint(100, 999)
+        random_ratio = rng.uniform(0.3, 0.6)          # 30%~60%
+        random_digits = rng.randint(1, 10)            # 1-10 整数
+        random_repay_day = rng.randint(1, 28)         # 1-28 整数
     else:
-        random_ratio = random.uniform(0.3, 0.7)
-        random_digits = random.randint(100, 999)
+        random_ratio = random.uniform(0.3, 0.6)
+        random_digits = random.randint(1, 10)
+        random_repay_day = random.randint(1, 28)
 
     data["随机金额"] = str(round(overdue_amount * random_ratio))
     data["随机数字"] = str(random_digits)
+    data["随机还款日"] = f"{random_repay_day}号"      # 新增字段
 
-    # 生成自然口语化时间（替换原来的“查账时间过后X小时”）
+    # 生成自然口语化时间
     if rng is not None:
-        # 使用注入的时间生成器，若未提供则使用默认简单生成器
         if time_gen is None:
             time_gen = SimpleNaturalTimeGenerator()
         data["随机时间"] = time_gen.generate(rng, base_time=data.get("查账时间"))
     else:
-        # 降级：简单的随机时间
         periods = ["上午", "下午"]
         period = random.choice(periods)
         hour = random.randint(9, 18)
         data["随机时间"] = f"今天{period}{hour}点"
 
     return data
-
 
 def load_cases(
     cases_dir: str,

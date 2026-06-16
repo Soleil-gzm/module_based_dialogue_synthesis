@@ -69,7 +69,7 @@ class PressureManager:
         row = self.rng.choice(valid_rows)
 
         # 获取祖先和后代链
-        ancestors = get_ancestors(row["uid"], self.df)
+        ancestors = get_ancestors(row["uid"], self.df, self.rng)
         descendant_chain, flexible_stopped = get_random_descendant_chain(
             row["uid"], self.df, self.rng, flexible_stop_prob=self.flexible_stop_prob
         )

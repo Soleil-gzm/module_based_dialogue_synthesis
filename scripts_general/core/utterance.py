@@ -145,6 +145,7 @@ def fill_placeholders(text: str, case: Dict[str, Any]) -> str:
         "{随机金额}": case.get("随机金额", ""),
         "{随机时间}": case.get("随机时间", ""),
         "{随机数字}": case.get("随机数字", ""),
+        "{随机还款日}": case.get("随机还款日", ""),
         "{empty_tag}": "",
     }
     for k, v in replacements.items():
