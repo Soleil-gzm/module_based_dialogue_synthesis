@@ -37,8 +37,11 @@ def should_stop_by_flexible(
     return flex_stop == 1 and rng.random() <= stop_prob
 
 
-def get_ancestors(uid: int, df: pd.DataFrame) -> List[pd.Series]:
-    """递归获取所有祖先行（从远祖到父的顺序）"""
+def get_ancestors(uid: int, df: pd.DataFrame, rng: RandomService) -> List[pd.Series]:
+    """
+    递归获取所有祖先行（从远祖到父的顺序）。
+    如果 parent(继承) 包含多个值（用 / 分隔），则随机选择一个作为父级。
+    """
     ancestors = []
     while True:
         parent_series = df.loc[df["uid"] == uid, "parent(继承)"]
@@ -47,11 +50,28 @@ def get_ancestors(uid: int, df: pd.DataFrame) -> List[pd.Series]:
         parent_val = parent_series.values[0]
         if pd.isna(parent_val) or parent_val == 0:
             break
-        parent_row = df[df["uid"] == parent_val]
+
+        # 处理多值情况：如果是字符串且包含 '/'
+        if isinstance(parent_val, str) and "/" in parent_val:
+            # 分割并去除空格，过滤掉空字符串
+            possible_parents = [
+                int(p.strip()) for p in parent_val.split("/") if p.strip().isdigit()
+            ]
+            if not possible_parents:
+                break
+            # 随机选择一个父级
+            parent_uid = rng.choice(possible_parents)
+        else:
+            try:
+                parent_uid = int(parent_val)
+            except (ValueError, TypeError):
+                break
+
+        parent_row = df[df["uid"] == parent_uid]
         if parent_row.empty:
             break
         ancestors.append(parent_row.iloc[0])
-        uid = parent_val
+        uid = parent_uid
     return list(reversed(ancestors))
 
 
@@ -62,30 +82,31 @@ def get_random_descendant_chain(
     flexible_stop_prob: float = 0.3,
     max_depth: int = 10,
 ) -> Tuple[List[pd.Series], bool]:
-    """
-    获取从当前行（uid）开始的一条随机后代链（不包含当前行本身，只包含子节点及以下）。
-    返回 (chain, stopped_by_flexible)，其中 chain 为后代行列表（可能有0个或多个）。
-    该函数返回的后代链不包含起始行（因为起始行已经由调用方单独输出），只包含子节点及以下。起始行自身的停止判断用于决定是否禁止任何后代。
-    """
     # 首先获取当前行（起始行）
     current_rows = df[df["uid"] == uid]
     if current_rows.empty:
         return [], False
     current_row = current_rows.iloc[0]
 
-    # 检查当前行是否因 flexible_stop 而应停止（没有后代）
     if should_stop_by_flexible(current_row, rng, flexible_stop_prob):
         return [], True
 
-    # 继续递归获取子节点
-    children = df[df["parent(继承)"] == uid]
+    # 查找子节点：parent(继承) 字段包含当前 uid 的行
+    def contains_parent(row):
+        parent_val = row.get("parent(继承)")
+        if pd.isna(parent_val):
+            return False
+        # 将 parent 值转为字符串，按 / 分割，检查是否包含 uid
+        parts = str(parent_val).split("/")
+        return str(uid) in [p.strip() for p in parts]
+
+    children = df[df.apply(contains_parent, axis=1)]
     if children.empty or max_depth <= 0:
         return [], False
 
     child_row = children.sample(n=1, random_state=rng.randint(0, 2**32 - 1)).iloc[0]
     chain = [child_row]
 
-    # 检查该子节点是否应停止
     if should_stop_by_flexible(child_row, rng, flexible_stop_prob):
         return chain, True
 

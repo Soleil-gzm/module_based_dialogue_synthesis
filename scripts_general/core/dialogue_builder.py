@@ -178,7 +178,7 @@ class DialogueBuilder:
         )
 
         # 获得前后继承链
-        ancestors = get_ancestors(row["uid"], df_node)
+        ancestors = get_ancestors(row["uid"], df_node, self.rng)
         descendant_chain, flexible_stopped = get_random_descendant_chain(
             row["uid"],
             df_node,
