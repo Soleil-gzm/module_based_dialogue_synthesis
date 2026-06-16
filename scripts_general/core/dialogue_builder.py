@@ -62,16 +62,18 @@ class DialogueBuilder:
             if self.rng.random() <= self.goodbye_termination_prob:
                 self.logger.debug(f"模块 {node} repeat={repeat} 再见触发，终止对话")
                 if module_trace:
-                    module_trace["goodbye_triggered"] = True
-                    module_trace["goodbye_ignored"] = False
+                    self.trace_collector.set_module_goodbye(
+                        module_trace, triggered=True, ignored=False
+                    )
                 return True
             else:
                 self.logger.debug(
                     f"模块 {node} repeat={repeat} 再见被忽略（概率不触发），继续对话"
                 )
                 if module_trace:
-                    module_trace["goodbye_triggered"] = False
-                    module_trace["goodbye_ignored"] = True
+                    self.trace_collector.set_module_goodbye(
+                        module_trace, triggered=False, ignored=True
+                    )
         return False
 
     def _append_segment(
@@ -154,6 +156,27 @@ class DialogueBuilder:
             self._current_module_trace, row["uid"]
         )
 
+        # 提取 flexible_stop 和是否再见的原始值（用于调试和验证）
+        flexible_val = row.get("flexible_stop(可选不继承)", 0)
+        goodbye_val = row.get("是否再见", 0)
+
+        # 转换为整数，兼容字符串或数字
+        try:
+            flexible_val = int(flexible_val) if flexible_val is not None else 0
+        except (ValueError, TypeError):
+            flexible_val = 0
+        try:
+            goodbye_val = int(goodbye_val) if goodbye_val is not None else 0
+        except (ValueError, TypeError):
+            goodbye_val = 0
+
+        self.trace_collector.set_module_flexible_value(
+            self._current_module_trace, flexible_val
+        )
+        self.trace_collector.set_module_goodbye_value(
+            self._current_module_trace, goodbye_val
+        )
+
         # 获得前后继承链
         ancestors = get_ancestors(row["uid"], df_node)
         descendant_chain, flexible_stopped = get_random_descendant_chain(
@@ -234,12 +257,26 @@ class DialogueBuilder:
         flush_turn_list()
 
         # 记录追踪数据
+        # 提取当前行的 parent(继承) 值
+        parent_raw = row.get(
+            "parent(继承)", None
+        )  # 保留原始值（可能是数字、字符串如 "1/2/3"、None）
+
+        # 提取祖先和后代 UID 列表
+        ancestor_uids = [anc["uid"] for anc in ancestors]
+        descendant_uids = [desc["uid"] for desc in descendant_chain]
+
+        # 记录继承链信息
         self.trace_collector.set_module_turn_count(
             self._current_module_trace, len(turn_list)
         )
-        self.trace_collector.set_module_ancestors_descendants(
-            self._current_module_trace, len(ancestors), len(descendant_chain)
+        self.trace_collector.set_module_utterance_chain(
+            self._current_module_trace,
+            ancestor_uids,
+            descendant_uids,
+            parent_raw,
         )
+
         return False, ""
 
     def _apply_pressure(
@@ -269,7 +306,15 @@ class DialogueBuilder:
         else:
             prob = self.pressure_prob
 
-        if self.rng.random() > prob:  # 不施压
+        # 记录压力是否因概率不足而跳过
+        if self.rng.random() > prob:
+            # 记录跳过施压（pass=True）
+            self.trace_collector.set_module_pressure(
+                self._current_module_trace,
+                applied=False,
+                pass_=True,
+                prob_used=prob,
+            )
             return
 
         pressure_segment, has_customer_first, flexible_stopped = (
@@ -279,10 +324,6 @@ class DialogueBuilder:
         )
         if not pressure_segment:
             return
-            # 记录 flexible_stop 触发情况
-        # if flexible_stopped:
-        #     self.trace_collector.set_module_flexible_stop(self._current_module_trace, True)
-        #         self.pressure_count += 1
 
         should_merge = (not has_customer_first) and (len(messages) > 0)
         if should_merge:
@@ -290,23 +331,29 @@ class DialogueBuilder:
         else:
             self._append_segment(messages, pressure_segment, merge_last=False)
 
+        # 记录施压应用信息
         self.trace_collector.set_module_pressure(
             self._current_module_trace,
             applied=True,
-            seg_len=len(pressure_segment),
+            pass_=False,
+            prob_used=prob,
             merge_last=should_merge,
+            turn_count=len(pressure_segment),
+            flexible_triggered_in_pressure=flexible_stopped,
         )
+        self.pressure_count += 1
 
     def build(
         self, path: List[str], case: Dict[str, Any], prompt_text: str
     ) -> List[Dict]:
         """生成一条完整的对话消息列表"""
-        self.trace_collector.start_dialogue(path, case.get("客户姓名", "unknown"))
-        # 重置施压次数计数
+        # 使用 case 中的 _filename 作为 case_id，若没有则用客户姓名
+        case_id = case.get("_filename", case.get("客户姓名", "unknown"))
+        self.trace_collector.start_dialogue(path, case_id)
         self.pressure_count = 0
 
         messages = []
-        sys_content = f"你是一个{case.get('抬头', '催收专员')}，请根据客户的情况，使用合适的话术与客户进行沟通，争取让客户承诺还款。\n{prompt_text}"
+        sys_content = f"{prompt_text}"
         messages.append({"role": "system", "content": sys_content})
 
         node_counts = {}
@@ -337,6 +384,15 @@ class DialogueBuilder:
         for msg in messages:
             if "content" in msg:
                 msg["content"] = fill_placeholders(msg["content"], case)
+
+        # 计算总轮数并存入 trace
+        if self.trace_enabled:
+            total_turns = 0
+            total_pressure_turns = 0
+            for mod in self.trace_collector.data.get("modules", []):
+                total_turns += mod.get("turn_count", 0)
+                total_pressure_turns += mod["pressure"].get("turn_count", 0)
+            self.trace_collector.set_dialogue_summary(total_turns, total_pressure_turns)
 
         return messages
 

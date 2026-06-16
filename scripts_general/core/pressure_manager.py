@@ -5,7 +5,6 @@ import pandas as pd
 from core.config import Config
 from core.random_service import RandomService
 from core.utterance import get_ancestors, get_random_descendant_chain, sample_utterance
-from core.trace import TraceCollector
 
 logger = logging.getLogger("DialogueBuilder")
 
@@ -31,16 +30,16 @@ class PressureManager:
         case: Dict[str, Any],
         condition_evaluator,
         module_name: str = None,
-    ) -> Tuple[List[Dict[str, str]], bool]:
+    ) -> Tuple[List[Dict[str, str]], bool, bool]:
         """
         根据 repeat 次数从施压话术表中抽取一个话术片段（可能包含多轮）。
-        返回 (segment_list, has_customer_first), 其中 segment_list 每个元素为 {"user": str, "assistant": str}
-        has_customer_first 表示片段第一轮是否有客户话术（用于外部拼接逻辑）。
+        返回 (segment_list, has_customer_first, flexible_stopped), 其中 segment_list 每个元素为 {"user": str, "assistant": str}
+            has_customer_first 表示片段第一轮是否有客户话术（用于外部拼接逻辑）。
 
         注意：如果请求的 repeat 超过施压话术表支持的最大次数，直接返回空片段，不降级。
         """
         if self.df.empty:
-            return [], False
+            return [], False, False
 
         # 如果请求的 repeat 超过施压话术表最大支持次数，直接返回空（不降级）
         if repeat > self.max_repeat:
@@ -48,15 +47,15 @@ class PressureManager:
                 logger.debug(
                     f"模块 '{module_name}' 请求 repeat={repeat} 超过话术表最大 repeat={self.max_repeat}，跳过施压"
                 )
-            return [], False
+            return [], False, False
 
-        # 筛选 repeat 匹配的行（注意：这里直接使用 repeat，不再降级）
+        # 筛选 repeat 匹配的行（注意：这里直接使用 repeat，不再降级)
         mask = self.df["repeat(次数)"].apply(
             lambda x: (str(repeat) in str(x).split("/") if pd.notna(x) else False)
         )
         candidates = self.df[mask]
         if candidates.empty:
-            return [], False
+            return [], False, False
 
         # 条件筛选
         valid_rows = []
@@ -65,7 +64,7 @@ class PressureManager:
             if condition_evaluator.evaluate(cond_str, case):
                 valid_rows.append(row)
         if not valid_rows:
-            return [], False
+            return [], False, False
 
         row = self.rng.choice(valid_rows)
 

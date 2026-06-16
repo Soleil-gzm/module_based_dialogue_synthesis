@@ -25,7 +25,7 @@ class CaseLoader(ABC):
     ) -> Tuple[List[Dict], List[str]]:
         """
         返回 (cases_list, prompts_list)
-        cases_list: 每个元素是用于占位填充的字典
+        cases_list: 每个元素是用于占位填充的字典，其中会包含 '_filename' 键（文件名不含扩展名）
         prompts_list: 每个元素是用于 system 消息的字符串
         """
         pass
@@ -44,7 +44,18 @@ class DefaultCaseLoader(CaseLoader):
     ) -> Tuple[List[Dict], List[str]]:
         from core.data_loader import load_cases  # 避免循环导入
 
-        return load_cases(self.cases_dir, rng=rng, time_gen=time_gen)
+        cases, prompts = load_cases(self.cases_dir, rng=rng, time_gen=time_gen)
+
+        # 获取文件名列表（按排序与 cases 顺序一致）
+        case_files = sorted(
+            [f for f in os.listdir(self.cases_dir) if f.endswith(".txt")]
+        )
+        # 为每个 case 添加 _filename 字段（处理 cases 与文件数可能不一致的情况，如循环复用）
+        for idx, case in enumerate(cases):
+            file_name = case_files[idx % len(case_files)]
+            case["_filename"] = os.path.splitext(file_name)[0]
+
+        return cases, prompts
 
 
 class XiaoyingCaseLoader(CaseLoader):
@@ -86,9 +97,9 @@ class XiaoyingCaseLoader(CaseLoader):
             # 循环取 replace 文件
             replace_file = replace_files[i % len(replace_files)]
             replace_path = os.path.join(self.replace_dir, replace_file)
-            case = parse_case_info(
-                replace_path, rng=rng, time_gen=time_gen
-            )  # 复用原有解析函数
+            case = parse_case_info(replace_path, rng=rng, time_gen=time_gen)
+            # 添加 _filename 字段（不含扩展名）
+            case["_filename"] = os.path.splitext(replace_file)[0]
             cases.append(case)
 
             # 循环取 system 文件
