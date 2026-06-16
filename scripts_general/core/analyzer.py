@@ -73,7 +73,8 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
             goodbye = mod.get("goodbye", {})
             if goodbye.get("goodbye_triggered", False):
                 has_triggered = True
-            if goodbye.get("goodbye_ignored", False):
+            # 如果 goodbye_value=1 且 没有触发，则视为忽略
+            if goodbye.get("goodbye_value") == 1 and not goodbye.get("goodbye_triggered", False):
                 has_ignored = True
         is_stopped = final_reason and final_reason.startswith("goodbye")
 
@@ -82,8 +83,13 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
                 goodbye_handling["triggered_and_stopped"] += 1
             else:
                 goodbye_handling["triggered_but_not_stopped"] += 1
+        elif has_ignored:
+            # 如果只有忽略而没有触发，也归为 triggered_but_not_stopped？或者单独分类？
+            # 根据原逻辑，忽略计入 triggered_but_not_stopped，因为触发过再见但未停止。
+            goodbye_handling["triggered_but_not_stopped"] += 1
         else:
             goodbye_handling["natural_end"] += 1
+        # 再见触发位置仍使用 trigger_idx，只针对 goodbye_triggered 为 True 的模块
 
         # 再见触发位置（仅当有 goodbye_triggered 时）
         if has_triggered:

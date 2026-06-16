@@ -92,7 +92,6 @@ class TraceCollector:
             },
             "goodbye": {
                 "goodbye_triggered": False,
-                "goodbye_ignored": False,
                 "goodbye_value": None,  # 新增：记录“是否再见”原始值
             },
             "pressure": {
@@ -146,10 +145,9 @@ class TraceCollector:
             module_trace["utterance"]["flexible_stop_triggered"] = triggered
 
     # goodbye 子对象
-    def set_module_goodbye(self, module_trace: Dict, triggered: bool, ignored: bool):
+    def set_module_goodbye(self, module_trace: Dict, triggered: bool):
         if self.enabled:
             module_trace["goodbye"]["goodbye_triggered"] = triggered
-            module_trace["goodbye"]["goodbye_ignored"] = ignored
 
     # pressure 子对象
     def set_module_pressure(

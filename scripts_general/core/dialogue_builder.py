@@ -63,7 +63,7 @@ class DialogueBuilder:
                 self.logger.debug(f"模块 {node} repeat={repeat} 再见触发，终止对话")
                 if module_trace:
                     self.trace_collector.set_module_goodbye(
-                        module_trace, triggered=True, ignored=False
+                        module_trace, triggered=True
                     )
                 return True
             else:
@@ -72,7 +72,7 @@ class DialogueBuilder:
                 )
                 if module_trace:
                     self.trace_collector.set_module_goodbye(
-                        module_trace, triggered=False, ignored=True
+                        module_trace, triggered=True
                     )
         return False
 
