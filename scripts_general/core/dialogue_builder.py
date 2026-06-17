@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 from core.condition import ConditionEvaluator
 from core.config import Config
-from core.factory import create_pressure_strategy
+from core.factory import create_pressure_strategy,create_probability_calculator
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
 from core.trace import TraceCollector
@@ -37,45 +37,66 @@ class DialogueBuilder:
         self.insert_nodes = set(config.get("insert_nodes", []))
         self.pressure_prob = config.get("pressure_prob", 0.6)  # 保留兼容旧配置
         self.max_repeat = config.get("max_repeat", {})
-        self.goodbye_termination_prob = config.get("goodbye_termination_prob", 0.7)
         self.trace_enabled = config.get("trace_enabled", False)
         self.trace_collector = TraceCollector(self.trace_enabled)
 
         # 动态施压话术配置
         self.pressure_dynamic_enabled = config.get("pressure_dynamic_enabled", True)
-        self.pressure_start_prob = config.get("pressure_start_prob", 0.05)
-        self.pressure_end_prob = config.get("pressure_end_prob", 0.5)
-        self.pressure_curve_exponent = config.get("pressure_curve_exponent", 2.0)
         self.pressure_max_total = config.get("pressure_max_total", 3)
         self.module_pressure_weights = config.get("module_pressure_weights", {})
-        # 施压概率位置模式
         self.pressure_strategy = create_pressure_strategy(config)
+        # 施压概率计算器
+        self.pressure_prob_calc = create_probability_calculator(config, "pressure")
+
+        # 动态再见概率配置
+        self.goodbye_dynamic_enabled = config.get("goodbye_dynamic_enabled", False)
+        if self.goodbye_dynamic_enabled:
+            self.goodbye_prob_calc = create_probability_calculator(config, "goodbye")
+        else:
+            self.goodbye_prob_calc = None
+        self.goodbye_min_idx = config.get("goodbye_min_idx", 0)      # 强制忽略前 N 个模块
+        self.goodbye_fixed_prob = config.get("goodbye_termination_prob", 0.7)  # 固定概率
 
         # 辅助变量（每次 build 时重置）
         self.pressure_count = 0
 
     def _should_terminate(
-        self, row: pd.Series, repeat: int, node: str, module_trace: Dict = None
+        self,
+        row: pd.Series,
+        repeat: int,
+        node: str,
+        module_trace: Dict = None,
+        idx: int = 0,
+        total: int = 0,
     ) -> bool:
         """检查是否因再见标志而终止（包含概率控制），并记录 trace"""
-        if row.get("是否再见") == 1 and repeat <= self.max_repeat.get(node, 999):
-            if self.rng.random() <= self.goodbye_termination_prob:
-                self.logger.debug(f"模块 {node} repeat={repeat} 再见触发，终止对话")
-                if module_trace:
-                    self.trace_collector.set_module_goodbye(
-                        module_trace, triggered=True
-                    )
-                return True
-            else:
-                self.logger.debug(
-                    f"模块 {node} repeat={repeat} 再见被忽略（概率不触发），继续对话"
-                )
-                if module_trace:
-                    self.trace_collector.set_module_goodbye(
-                        module_trace, triggered=True
-                    )
-        return False
+        if row.get("是否再见") != 1 or repeat > self.max_repeat.get(node, 999):
+            return False
 
+        # 计算再见概率
+        if self.goodbye_dynamic_enabled and total > 1:
+            # 强制忽略前 N 个模块（索引 < goodbye_min_idx）
+            if idx < self.goodbye_min_idx:
+                prob = 0.0
+            else:
+                t = idx / (total - 1)
+                prob = self.goodbye_prob_calc.calculate(t)
+        else:
+            prob = self.goodbye_fixed_prob
+
+        if self.rng.random() <= prob:
+            self.logger.debug(f"模块 {node} repeat={repeat} 再见触发，终止对话")
+            if module_trace:
+                self.trace_collector.set_module_goodbye(module_trace, triggered=True)
+            return True
+        else:
+            self.logger.debug(
+                f"模块 {node} repeat={repeat} 再见被忽略（概率不触发），继续对话"
+            )
+            if module_trace:
+                self.trace_collector.set_module_goodbye(module_trace, triggered=False)
+            return False
+        
     def _append_segment(
         self,
         messages: List[Dict],
@@ -113,11 +134,9 @@ class DialogueBuilder:
         case: Dict[str, Any],
         messages: List[Dict],
         node_counts: Dict[str, int],
+        module_idx: int,          # 新增：当前模块在路径中的索引
+        total_modules: int,       # 新增：路径总模块数
     ) -> Tuple[bool, str]:
-        """处理单个模块的话术选择和对话追加。返回 (stop_dialogue, stop_reason)
-        stop_dialogue: 是否应该终止整个对话
-        stop_reason: 终止原因（仅在 stop_dialogue=True 时有意义）
-        """
         df_node = self.df_dict.get(node)
         if df_node is None or df_node.empty:
             self.logger.debug(f"模块 {node} 无数据，跳过")
@@ -156,11 +175,10 @@ class DialogueBuilder:
             self._current_module_trace, row["uid"]
         )
 
-        # 提取 flexible_stop 和是否再见的原始值（用于调试和验证）
+        # 提取 flexible_stop 和是否再见的原始值
         flexible_val = row.get("flexible_stop(可选不继承)", 0)
         goodbye_val = row.get("是否再见", 0)
 
-        # 转换为整数，兼容字符串或数字
         try:
             flexible_val = int(flexible_val) if flexible_val is not None else 0
         except (ValueError, TypeError):
@@ -193,7 +211,6 @@ class DialogueBuilder:
         turn_list = []
         stop_reason = ""
 
-        # --- 辅助函数：将 turn_list 提交到 messages ---
         def flush_turn_list():
             for user_txt, assistant_txt in turn_list:
                 if user_txt:
@@ -209,9 +226,10 @@ class DialogueBuilder:
             assistant_txt = sample_utterance(anc, False, self.rng)
             if user_txt or assistant_txt:
                 turn_list.append((user_txt, assistant_txt))
-            if self._should_terminate(anc, repeat, node, self._current_module_trace):
-                # 触发再见：先提交已收集的话术（包括这一轮），然后停止
-                flush_turn_list()  # 确保再见前保存当前对话
+            if self._should_terminate(
+                anc, repeat, node, self._current_module_trace, module_idx, total_modules
+            ):
+                flush_turn_list()
                 stop_reason = f"goodbye_in_ancestor_{anc['uid']}"
                 self.trace_collector.set_stop_reason(
                     stop_reason, self._current_module_trace
@@ -225,7 +243,9 @@ class DialogueBuilder:
         current_user = sample_utterance(row, True, self.rng)
         current_assistant = sample_utterance(row, False, self.rng)
         turn_list.append((current_user, current_assistant))
-        if self._should_terminate(row, repeat, node, self._current_module_trace):
+        if self._should_terminate(
+            row, repeat, node, self._current_module_trace, module_idx, total_modules
+        ):
             flush_turn_list()
             stop_reason = f"goodbye_in_current_{row['uid']}"
             self.trace_collector.set_stop_reason(
@@ -242,7 +262,9 @@ class DialogueBuilder:
             assistant_txt = sample_utterance(desc, False, self.rng)
             if user_txt or assistant_txt:
                 turn_list.append((user_txt, assistant_txt))
-            if self._should_terminate(desc, repeat, node, self._current_module_trace):
+            if self._should_terminate(
+                desc, repeat, node, self._current_module_trace, module_idx, total_modules
+            ):
                 flush_turn_list()
                 stop_reason = f"goodbye_in_descendant_{desc['uid']}"
                 self.trace_collector.set_stop_reason(
@@ -256,17 +278,11 @@ class DialogueBuilder:
         # 无再见触发：正常提交所有话术
         flush_turn_list()
 
-        # 记录追踪数据
-        # 提取当前行的 parent(继承) 值
-        parent_raw = row.get(
-            "parent(继承)", None
-        )  # 保留原始值（可能是数字、字符串如 "1/2/3"、None）
-
-        # 提取祖先和后代 UID 列表
+        # 记录继承链信息
+        parent_raw = row.get("parent(继承)", None)
         ancestor_uids = [anc["uid"] for anc in ancestors]
         descendant_uids = [desc["uid"] for desc in descendant_chain]
 
-        # 记录继承链信息
         self.trace_collector.set_module_turn_count(
             self._current_module_trace, len(turn_list)
         )
@@ -278,7 +294,7 @@ class DialogueBuilder:
         )
 
         return False, ""
-
+    
     def _apply_pressure(
         self,
         node: str,
@@ -288,27 +304,22 @@ class DialogueBuilder:
         idx: int,
         total: int,
     ):
-        """根据动态概率决定是否附加施压话术（带全局次数限制）"""
         if node not in self.insert_nodes:
             return
         if self.pressure_count >= self.pressure_max_total:
             return
 
-        # 计算动态概率
+        # 计算施压概率
         if self.pressure_dynamic_enabled and total > 1:
-            # 使用策略计算归一化位置 t
             t = self.pressure_strategy.get_normalized_position(idx, total)
-            prob = self.pressure_start_prob + (
-                self.pressure_end_prob - self.pressure_start_prob
-            ) * (t**self.pressure_curve_exponent)
+            base_prob = self.pressure_prob_calc.calculate(t)
             weight = self.module_pressure_weights.get(node, 1.0)
-            prob = min(1.0, prob * weight)
+            prob = min(1.0, base_prob * weight)
         else:
             prob = self.pressure_prob
 
-        # 记录压力是否因概率不足而跳过
+        # 记录跳过施压
         if self.rng.random() > prob:
-            # 记录跳过施压（pass=True）
             self.trace_collector.set_module_pressure(
                 self._current_module_trace,
                 applied=False,
@@ -346,8 +357,6 @@ class DialogueBuilder:
     def build(
         self, path: List[str], case: Dict[str, Any], prompt_text: str
     ) -> List[Dict]:
-        """生成一条完整的对话消息列表"""
-        # 使用 case 中的 _filename 作为 case_id，若没有则用客户姓名
         case_id = case.get("_filename", case.get("客户姓名", "unknown"))
         self.trace_collector.start_dialogue(path, case_id)
         self.pressure_count = 0
@@ -367,7 +376,7 @@ class DialogueBuilder:
             self._current_module_trace = self.trace_collector.start_module(node, repeat)
 
             stop_dialogue, stop_reason = self._process_module(
-                node, repeat, case, messages, node_counts
+                node, repeat, case, messages, node_counts, idx, total_modules
             )
             if stop_dialogue:
                 overall_stop_reason = stop_reason

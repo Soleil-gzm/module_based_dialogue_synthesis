@@ -144,6 +144,18 @@ pressure_strategy:
   slope: 10.0                 # sigmoid 策略的斜率
   # max_expected_modules 在 absolute 策略中通过顶层配置设置（已存在）
 
+# 再见动态概率配置（若 goodbye_dynamic_enabled 为 false，则使用 goodbye_termination_prob）
+goodbye_dynamic_enabled: true
+goodbye_calc_type: "exponential"   # 可选 exponential, sigmoid, linear
+goodbye_start_prob: 0.05
+goodbye_end_prob: 0.8
+goodbye_exponent: 3.0
+goodbye_min_idx: 2                 # 前2个模块（索引0,1）强制不触发再见
+
+# 施压概率曲线类型（默认指数，可覆盖）
+pressure_calc_type: "exponential"  # 可选 exponential, sigmoid, linear
+# 原有的 pressure_start_prob, pressure_end_prob, pressure_curve_exponent 继续有效
+
 # 模块权重（仅对 insert_nodes 中的模块有效，权重为乘数）
 module_pressure_weights:
   没钱: 1.2
@@ -158,6 +170,10 @@ module_pressure_weights:
 # 再见终止与继承链
 # ============================================
 goodbye_termination_prob: 0          # 遇到“是否再见=1”时终止对话的概率
+
+
+
+
 flexible_stop_prob: 0              # 后代链随机停止概率（当 flexible_stop=1 时）
 
 # ============================================

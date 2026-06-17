@@ -60,44 +60,50 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
             simplified = simplify_reason(final_reason)
             stop_reason_counter[simplified] += 1
 
-        total_turns = trace.get(
-            "total_turns", sum(mod.get("turn_count", 0) for mod in modules)
-        )
+        # 计算总轮数
+        total_turns = trace.get("total_turns", sum(mod.get("turn_count", 0) for mod in modules))
         dialogue_lengths.append(total_turns)
 
-        # 分析再见情况
-        has_goodbye_value_1 = False
-        has_goodbye_triggered = False
-        goodbye_trigger_idx = None  # 记录第一个触发再见的位置索引
+        # 统计再见处理结果
+        has_triggered = False          # 是否有模块实际触发了再见（goodbye_triggered=True）
+        has_goodbye_value_1_ignored = False  # 是否有模块 goodbye_value=1 但未触发（忽略）
 
-        # 再见的归一化pos
-        for idx, mod in enumerate(modules):
+        for mod in modules:
             goodbye = mod.get("goodbye", {})
-            if goodbye.get("goodbye_value") == 1:  # 该模块有再见标志
-                has_goodbye_value_1 = True
-                if goodbye.get("goodbye_triggered", False):  # 实际触发了再见
-                    has_goodbye_triggered = True
-                    if goodbye_trigger_idx is None:  # 只记录第一次触发
-                        goodbye_trigger_idx = idx
+            if goodbye.get("goodbye_triggered", False):
+                has_triggered = True
+            if goodbye.get("goodbye_value") == 1 and not goodbye.get("goodbye_triggered", False):
+                has_goodbye_value_1_ignored = True
 
-        # 判断再见处理结果
-        if has_goodbye_value_1:
-            if has_goodbye_triggered:
-                # 至少有一个触发再见
+        is_stopped = final_reason and final_reason.startswith("goodbye")
+
+        if has_triggered:
+            if is_stopped:
                 goodbye_handling["triggered_and_stopped"] += 1
-                # 记录触发再见的位置（只取第一个触发的位置）
-                if goodbye_trigger_idx is not None:
-                    if path_len > 1:
-                        goodbye_normalized.append(goodbye_trigger_idx / (path_len - 1))
-                    else:
-                        goodbye_normalized.append(0.0)
             else:
-                # 有再见行但全部未触发
-                goodbye_handling["ignored"] += 1
+                # 触发再见但未停止（理论上不会发生，因为触发必停止）
+                goodbye_handling["triggered_but_not_stopped"] += 1
+        elif has_goodbye_value_1_ignored:
+            # 存在 goodbye_value=1 但被概率忽略，导致未触发
+            goodbye_handling["triggered_but_not_stopped"] += 1
         else:
             goodbye_handling["natural_end"] += 1
 
-        # 施压归一化pos
+        # 再见触发位置（只统计实际触发的位置）
+        if has_triggered:
+            trigger_idx = None
+            for idx, mod in enumerate(modules):
+                goodbye = mod.get("goodbye", {})
+                if goodbye.get("goodbye_triggered", False):
+                    trigger_idx = idx
+                    break
+            if trigger_idx is not None:
+                if path_len > 1:
+                    goodbye_normalized.append(trigger_idx / (path_len - 1))
+                else:
+                    goodbye_normalized.append(0.0)
+
+        # 施压位置
         for idx, mod in enumerate(modules):
             pressure = mod.get("pressure", {})
             if pressure.get("applied", False):
@@ -114,7 +120,6 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
         "goodbye_handling": goodbye_handling,
         "total_conversations": len(traces),
     }
-
 
 class Analyzer(ABC):
     @abstractmethod

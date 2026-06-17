@@ -8,6 +8,7 @@ from core.pressure_prob_strategy import (AbsolutePressureStrategy,
                                          PressureStrategy,
                                          SigmoidPressureStrategy)
 from core.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
+from core.probability import ProbabilityCalculator,ExponentialProbabilityCalculator,SigmoidProbabilityCalculator,LinearProbabilityCalculator
 
 
 def create_condition_evaluator(config: Config) -> ConditionEvaluator:
@@ -95,3 +96,26 @@ def create_pressure_strategy(config) -> PressureStrategy:
         return LinearDecayPressureStrategy()
     else:
         raise ValueError(f"Unknown pressure strategy type: {strategy_type}")
+
+def create_probability_calculator(config: Config, prefix: str) -> ProbabilityCalculator:
+    """
+    根据配置前缀创建概率计算器。
+    :param config: 配置对象
+    :param prefix: 配置前缀，如 'pressure' 或 'goodbye'
+    :return: ProbabilityCalculator 实例
+    """
+    calc_type = config.get(f"{prefix}_calc_type", "exponential")
+    if calc_type == "exponential":
+        start = config.get(f"{prefix}_start_prob", 0.0)
+        end = config.get(f"{prefix}_end_prob", 1.0)
+        exponent = config.get(f"{prefix}_exponent", 1.0)
+        return ExponentialProbabilityCalculator(start, end, exponent)
+    elif calc_type == "sigmoid":
+        slope = config.get(f"{prefix}_sigmoid_slope", 10.0)
+        return SigmoidProbabilityCalculator(slope)
+    elif calc_type == "linear":
+        start = config.get(f"{prefix}_start_prob", 0.0)
+        end = config.get(f"{prefix}_end_prob", 1.0)
+        return LinearProbabilityCalculator(start, end)
+    else:
+        raise ValueError(f"Unknown probability calculator type: {calc_type}")
