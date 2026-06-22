@@ -60,7 +60,7 @@ def create_analyzer(config) -> Analyzer:
     analyzer_cfg = config.get("analyzer", {})
     ana_type = analyzer_cfg.get("type", "default")
     if ana_type == "default":
-        fmt = analyzer_cfg.get("format", "html")
+        fmt = analyzer_cfg.get("format", "html")        # 获取图表格式，默认 "html"
 
         # 将配置中的压力参数键名映射为 DefaultAnalyzer 期望的简化键名
         pressure_config = {}
@@ -71,11 +71,13 @@ def create_analyzer(config) -> Analyzer:
             "pressure_max_total": "max_total",
             "pressure_position_mode": "mode",
         }
+         # 循环：如果配置中存在该值，则取出并存入 pressure_config
         for cfg_key, simple_key in key_mapping.items():
             value = config.get(cfg_key)
             if value is not None:
                 pressure_config[simple_key] = value
 
+        # 实例化具体的分析器，并注入组装好的参数
         return DefaultAnalyzer(format=fmt, pressure_config=pressure_config)
     else:
         raise ValueError(f"Unknown analyzer type: {ana_type}")

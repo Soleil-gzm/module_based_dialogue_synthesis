@@ -28,7 +28,6 @@ def extract_timestamp_from_filename(filepath: str) -> str:
     if match:
         return match.group(1)
     import time
-
     return time.strftime("%Y%m%d_%H%M%S", time.localtime(os.path.getmtime(filepath)))
 
 
@@ -39,7 +38,9 @@ def simplify_reason(reason: str) -> str:
 
 
 def analyze_traces_data(traces: List[Dict]) -> Dict:
-    """核心统计逻辑，适配新版 trace 结构（嵌套字段）"""
+    """
+    核心统计逻辑，适配新版 trace 结构（嵌套字段）
+    """
     pressure_positions = []
     goodbye_normalized = []
     stop_reason_counter = Counter()
@@ -49,6 +50,9 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
         "triggered_but_not_stopped": 0,
         "natural_end": 0,
     }
+
+    dialogue_with_pressure = 0
+    dialogue_without_pressure = 0
 
     for trace in traces:
         path = trace.get("path", [])
@@ -89,7 +93,7 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
         else:
             goodbye_handling["natural_end"] += 1
 
-        # 再见触发位置（只统计实际触发的位置）
+        # 再见触发位置
         if has_triggered:
             trigger_idx = None
             for idx, mod in enumerate(modules):
@@ -103,7 +107,22 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
                 else:
                     goodbye_normalized.append(0.0)
 
-        # 施压位置
+        # ---- 施压相关统计（兼容新旧字段） ----
+        # 检查是否有任何施压（优先使用 triggered，若没有则回退到 applied）
+        has_pressure = False
+        for mod in modules:
+            pressure = mod.get("pressure", {})
+            # 优先使用 triggered，如果不存在则检查 applied（向后兼容）
+            if pressure.get("triggered", False) or pressure.get("applied", False):
+                has_pressure = True
+                break
+
+        if has_pressure:
+            dialogue_with_pressure += 1
+        else:
+            dialogue_without_pressure += 1
+
+        # 施压位置（同样兼容）
         for idx, mod in enumerate(modules):
             pressure = mod.get("pressure", {})
             if pressure.get("applied", False):
@@ -119,6 +138,8 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
         "dialogue_lengths": dialogue_lengths,
         "goodbye_handling": goodbye_handling,
         "total_conversations": len(traces),
+        "dialogue_with_pressure": dialogue_with_pressure,
+        "dialogue_without_pressure": dialogue_without_pressure,
     }
 
 class Analyzer(ABC):
@@ -136,11 +157,17 @@ class DefaultAnalyzer(Analyzer):
         with open(output_file, "w", encoding="utf-8") as f:
             f.write("=== Trace Analysis Report ===\n")
             f.write(f"Total conversations: {stats['total_conversations']}\n")
+            # 新增施压对话统计
+            f.write(f"Conversations with pressure: {stats['dialogue_with_pressure']}\n")
+            f.write(f"Conversations without pressure: {stats['dialogue_without_pressure']}\n")
+            f.write(f"Pressure coverage rate: {stats['dialogue_with_pressure'] / stats['total_conversations']:.2%}\n")
+
             f.write("\nStop reason distribution:\n")
             for reason, cnt in sorted(
                 stats["stop_reason_counter"].items(), key=lambda x: x[1], reverse=True
             ):
                 f.write(f"  {reason}: {cnt}\n")
+
             f.write("\nGoodbye handling:\n")
             f.write(
                 f"  triggered_and_stopped (再见触发并停止): {stats['goodbye_handling']['triggered_and_stopped']}\n"
@@ -151,6 +178,7 @@ class DefaultAnalyzer(Analyzer):
             f.write(
                 f"  natural_end (无再见行，自然结束): {stats['goodbye_handling']['natural_end']}\n"
             )
+
             if stats["pressure_positions"]:
                 arr = np.array(stats["pressure_positions"])
                 f.write(
@@ -217,6 +245,31 @@ class DefaultAnalyzer(Analyzer):
         fig.write_html(output_html)
         print(f"保存条形图: {output_html}")
 
+    def _create_pie_chart(self, stats: Dict, output_html: str):
+        """生成施压覆盖率的饼图"""
+        if not HAS_PLOTLY:
+            print("Plotly 未安装，无法生成饼图")
+            return
+        labels = ["有施压的对话", "无施压的对话"]
+        values = [stats["dialogue_with_pressure"], stats["dialogue_without_pressure"]]
+        fig = go.Figure(
+            data=[
+                go.Pie(
+                    labels=labels,
+                    values=values,
+                    textinfo="label+percent",
+                    insidetextorientation="radial",
+                    marker=dict(colors=["#1f77b4", "#ff7f0e"]),
+                )
+            ]
+        )
+        fig.update_layout(
+            title="施压话术覆盖情况 (对话级别)",
+            template="plotly_white",
+        )
+        fig.write_html(output_html)
+        print(f"保存饼图: {output_html}")
+
     def _generate_html_charts(self, stats: Dict, output_dir: str):
         if not HAS_PLOTLY:
             print("Plotly 未安装，无法生成 HTML 图表")
@@ -246,6 +299,7 @@ class DefaultAnalyzer(Analyzer):
             )
         else:
             print("No goodbye triggers found, skipping goodbye position histogram.")
+
         self._create_bar_chart(
             stats["stop_reason_counter"],
             "Stop Reason Distribution",
@@ -266,6 +320,12 @@ class DefaultAnalyzer(Analyzer):
             "Category",
             "Number of Conversations",
             os.path.join(output_dir, "goodbye_handling_bar.html"),
+        )
+
+        # 新增：施压覆盖饼图
+        self._create_pie_chart(
+            stats,
+            os.path.join(output_dir, "pressure_coverage_pie.html"),
         )
 
     def _generate_png_charts(self, stats: Dict, output_dir: str):
@@ -292,22 +352,3 @@ class DefaultAnalyzer(Analyzer):
             print(
                 f"Format '{self.format}' not supported or plotly missing, skipping charts."
             )
-
-
-def create_analyzer(config) -> Analyzer:
-    """工厂函数：根据配置创建分析器"""
-    analyzer_cfg = config.get("analyzer", {})
-    ana_type = analyzer_cfg.get("type", "default")
-    if ana_type == "default":
-        fmt = analyzer_cfg.get("format", "html")
-        pressure_config = {
-            "start_prob": config.get("pressure_start_prob"),
-            "end_prob": config.get("pressure_end_prob"),
-            "exponent": config.get("pressure_curve_exponent"),
-            "max_total": config.get("pressure_max_total"),
-            "mode": config.get("pressure_position_mode", "normalized"),
-        }
-        pressure_config = {k: v for k, v in pressure_config.items() if v is not None}
-        return DefaultAnalyzer(format=fmt, pressure_config=pressure_config)
-    else:
-        raise ValueError(f"Unknown analyzer type: {ana_type}")

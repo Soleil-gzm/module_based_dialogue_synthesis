@@ -15,7 +15,7 @@ paths_cache_dir: "paths"            # 路径缓存的子目录（相对于 outpu
 # ============================================
 # 2. 生成规模与随机性
 # ============================================
-num_paths: 40000                    # 要生成的对话数量
+num_paths: 6000                    # 要生成的对话数量
 random_seed: 42                     # 全局随机种子（用于可复现性）
 checkpoint_interval: 5000           # 断点续传保存间隔（每生成 N 条对话保存一次）
 
@@ -23,7 +23,7 @@ checkpoint_interval: 5000           # 断点续传保存间隔（每生成 N 条
 # 3. 数据文件路径
 # ============================================
 excel_path: "datas/xiaoying/【生成式通用后端】电催话术通用模板-首催20260609.xlsx"   # 话术模板 Excel 文件（包含所有模块 sheet 和链接施压话术 sheet）
-prob_path: "datas/xiaoying/prob.xlsx"        # 模块转移概率矩阵 Excel 文件
+prob_path: "datas/xiaoying/prob0609.xlsx"        # 模块转移概率矩阵 Excel 文件
 
 # 案例加载器配置（支持多种类型）
 case_loader:
@@ -186,7 +186,7 @@ goodbye_termination_prob: 0.7
 goodbye_dynamic_enabled: true      # 是否启用动态再见概率
 goodbye_calc_type: "exponential"   # 曲线类型：exponential、sigmoid、linear
 goodbye_start_prob: 0.05           # 路径开头再见概率
-goodbye_end_prob: 0.8              # 路径末尾再见概率
+goodbye_end_prob: 0.5              # 路径末尾再见概率
 goodbye_exponent: 3.0              # 指数（越大后期增长越快）
 # Sigmoid 斜率（如使用 sigmoid）: goodbye_sigmoid_slope: 10.0
 goodbye_min_idx: 2                 # 强制忽略前 N 个模块的再见（索引从0开始，即前 N 个模块即使再见标志为1也不触发）
