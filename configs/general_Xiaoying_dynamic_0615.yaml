@@ -15,7 +15,9 @@ paths_cache_dir: "paths"            # 路径缓存的子目录（相对于 outpu
 # ============================================
 # 2. 生成规模与随机性
 # ============================================
-num_paths: 10000                    # 要生成的对话数量
+num_dialogues: 10000         # 要生成的对话数量
+num_paths_to_generate: 500   # 新增：实际生成的不重复路径数
+# num_paths: 100000                    # 要生成的对话数量
 random_seed: 42                     # 全局随机种子（用于可复现性）
 checkpoint_interval: 5000           # 断点续传保存间隔（每生成 N 条对话保存一次）
 
@@ -120,9 +122,8 @@ b_set:                            # B 类模块
 
 # 终止模块（路径遇到这些模块时停止继续扩展）
 terminal_modules:
-  - "承诺还款"
+  # - "承诺还款"
   - "已还款"
-  - "敷衍"
 
 # 需要附加施压话术的模块（当这些模块出现在路径中时，可能触发施压）
 insert_nodes:
@@ -148,7 +149,7 @@ pressure_dynamic_enabled: true
 pressure_calc_type: "exponential"  # 曲线类型： exponential（指数）| sigmoid | linear
 # 指数曲线参数（pressure_calc_type=exponential 时使用）
 pressure_start_prob: 0.02          # 路径开头基础概率
-pressure_end_prob: 0.8             # 路径末尾基础概率
+pressure_end_prob: 0.9             # 路径末尾基础概率
 pressure_curve_exponent: 2.5       # 指数（越大后期增长越快）
 
 # Sigmoid 曲线参数（pressure_calc_type=sigmoid 时使用）
@@ -161,11 +162,11 @@ pressure_curve_exponent: 2.5       # 指数（越大后期增长越快）
 pressure_max_total: 3              # 每条对话最多施压次数
 # 施压位置策略：normalized（基于路径长度归一化）、absolute（基于绝对索引）
 pressure_strategy:
-  type: "normalized"               # normalized | absolute | sigmoid | linear_decay
+  type: "sigmoid"               # normalized | absolute | sigmoid | linear_decay
   # absolute 策略需要 max_expected_modules
   # max_expected_modules: 15
   # sigmoid 策略需要 slope
-  # slope: 10.0
+  slope: 30.0
 
 # ---- 模块权重（乘数） ----
 module_pressure_weights:            # 仅对 insert_nodes 中的模块生效

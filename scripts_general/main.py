@@ -9,13 +9,18 @@ import json
 import os
 import sys
 from datetime import datetime
+import logging
+from tqdm import tqdm
 
 import pandas as pd
 from core.config import load_config
 from core.data_loader import load_cases, load_prob_matrix, load_sheets
 from core.dialogue_builder import DialogueBuilder
-from core.factory import (create_case_loader, create_condition_evaluator,
-                          create_time_generator)
+from core.factory import (
+    create_case_loader,
+    create_condition_evaluator,
+    create_time_generator,
+)
 from core.logger import get_logger, init_logger
 from core.path_generator import PathGenerator
 from core.pressure_manager import PressureManager
@@ -48,16 +53,19 @@ def main():
     config = load_config(config_path)
     logger = None  # 稍后初始化
 
-    # 2. 读取基本参数
+    # 2. 读取基本参数（修改部分：支持 num_dialogues 和 num_paths_to_generate）
     task_name = config.get("task_name", "general")
-    num_paths = config.get("num_paths")
+    # 生成对话总数
+    num_dialogues = config.get("num_dialogues", config.get("num_paths", 40000))
+    # 实际生成的不重复路径数（如果未配置则等于对话数，保持向后兼容）
+    num_paths_to_generate = config.get("num_paths_to_generate", num_dialogues)
     seed = config.get("random_seed", 42)
     output_root = config.get("output_dir", "output")
     paths_cache_dir = config.get("paths_cache_dir", "paths")
     checkpoint_interval = config.get("checkpoint_interval", 5000)
 
-    # 构建任务子目录名：{task_name}_{num_paths}_{seed}
-    task_dir_name = f"{task_name}_{num_paths}_{seed}"
+    # 构建任务子目录名：使用对话总数（因为输出文件数量是对话数）
+    task_dir_name = f"{task_name}_{num_dialogues}_{seed}"
     task_dir = os.path.join(output_root, task_dir_name)
     intermediate_dir = os.path.join(task_dir, "intermediate")
     logs_dir = os.path.join(intermediate_dir, "logs")
@@ -73,6 +81,11 @@ def main():
     # 注意：需要修改 logger.py 以支持 log_dir 参数
     init_logger(config, log_dir=logs_dir)
     logger = get_logger()
+
+    # 新增：调整终端 handler 级别为 WARNING
+    for handler in logger.handlers:
+        if isinstance(handler, logging.StreamHandler):
+            handler.setLevel(logging.INFO)
 
     logger.info("=== 对话生成系统启动 ===")
     logger.info(f"配置文件: {config_path}")
@@ -102,39 +115,36 @@ def main():
     pressure_df = pd.read_excel(excel_path, sheet_name="链接施压话术")
     pressure_manager = PressureManager(pressure_df, rng, config)
 
-    # 7. 条件解析器
-    # 条件解析器
+    # 7. 条件解析器与时间生成器
     condition_evaluator = create_condition_evaluator(config)
-    # 时间解析器
-    time_gen = create_time_generator(config)  # 新增
+    time_gen = create_time_generator(config)
+    # 重新加载案例（传入 time_gen）
     case_loader = create_case_loader(config)
-    cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)  # 传入 time_gen
+    cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)
 
     # 8. 路径生成（使用独立于任务的缓存目录）
-    # 路径缓存放在 output_root/paths/ 下，文件名由模板决定
+    # 修改：缓存文件名基于 num_paths_to_generate 而非 num_dialogues
     paths_cache_template = config.get(
         "paths_cache", "output/paths/all_paths_{num_paths}_{seed}.json"
     )
-    # 确保路径缓存目录存在
     paths_cache_dir_abs = os.path.join(output_root, paths_cache_dir)
     os.makedirs(paths_cache_dir_abs, exist_ok=True)
-    # 生成最终缓存路径
-    cache_path = paths_cache_template.format(num_paths=num_paths, seed=seed)
-    # 如果配置中的路径已包含 output_root，则直接使用，否则基于 output_root 拼接
+    # 使用 num_paths_to_generate 生成缓存文件名
+    cache_path = paths_cache_template.format(num_paths=num_paths_to_generate, seed=seed)
     if not os.path.isabs(cache_path) and not cache_path.startswith(output_root):
         cache_path = os.path.join(output_root, cache_path)
 
     path_gen = PathGenerator(config, prob_df, rng, logger)
-    logger.info(f"开始生成 {num_paths} 条路径...")
-    all_paths = path_gen.generate(num_paths, seed, cache_path=cache_path)
+    logger.info(f"开始生成 {num_paths_to_generate} 条路径...")
+    all_paths = path_gen.generate(num_paths_to_generate, seed, cache_path=cache_path)
     logger.info(f"路径生成完成，共 {len(all_paths)} 条")
 
-    # 9. 对话生成（支持断点续传）
+    # 9. 对话生成（支持断点续传，循环复用路径）
     checkpoint_file = os.path.join(task_dir, "checkpoint.json")
     existing_dialogues, start_index = load_checkpoint(checkpoint_file)
     if start_index > 0:
         logger.info(
-            f"从检查点恢复，已生成 {len(existing_dialogues)} 条对话，从第 {start_index} 条路径开始"
+            f"从检查点恢复，已生成 {len(existing_dialogues)} 条对话，从第 {start_index} 条开始"
         )
     else:
         existing_dialogues = []
@@ -147,11 +157,14 @@ def main():
 
     all_dialogues = existing_dialogues.copy()
     all_traces = []
-    total_paths = len(all_paths)
+    total_paths = len(all_paths)  # 实际路径数量（可能远小于 num_dialogues）
 
-    logger.info(f"开始生成对话，共 {total_paths} 条路径，从索引 {start_index} 开始...")
-    for i in range(start_index, total_paths):
-        path = all_paths[i]
+    logger.info(
+        f"开始生成对话，共 {num_dialogues} 条对话（复用 {total_paths} 条路径），从索引 {start_index} 开始..."
+    )
+    # 对话生成循环（带进度条）
+    for i in tqdm(range(start_index, num_dialogues), desc="生成对话", unit="条"):
+        path = all_paths[i % total_paths]
         case = cases[i % len(cases)]
         prompt = prompts[i % len(prompts)]
         try:
@@ -230,6 +243,7 @@ def main():
                 logger.error(f"自动分析失败: {e}", exc_info=True)
         else:
             logger.warning(f"未找到 trace 文件 {trace_file}，跳过自动分析")
+
 
 if __name__ == "__main__":
     main()
