@@ -8,8 +8,8 @@
 import json
 import os
 import sys
-from datetime import datetime
 import logging
+from datetime import datetime
 from tqdm import tqdm
 
 import pandas as pd
@@ -26,32 +26,57 @@ from core.path_generator import PathGenerator
 from core.pressure_manager import PressureManager
 from core.random_service import RandomService
 
+# ==================== JSON 序列化优化 ====================
+try:
+    import orjson
 
-def save_checkpoint(dialogues: list, next_index: int, checkpoint_file: str):
-    """保存对话生成进度"""
+    USE_ORJSON = True
+except ImportError:
+    USE_ORJSON = False
+    import json
+
+
+def dumps_json(obj):
+    """序列化 JSON 对象，支持 orjson 加速"""
+    if USE_ORJSON:
+        return orjson.dumps(obj, option=orjson.OPT_SERIALIZE_NUMPY).decode("utf-8")
+    else:
+        return json.dumps(obj, ensure_ascii=False)
+
+
+# ==================== 检查点函数（保存文件路径） ====================
+def save_checkpoint(
+    next_index: int, checkpoint_file: str, dialogues_file: str, traces_file: str = None
+):
+    """保存对话生成进度，包含文件路径"""
+    data = {
+        "next_index": next_index,
+        "dialogues_file": dialogues_file,
+    }
+    if traces_file:
+        data["traces_file"] = traces_file
     with open(checkpoint_file, "w", encoding="utf-8") as f:
-        json.dump(
-            {"next_index": next_index, "dialogues": dialogues},
-            f,
-            ensure_ascii=False,
-            indent=2,
-        )
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def load_checkpoint(checkpoint_file: str):
-    """加载检查点，返回 (dialogues, next_index)"""
+    """加载检查点，返回 (next_index, dialogues_file, traces_file)"""
     if os.path.exists(checkpoint_file):
         with open(checkpoint_file, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return data.get("dialogues", []), data.get("next_index", 0)
-    return [], 0
+        return (
+            data.get("next_index", 0),
+            data.get("dialogues_file"),
+            data.get("traces_file"),
+        )
+    return 0, None, None
 
 
+# ==================== 主函数 ====================
 def main():
     # 1. 加载配置
     config_path = "configs/general_Xiaoying_dynamic_0615.yaml"
     config = load_config(config_path)
-    logger = None  # 稍后初始化
 
     # 2. 读取基本参数（修改部分：支持 num_dialogues 和 num_paths_to_generate）
     task_name = config.get("task_name", "general")
@@ -70,15 +95,14 @@ def main():
     intermediate_dir = os.path.join(task_dir, "intermediate")
     logs_dir = os.path.join(intermediate_dir, "logs")
     traces_dir = os.path.join(intermediate_dir, "traces")
-    analysis_dir = os.path.join(intermediate_dir, "analysis")  # 可选
+    analysis_dir = os.path.join(intermediate_dir, "analysis")
 
     # 创建必要的目录
     os.makedirs(logs_dir, exist_ok=True)
     os.makedirs(traces_dir, exist_ok=True)
     os.makedirs(analysis_dir, exist_ok=True)
 
-    # 3. 初始化日志（传入日志目录）
-    # 注意：需要修改 logger.py 以支持 log_dir 参数
+    # 3. 初始化日志（调整终端级别为 INFO）
     init_logger(config, log_dir=logs_dir)
     logger = get_logger()
 
@@ -106,7 +130,6 @@ def main():
     prob_df = load_prob_matrix(prob_path, modules)
 
     logger.info("加载案例...")
-    cases_dir = config.get("cases_dir")
     case_loader = create_case_loader(config)
     cases, prompts = case_loader.load(rng=rng)
     logger.info(f"加载案例数量: {len(cases)}")
@@ -121,9 +144,9 @@ def main():
     # 重新加载案例（传入 time_gen）
     case_loader = create_case_loader(config)
     cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)
+    logger.info(f"最终加载案例数量: {len(cases)}")
 
-    # 8. 路径生成（使用独立于任务的缓存目录）
-    # 修改：缓存文件名基于 num_paths_to_generate 而非 num_dialogues
+    # 8. 路径生成
     paths_cache_template = config.get(
         "paths_cache", "output/paths/all_paths_{num_paths}_{seed}.json"
     )
@@ -139,59 +162,88 @@ def main():
     all_paths = path_gen.generate(num_paths_to_generate, seed, cache_path=cache_path)
     logger.info(f"路径生成完成，共 {len(all_paths)} 条")
 
-    # 9. 对话生成（支持断点续传，循环复用路径）
+    # 9. 对话生成（流式写入 + 断点续传）
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_file = os.path.join(task_dir, f"general_dialogues_{timestamp}.json")
     checkpoint_file = os.path.join(task_dir, "checkpoint.json")
-    existing_dialogues, start_index = load_checkpoint(checkpoint_file)
-    if start_index > 0:
-        logger.info(
-            f"从检查点恢复，已生成 {len(existing_dialogues)} 条对话，从第 {start_index} 条开始"
-        )
+
+    # 恢复检查点
+    start_index, saved_dialogues_file, saved_traces_file = load_checkpoint(
+        checkpoint_file
+    )
+    if start_index > 0 and saved_dialogues_file:
+        out_file = saved_dialogues_file  # 继续使用同一个文件
+        logger.info(f"从检查点恢复，继续写入文件: {out_file}")
     else:
-        existing_dialogues = []
+        # 新任务，清空文件（如果存在则覆盖）
+        with open(out_file, "w", encoding="utf-8") as f:
+            pass
         start_index = 0
+
+    # 以追加模式打开对话文件
+    f_dialogues = open(out_file, "a", encoding="utf-8")
 
     # 创建对话构建器
     builder = DialogueBuilder(
         config, df_dict, condition_evaluator, rng, pressure_manager, logger
     )
 
-    all_dialogues = existing_dialogues.copy()
-    all_traces = []
-    total_paths = len(all_paths)  # 实际路径数量（可能远小于 num_dialogues）
+    all_traces = []  # 如果 trace 启用，收集到内存（可考虑分批写入）
+    total_paths = len(all_paths)
 
     logger.info(
         f"开始生成对话，共 {num_dialogues} 条对话（复用 {total_paths} 条路径），从索引 {start_index} 开始..."
     )
-    # 对话生成循环（带进度条）
-    for i in tqdm(range(start_index, num_dialogues), desc="生成对话", unit="条"):
-        path = all_paths[i % total_paths]
-        case = cases[i % len(cases)]
-        prompt = prompts[i % len(prompts)]
-        try:
-            messages = builder.build(path, case, prompt)
-            all_dialogues.append({"messages": messages})
-            if config.get("trace_enabled", False):
-                trace_data = builder.get_trace_data()
-                all_traces.append(trace_data)
-        except Exception as e:
-            logger.error(f"生成第{i}条对话时出错，路径长度: {len(path)}", exc_info=True)
-            continue
 
-        if (i + 1) % checkpoint_interval == 0:
-            save_checkpoint(all_dialogues, i + 1, checkpoint_file)
-            logger.info(f"已生成 {i+1}/{total_paths} 条对话，检查点已保存")
+    try:
+        for i in tqdm(range(start_index, num_dialogues), desc="生成对话", unit="条"):
+            path = all_paths[i % total_paths]
+            case = cases[i % len(cases)]
+            prompt = prompts[i % len(prompts)]
+            try:
+                messages = builder.build(path, case, prompt)
+                # 写入 JSON Lines
+                line = dumps_json({"messages": messages})
+                f_dialogues.write(line + "\n")
+                if (i + 1) % 1000 == 0:
+                    f_dialogues.flush()
 
-    # 最终保存对话
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_file = os.path.join(task_dir, f"general_dialogues_{timestamp}.json")
-    with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(all_dialogues, f, ensure_ascii=False, indent=2)
+                if config.get("trace_enabled", False):
+                    trace_data = builder.get_trace_data()
+                    all_traces.append(trace_data)
+            except Exception as e:
+                logger.error(
+                    f"生成第{i}条对话时出错，路径长度: {len(path)}", exc_info=True
+                )
+                continue
 
-    # 删除检查点文件（表示已完成）
+            if (i + 1) % checkpoint_interval == 0:
+                # 保存检查点（包含文件路径）
+                traces_file = None
+                if config.get("trace_enabled", False) and all_traces:
+                    # 如果有 trace，暂不写入文件，仅记录路径供恢复时参考
+                    traces_file = os.path.join(traces_dir, f"traces_{timestamp}.json")
+                save_checkpoint(i + 1, checkpoint_file, out_file, traces_file)
+                logger.info(f"已生成 {i+1}/{num_dialogues} 条对话，检查点已保存")
+
+    except KeyboardInterrupt:
+        logger.warning("用户中断生成，保存检查点...")
+        save_checkpoint(i + 1, checkpoint_file, out_file, None)
+        f_dialogues.close()
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"生成过程中发生错误: {e}", exc_info=True)
+        save_checkpoint(i + 1, checkpoint_file, out_file, None)
+        f_dialogues.close()
+        raise
+
+    f_dialogues.close()
+
+    # 完成生成，删除检查点
     if os.path.exists(checkpoint_file):
         os.remove(checkpoint_file)
 
-    logger.info(f"生成完成，共 {len(all_dialogues)} 条对话，保存至 {out_file}")
+    logger.info(f"生成完成，共 {num_dialogues} 条对话，保存至 {out_file}")
 
     # 保存追踪数据（如果启用）
     if config.get("trace_enabled", False) and all_traces:
