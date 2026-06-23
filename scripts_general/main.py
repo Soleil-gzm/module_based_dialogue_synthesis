@@ -70,15 +70,17 @@ def load_checkpoint(checkpoint_file: str):
         )
     return 0, None, None
 
-# ==================== Worker 函数（多进程） ====================
+# ==================== Worker 函数（多进程，带独立进度条） ====================
 def worker_generate(start_idx, end_idx, output_file, config_dict, all_paths, cases, prompts,
                     df_dict, pressure_df, seed, process_id, trace_enabled, checkpoint_interval):
     """
-    子进程任务：生成对话并写入分片文件
+    子进程任务：生成对话并写入分片文件，带独立进度条
     """
     import sys
     import os
-    # 确保能找到 core 模块（假设脚本在 scripts_general 下）
+    from tqdm import tqdm
+
+    # 确保能找到 core 模块
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
     from core.config import Config
@@ -98,7 +100,7 @@ def worker_generate(start_idx, end_idx, output_file, config_dict, all_paths, cas
     total_paths = len(all_paths)
     total_cases = len(cases)
 
-    # 使用 JSON 序列化函数（需复制到子进程作用域）
+    # JSON 序列化函数
     try:
         import orjson
         def dumps_json(obj):
@@ -108,8 +110,10 @@ def worker_generate(start_idx, end_idx, output_file, config_dict, all_paths, cas
         def dumps_json(obj):
             return json.dumps(obj, ensure_ascii=False)
 
+    # 打开输出文件
     with open(output_file, "w", encoding="utf-8") as f_out:
-        for i in range(start_idx, end_idx):
+        # 独立的进度条，position 由 process_id 决定，显示在不同行
+        for i in tqdm(range(start_idx, end_idx), desc=f"进程 {process_id}", position=process_id, leave=True):
             path = all_paths[i % total_paths]
             case = cases[i % total_cases]
             prompt = prompts[i % total_cases]
@@ -122,6 +126,7 @@ def worker_generate(start_idx, end_idx, output_file, config_dict, all_paths, cas
             except Exception as e:
                 print(f"进程 {process_id} 第{i}条对话出错: {e}", file=sys.stderr)
                 continue
+    return end_idx - start_idx  # 返回生成条数，主进程可用于统计
 
 # ==================== 合并分片文件 ====================
 def merge_shards(shard_files, output_file):
@@ -264,14 +269,10 @@ def main():
 
         # 生成分片文件名
         shard_files = []
+        tasks = []
         for p, (start, end) in enumerate(ranges):
             shard_file = os.path.join(task_dir, f"shard_{p:03d}_{start}_{end}.jsonl")
             shard_files.append(shard_file)
-
-        # 准备任务参数（每个任务包含全部参数）
-        tasks = []
-        for p, (start, end) in enumerate(ranges):
-            shard_file = shard_files[p]
             tasks.append((
                 start, end, shard_file,
                 config_dict, all_paths, cases, prompts,
@@ -282,8 +283,9 @@ def main():
             ))
 
         logger.info(f"启动 {len(ranges)} 个进程并行生成对话...")
+        # 使用 Pool 并行执行，每个进程显示独立进度条
         with mp.Pool(processes=num_processes) as pool:
-            # 直接 starmap，不再使用 partial
+            # starmap 会阻塞直到所有任务完成，但每个子进程的进度条会实时更新
             pool.starmap(worker_generate, tasks)
 
         # 合并分片

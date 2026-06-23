@@ -247,4 +247,4 @@ keep_columns:
 # ============================================
 multiprocessing:
   enabled: true               # 是否启用多进程
-  num_processes: 2            # 进程数（若不设置，默认为 CPU 核心数）
+  num_processes: 8           # 进程数（若不设置，默认为 CPU 核心数）
