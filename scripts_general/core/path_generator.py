@@ -50,7 +50,7 @@ class PathGenerator:
 
         while True:
             if current == "身份确认":
-                candidates = ["告知", "三方"]
+                candidates = ["告知", "三方","身份确认"]
             elif current == "告知":
                 candidates = [m for m in self.modules if m not in ["身份确认", "转告"]]
             elif current == "信息核实":
