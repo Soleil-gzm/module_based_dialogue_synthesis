@@ -15,7 +15,7 @@ paths_cache_dir: "paths"            # 路径缓存的子目录（相对于 outpu
 # ============================================
 # 2. 生成规模与随机性
 # ============================================
-num_dialogues: 10000         # 要生成的对话数量
+num_dialogues: 100000         # 要生成的对话数量
 num_paths_to_generate: 1000   # 新增：实际生成的不重复路径数
 # num_paths: 100000                    # 要生成的对话数量
 random_seed: 42                     # 全局随机种子（用于可复现性）
@@ -151,7 +151,7 @@ pressure_calc_type: "exponential"  # 曲线类型： exponential（指数）| si
 # 指数曲线参数（pressure_calc_type=exponential 时使用）
 pressure_start_prob: 0.02          # 路径开头基础概率
 pressure_end_prob: 0.9             # 路径末尾基础概率
-pressure_curve_exponent: 3.5       # 指数（越大后期增长越快）
+pressure_curve_exponent: 4.5       # 指数（越大后期增长越快）
 
 # Sigmoid 曲线参数（pressure_calc_type=sigmoid 时使用）
 # pressure_sigmoid_slope: 10.0     # 斜率
@@ -163,11 +163,11 @@ pressure_curve_exponent: 3.5       # 指数（越大后期增长越快）
 pressure_max_total: 3              # 每条对话最多施压次数
 # 施压位置策略：normalized（基于路径长度归一化）、absolute（基于绝对索引）
 pressure_strategy:
-  type: "normalized"               # normalized | absolute | sigmoid | linear_decay
+  type: "sigmoid"               # normalized | absolute | sigmoid | linear_decay
   # absolute 策略需要 max_expected_modules
   # max_expected_modules: 15
   # sigmoid 策略需要 slope
-  # slope: 30.0
+  slope: 30.0
 
 # ---- 模块权重（乘数） ----
 module_pressure_weights:            # 仅对 insert_nodes 中的模块生效
@@ -247,4 +247,4 @@ keep_columns:
 # ============================================
 multiprocessing:
   enabled: true               # 是否启用多进程
-  num_processes: 8           # 进程数（若不设置，默认为 CPU 核心数）
+  num_processes: 32           # 进程数（若不设置，默认为 CPU 核心数）
