@@ -6,9 +6,9 @@
 # ============================================
 # 1. 项目基础配置
 # ============================================
-company: "xiaoying"                  # 公司/业务标识（仅用于日志和命名）
+company: "xiaoying_0622"                  # 公司/业务标识（仅用于日志和命名）
 start_module: "身份确认"             # 对话起始模块名（必须存在于 modules 列表中）
-task_name: "xiaoying_0615"                # 任务名称（输出子目录为 {task_name}_{num_paths}_{seed}）
+task_name: "xiaoying_0622"                # 任务名称（输出子目录为 {task_name}_{num_paths}_{seed}）
 output_dir: "output"                # 根输出目录（所有任务输出到该目录下）
 paths_cache_dir: "paths"            # 路径缓存的子目录（相对于 output_dir）
 
@@ -24,7 +24,7 @@ checkpoint_interval: 50000          # 断点续传保存间隔（每生成 N 条
 # ============================================
 # 3. 数据文件路径
 # ============================================
-excel_path: "datas/xiaoying/【生成式通用后端】电催话术通用模板-首催20260615.xlsx"   # 话术模板 Excel 文件（包含所有模块 sheet 和链接施压话术 sheet）
+excel_path: "datas/xiaoying/【生成式通用后端】电催话术通用模板-首催20260622.xlsx"   # 话术模板 Excel 文件（包含所有模块 sheet 和链接施压话术 sheet）
 prob_path: "datas/xiaoying/prob0615.xlsx"        # 模块转移概率矩阵 Excel 文件
 
 # 案例加载器配置（支持多种类型）

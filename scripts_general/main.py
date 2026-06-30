@@ -262,7 +262,7 @@ def generate_single_process(
 # ==================== 主函数 ====================
 def main():
     # 1. 加载配置
-    config_path = "configs/general_Xiaoying_dynamic_0615.yaml"
+    config_path = "configs/general_Xiaoying_dynamic_0622.yaml"
     config = load_config(config_path)
     config_dict = config.to_dict()
 

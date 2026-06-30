@@ -80,6 +80,16 @@ class PathGenerator:
             probs = probs[
                 probs.index.isin(candidates)
             ]  # 只保留当前模块到 candidates 列表中模块的转移概率，移除那些不符合候选规则的目标模块。
+
+            # 增强 A_set 模块的自跳转概率
+            # 将 b_set 中部分概率转移到 current 自身，增强自跳转
+            if current in self.a_set and current in probs.index:
+                # 计算 b_set 的总概率
+                b_set_prob = probs[probs.index.isin(self.b_set)].sum()
+                # 将 b_set 概率的 50% 转移到 current 自身
+                transfer_prob = b_set_prob * 0.5
+                probs[current] += transfer_prob
+
             if probs.sum() == 0:
                 break
             probs /= probs.sum()
