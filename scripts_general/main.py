@@ -14,7 +14,7 @@ from tqdm import tqdm
 import multiprocessing as mp
 
 import pandas as pd
-from core.config import load_config
+from core.config import load_config, auto_sync_config_from_excel
 from core.data_loader import load_cases, load_prob_matrix, load_sheets
 from core.dialogue_builder import DialogueBuilder
 from core.factory import (
@@ -262,8 +262,12 @@ def generate_single_process(
 # ==================== 主函数 ====================
 def main():
     # 1. 加载配置
-    config_path = "configs/general_Xiaoying_dynamic_0622.yaml"
+    config_path = "configs/general_Xiaoying_0701_1w.yaml"
     config = load_config(config_path)
+    
+    # 1.5 自动从 Excel 话术模板同步 modules 和 max_repeat
+    config = auto_sync_config_from_excel(config)
+    
     config_dict = config.to_dict()
 
     # 2. 读取基本参数（兼容旧版 num_paths）
