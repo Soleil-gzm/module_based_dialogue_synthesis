@@ -10,12 +10,11 @@ task_name: "general_test"
 # 根输出目录
 output_dir: "output"
 
-# 路径缓存目录（相对于 output_dir 或绝对路径）
-paths_cache_dir: "paths"   # 最终路径为 output/paths/
+# 路径缓存目录
+paths_cache_dir: "paths"
 
-# 路径缓存文件模板（基于 output_dir 和 paths_cache_dir 生成）
-# 注意：main.py 中会动态拼接
-# paths_cache: "output/paths/all_paths_{num_paths}_{seed}.json"
+# 路径缓存文件模板
+paths_cache: "output/paths/all_paths_{num_paths}_{seed}.json"
 
 # ============================================
 # 生成数量与随机种子

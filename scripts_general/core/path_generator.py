@@ -59,6 +59,8 @@ class PathGenerator:
                     for m in self.modules
                     if m not in ["告知", "身份确认", "三方", "转告"]
                 ]
+            elif current == "三方":
+                candidates = ["三方", "转告"]
             elif current in self.a_set:
                 candidates = [current] + list(self.b_set)
             elif current in self.b_set:
@@ -96,6 +98,7 @@ class PathGenerator:
             if probs.sum() == 0:
                 break
             probs /= probs.sum()
+            # print(probs.sum())
             # 使用 numpy 随机选择（通过 self.rng 管理种子）
             next_node = self.rng.np_choice(probs.index.to_numpy(), p=probs.to_numpy())
 
@@ -109,6 +112,9 @@ class PathGenerator:
             max_repeat_val = self.max_repeat.get(next_node, 100)
             if counts[next_node] >= max_repeat_val:
                 banned.add(next_node)
+            # 身份确认达到最大次数后，路径停止
+            if next_node == "身份确认" and counts[next_node] >= max_repeat_val:
+                break
             if next_node in self.terminal_nodes:
                 break
             current = next_node
@@ -117,7 +123,10 @@ class PathGenerator:
     def generate(
         self, num_paths: int, seed: int, cache_path: Optional[str] = None
     ) -> List[List[str]]:
-        """生成多条不重复路径，支持缓存（缓存文件名默认包含参数，避免覆盖）"""
+        """生成多条路径，支持缓存（缓存文件名默认包含参数，避免覆盖）
+        
+        注意：路径可以重复生成，直接按 num_paths 数量生成，不去重。
+        """
         if cache_path is None and self.cache_path_template:
             try:
                 cache_path = self.cache_path_template.format(
@@ -143,25 +152,13 @@ class PathGenerator:
             else:
                 self.logger.info("缓存种子或数量不匹配，重新生成路径")
 
-        self.logger.info(f"开始生成 {num_paths} 条不重复路径...")
+        self.logger.info(f"开始生成 {num_paths} 条路径...")
         paths = []
-        paths_set = set()  # 确保路径唯一
-        max_attempts = num_paths * 10
-        attempts = 0
-        while len(paths) < num_paths and attempts < max_attempts:
-            attempts += 1
+        for i in range(num_paths):
             path = self.generate_one()
-            path_tuple = tuple(path)
-            if path_tuple not in paths_set:
-                paths_set.add(path_tuple)
-                paths.append(path)
-            if attempts % 10000 == 0:
-                self.logger.info(f"已尝试 {attempts} 次，当前唯一路径数 {len(paths)}")
-
-        if len(paths) < num_paths:
-            self.logger.warning(
-                f"仅生成 {len(paths)} 条不重复路径，达到最大尝试次数 {max_attempts}"
-            )
+            paths.append(path)
+            if (i + 1) % 10000 == 0:
+                self.logger.info(f"已生成 {i + 1}/{num_paths} 条路径")
 
         if cache_path:
             cache_data = {"seed": seed, "num_paths": num_paths, "paths": paths}
