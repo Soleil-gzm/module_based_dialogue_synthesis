@@ -77,18 +77,21 @@ class PathGenerator:
                 break
 
             probs = self.prob_df.loc[current].copy()
+
+            # 增强从 B_set 跳回被选中 A_set 模块的概率
+            # 由于路径中只能有一个 A_set 模块，将其他 A_set 模块的概率累加到 selected_a
+            if current in self.b_set and selected_a is not None:
+                # 计算其他 A_set 模块的概率之和
+                other_a_prob = probs[
+                    probs.index.isin(self.a_set) & (probs.index != selected_a)
+                ].sum()
+                # 如果 selected_a 在 probs 中，累加概率
+                if selected_a in probs.index and other_a_prob > 0:
+                    probs[selected_a] = probs[selected_a] + other_a_prob
+
             probs = probs[
                 probs.index.isin(candidates)
             ]  # 只保留当前模块到 candidates 列表中模块的转移概率，移除那些不符合候选规则的目标模块。
-
-            # 增强 A_set 模块的自跳转概率
-            # 将 b_set 中部分概率转移到 current 自身，增强自跳转
-            if current in self.a_set and current in probs.index:
-                # 计算 b_set 的总概率
-                b_set_prob = probs[probs.index.isin(self.b_set)].sum()
-                # 将 b_set 概率的 50% 转移到 current 自身
-                transfer_prob = b_set_prob * 0.5
-                probs[current] += transfer_prob
 
             if probs.sum() == 0:
                 break

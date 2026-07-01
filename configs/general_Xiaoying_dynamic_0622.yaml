@@ -16,7 +16,7 @@ paths_cache_dir: "paths"            # 路径缓存的子目录（相对于 outpu
 # 2. 生成规模与随机性
 # ============================================
 num_dialogues: 100000         # 要生成的对话数量
-num_paths_to_generate: 1000   # 新增：实际生成的不重复路径数
+num_paths_to_generate: 2000   # 新增：实际生成的不重复路径数
 # num_paths: 100000                    # 要生成的对话数量
 random_seed: 42                     # 全局随机种子（用于可复现性）
 checkpoint_interval: 50000          # 断点续传保存间隔（每生成 N 条对话保存一次）
@@ -163,11 +163,11 @@ pressure_curve_exponent: 4.5       # 指数（越大后期增长越快）
 pressure_max_total: 3              # 每条对话最多施压次数
 # 施压位置策略：normalized（基于路径长度归一化）、absolute（基于绝对索引）
 pressure_strategy:
-  type: "sigmoid"               # normalized | absolute | sigmoid | linear_decay
+  type: "normalized"               # normalized | absolute | sigmoid | linear_decay
   # absolute 策略需要 max_expected_modules
   # max_expected_modules: 15
   # sigmoid 策略需要 slope
-  slope: 30.0
+  # slope: 30.0
 
 # ---- 模块权重（乘数） ----
 module_pressure_weights:            # 仅对 insert_nodes 中的模块生效
