@@ -1,0 +1,258 @@
+# ============================================
+# 多轮对话生成系统 - 通用配置模板
+# 说明：所有配置均在此文件中定义，修改后无需更改代码。
+# ============================================
+
+# ============================================
+# 1. 项目基础配置
+# ============================================
+company: "xiaoying"                  # 公司/业务标识（仅用于日志和命名）
+start_module: "身份确认"             # 对话起始模块名（必须存在于 modules 列表中）
+task_name: "xiaoying_v2"                # 任务名称（输出子目录为 {task_name}_{num_paths}_{seed}）
+output_dir: "output"                # 根输出目录（所有任务输出到该目录下）
+paths_cache_dir: "paths"            # 路径缓存的子目录（相对于 output_dir）
+paths_cache: "output/paths/all_paths_{num_paths}_{seed}.json"  # 路径缓存文件模板
+
+# ============================================
+# 2. 生成规模与随机性
+# ============================================
+# num_dialogues: 100000         # 要生成的对话数量
+# num_paths_to_generate: 1000   # 新增：实际生成的不重复路径数
+num_paths: 20000                   # 要生成的对话数量
+random_seed: 32                     # 全局随机种子（用于可复现性）
+checkpoint_interval: 50000          # 断点续传保存间隔（每生成 N 条对话保存一次）
+
+# ============================================
+# 3. 数据文件路径
+# ============================================
+excel_path: "datas/xiaoying_v2/【生成式通用后端】电催话术通用模板-首催20260702.xlsx"   # 话术模板 Excel 文件（包含所有模块 sheet 和链接施压话术 sheet）
+prob_path: "datas/xiaoying_v2/prob0702.xlsx"        # 模块转移概率矩阵 Excel 文件
+
+# 案例加载器配置（支持多种类型）
+case_loader:
+  type: "xiaoying"                   # 加载器类型：default（单目录） 或 xiaoying（双目录）
+  # default 模式所需参数
+  # cases_dir: "datas/cases"          # 案例文件目录（每个 .txt 同时作为 prompt 和占位数据）
+  # xiaoying 模式所需参数（与 default 二选一）
+  replace_dir: "datas/xiaoying_v2/cases_replace"   # 占位数据目录
+  system_dir: "datas/xiaoying_v2/cases_system"     # 系统提示目录
+
+# ============================================
+# 4. 模块定义与业务规则
+# ============================================
+modules:   
+  - "语音留言"                         # 所有模块名称列表（必须与 Excel 的 sheet 名称一致）
+  - "身份确认"
+  - "告知"
+  - "信息核实"
+  - "三方"
+  - "转告"
+  - "承诺还款"
+  - "已还款"
+  - "敷衍"
+  - "投诉处理"
+  - "信息问题"
+  - "不方便接电"
+  - "对抗"
+  - "没钱"
+  - "诉求"
+  - "通用原因"
+  - "否认办理业务"
+  - "工程款"
+  - "未发工资"
+  - "还错卡"
+  - "生病住院"
+  - "破产"
+  - "失业"
+  - "他人用款"
+  - "忘记还款"
+  - "盗刷"
+  - "无法沟通"
+
+# 每个模块的最大重复次数（在路径中允许出现的最大次数）
+max_repeat:
+  语音留言: 3
+  身份确认: 4
+  告知: 0
+  信息核实: 1
+  三方: 2
+  转告: 2
+  承诺还款: 2
+  已还款: 1
+  敷衍: 0
+  投诉处理: 3
+  信息问题: 3
+  不方便接电: 2
+  对抗: 4
+  没钱: 4
+  诉求: 3
+  通用原因: 4
+  否认办理业务: 4
+  工程款: 4
+  未发工资: 4
+  还错卡: 4
+  生病住院: 4
+  破产: 4
+  失业: 4
+  他人用款: 4
+  忘记还款: 4
+  盗刷: 4
+  无法沟通: 3
+
+# A/B 集规则（用于路径生成中的候选集限制）
+a_set:                            # A 类模块
+  # - "身份确认"
+  - "通用原因"
+  - "否认办理业务"
+  - "工程款"
+  - "未发工资"
+  - "还错卡"
+  - "生病住院"
+  - "破产"
+  - "失业"
+  - "他人用款"
+  - "忘记还款"
+  - "盗刷"
+b_set:                            # B 类模块
+  - "敷衍"
+  - "投诉处理"
+  - "信息问题"
+  - "不方便接电"
+  - "对抗"
+  - "没钱"
+  - "诉求"
+  - "承诺还款"
+  - "无法沟通"
+
+# 终止模块（路径遇到这些模块时停止继续扩展）
+terminal_modules:
+  # - "承诺还款"
+  - "已还款"
+
+# 独立循环模块配置（这些模块的路径独立于正常路径，只在自身循环）
+# 格式：模块名: 该模块路径在所有路径中的占比概率
+self_loop_modules:
+  语音留言: 0.01
+
+# 需要附加施压话术的模块（当这些模块出现在路径中时，可能触发施压）
+insert_nodes:
+  - "失业"
+  - "破产"
+  - "生病住院"
+  - "未发工资"
+  - "工程款"
+  - "通用原因"
+  - "没钱"
+
+# ============================================
+# 5. 施压话术配置
+# ============================================
+# 固定施压概率（仅在 pressure_dynamic_enabled=false 时使用）
+pressure_prob: 0.3
+
+# 动态施压概率开关
+pressure_dynamic_enabled: true
+
+# ---- 动态概率曲线参数（使用 probability.py 中的计算器） ----
+
+pressure_calc_type: "exponential"  # 曲线类型： exponential（指数）| sigmoid | linear
+# 指数曲线参数（pressure_calc_type=exponential 时使用）
+pressure_start_prob: 0.7          # 路径开头基础概率
+pressure_end_prob: 0.9             # 路径末尾基础概率
+pressure_curve_exponent: 4.5       # 指数（越大后期增长越快）
+
+# Sigmoid 曲线参数（pressure_calc_type=sigmoid 时使用）
+# pressure_sigmoid_slope: 10.0     # 斜率
+
+# 线性曲线参数（pressure_calc_type=linear 时使用）
+# 会复用 pressure_start_prob 和 pressure_end_prob
+
+# ---- 施压次数与位置策略 ----
+pressure_max_total: 3              # 每条对话最多施压次数
+# 施压位置策略：normalized（基于路径长度归一化）、absolute（基于绝对索引）
+pressure_strategy:
+  type: "normalized"               # normalized | absolute | sigmoid | linear_decay
+  # absolute 策略需要 max_expected_modules
+  # max_expected_modules: 15
+  # sigmoid 策略需要 slope
+  # slope: 30.0
+
+# ---- 模块权重（乘数） ----
+module_pressure_weights:            # 仅对 insert_nodes 中的模块生效
+  没钱: 1.2
+  失业: 1.0
+  破产: 1.0
+  生病住院: 1.0
+  未发工资: 1.0
+  工程款: 1.0
+  通用原因: 0.9
+
+# ============================================
+# 6. 再见终止与继承链配置
+# ============================================
+# ---- 继承链停止概率 ----
+flexible_stop_prob: 0.7           # 后代链遇到 flexible_stop=1 时提前停止的概率
+
+# ---- 再见终止（固定概率，若动态再见未启用则使用此值） ----
+goodbye_termination_prob: 0.7
+
+# ---- 动态再见概率配置（与施压类似，独立控制） ----
+goodbye_dynamic_enabled: true      # 是否启用动态再见概率
+goodbye_calc_type: "exponential"   # 曲线类型：exponential、sigmoid、linear
+goodbye_start_prob: 0.5           # 路径开头再见概率
+goodbye_end_prob: 0.9              # 路径末尾再见概率
+goodbye_exponent: 3.0              # 指数（越大后期增长越快）
+# Sigmoid 斜率（如使用 sigmoid）: goodbye_sigmoid_slope: 10.0
+goodbye_min_idx: 2                 # 强制忽略前 N 个模块的再见（索引从0开始，即前 N 个模块即使再见标志为1也不触发）
+
+# ============================================
+# 7. 解析器配置
+# ============================================
+condition_parser: "keyword"        # 条件解析器类型：keyword（关键词匹配）或 future 扩展
+time_generator:
+  type: "simple_natural"           # 时间生成器类型：simple_natural（随机生成自然口语化时间）
+
+# ============================================
+# 8. 追踪与日志
+# ============================================
+trace_enabled: true                # 是否生成详细追踪 JSON 文件
+logging:
+  level: "DEBUG"                   # 日志级别（DEBUG, INFO, WARNING, ERROR）
+  file_prefix: "dialogue_builder"  # 日志文件名前缀
+  console: true                    # 是否同时输出到控制台
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  datefmt: "%Y-%m-%d %H:%M:%S"
+
+# ============================================
+# 9. 自动分析配置（生成对话后自动分析 trace）
+# ============================================
+auto_analysis:
+  enabled: true                    # 是否启用自动分析
+  format: "html"                   # 图表格式：html 或 png
+
+# ============================================
+# 10. 分析器配置（独立运行或自动分析时使用）
+# ============================================
+analyzer:
+  type: "default"                  # 分析器类型（当前仅 default）
+  format: "html"                   # 图表格式（与 auto_analysis.format 保持一致）
+
+# ============================================
+# 11. 扩展列名（若 Excel 列名与默认不同可修改）
+# ============================================
+keep_columns:
+  - "uid"
+  - "parent(继承)"
+  - "repeat(次数)"
+  - "conditions(条件)"
+  - "human(客户)"
+  - "assistant(专员)"
+  - "flexible_stop(可选不继承)"
+  - "是否再见"
+
+# ============================================
+# 12. 多进程配置
+# ============================================
+multiprocessing:
+  enabled: true               # 是否启用多进程
+  num_processes: 32           # 进程数（若不设置，默认为 CPU 核心数）

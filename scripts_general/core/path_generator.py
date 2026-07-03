@@ -28,6 +28,7 @@ class PathGenerator:
         self.b_set = set(config.get("b_set", []))
         self.start_module = config.get("start_module", self.modules[0])
         self.cache_path_template = config.get("paths_cache")
+        self.self_loop_modules = config.get("self_loop_modules", {})
 
         # 验证缓存模板是否包含必要占位符
         if self.cache_path_template:
@@ -41,6 +42,16 @@ class PathGenerator:
                 )
 
     def generate_one(self) -> List[str]:
+        if self.self_loop_modules:
+            rand_val = self.rng.uniform(0, 1)
+            cum_prob = 0.0
+            for module, prob in self.self_loop_modules.items():
+                cum_prob += prob
+                if rand_val < cum_prob:
+                    max_repeat_val = self.max_repeat.get(module, 1)
+                    loop_count = self.rng.randint(1, max_repeat_val)
+                    return [module] * loop_count
+
         path = [self.start_module]
         counts = {mod: 0 for mod in self.modules}
         counts[self.start_module] = 1
@@ -75,6 +86,13 @@ class PathGenerator:
                 candidates = [
                     m for m in candidates if m not in self.a_set or m == selected_a
                 ]
+            if self.self_loop_modules:
+                candidates = [m for m in candidates if m not in self.self_loop_modules]
+            for terminal_mod in self.terminal_nodes:
+                if terminal_mod not in candidates:
+                    prob_val = self.prob_df.loc[current].get(terminal_mod)
+                    if pd.notna(prob_val) and prob_val > 0:
+                        candidates.append(terminal_mod)
             if not candidates:
                 break
 
@@ -102,8 +120,6 @@ class PathGenerator:
             # 使用 numpy 随机选择（通过 self.rng 管理种子）
             next_node = self.rng.np_choice(probs.index.to_numpy(), p=probs.to_numpy())
 
-            if next_node == "已还款" and current not in ["告知", "信息核实"]:
-                continue
             if next_node in self.a_set and selected_a is None:
                 selected_a = next_node
 

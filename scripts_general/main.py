@@ -262,7 +262,7 @@ def generate_single_process(
 # ==================== 主函数 ====================
 def main():
     # 1. 加载配置
-    config_path = "configs/general_Xiaoying_0701_1w.yaml"
+    config_path = "configs/xiaoying_v2/general_Xiaoying_0703_2w.yaml"
     config = load_config(config_path)
     
     # 1.5 自动从 Excel 话术模板同步 modules 和 max_repeat
