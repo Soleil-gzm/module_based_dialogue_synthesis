@@ -3,12 +3,25 @@
 多轮对话生成脚本（重构版）
 基于配置驱动、模块化设计，支持通用催收模板。
 支持断点续传（单进程模式）、流式写入、多进程并行、追踪和自动分析。
+
+# 使用默认配置文件
+python scripts_general/main.py
+
+# 指定自定义配置文件（短选项）
+python scripts_general/main.py -c configs/xiaoying_v2/general_Xiaoying_0702_3w_debug.yaml
+
+# 指定自定义配置文件（长选项）
+python scripts_general/main.py --config configs/xiaoying_v2/general_Xiaoying_0702_3w_debug.yaml
+
+# 查看帮助信息
+python scripts_general/main.py -h
 """
 
 import json
 import os
 import sys
 import logging
+import argparse
 from datetime import datetime
 from tqdm import tqdm
 import multiprocessing as mp
@@ -261,8 +274,17 @@ def generate_single_process(
 
 # ==================== 主函数 ====================
 def main():
+    parser = argparse.ArgumentParser(description="多轮对话生成脚本")
+    parser.add_argument(
+        "-c", "--config",
+        type=str,
+        default="configs/xiaoying_v2/general_Xiaoying_0703_4w.yaml",
+        help="配置文件路径（默认: configs/xiaoying_v2/general_Xiaoying_0703_4w.yaml）"
+    )
+    args = parser.parse_args()
+
     # 1. 加载配置
-    config_path = "configs/xiaoying_v2/general_Xiaoying_0703_2w.yaml"
+    config_path = args.config
     config = load_config(config_path)
     
     # 1.5 自动从 Excel 话术模板同步 modules 和 max_repeat
