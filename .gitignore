@@ -7,3 +7,4 @@ __pycache__
 scripts_test/
 output1/
 output_v1/
+.pytest_cache
