@@ -19,6 +19,8 @@ import pandas as pd
 from core.random_service import RandomService
 from core.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
 
+from .exceptions import DataLoadError
+
 
 def load_sheets(
     excel_path: str, modules: List[str], keep_cols: List[str] = None
@@ -27,9 +29,16 @@ def load_sheets(
     加载所有模块sheet，保留所有行（不再预过滤条件）。
     条件筛选将在 DialogueBuilder 中由 ConditionEvaluator 动态执行。
     """
+    if not os.path.exists(excel_path):
+        raise DataLoadError(f"Excel文件不存在: {excel_path}")
+    
     df_dict = {}
     for sheet in modules:
-        df = pd.read_excel(excel_path, sheet_name=sheet)
+        try:
+            df = pd.read_excel(excel_path, sheet_name=sheet)
+        except Exception as e:
+            raise DataLoadError(f"读取Excel模块 '{sheet}' 失败: {e}")
+        
         if keep_cols is None:
             # 默认保留所有核心列（可根据需要增减）
             keep_cols = [
@@ -42,21 +51,31 @@ def load_sheets(
                 "flexible_stop(可选不继承)",
                 "是否再见",
             ]
-        # 只保留需要的列，但不进行行过滤
-        df_filtered = (
-            df[keep_cols].copy()
-            if all(c in df.columns for c in keep_cols)
-            else df.loc[:, keep_cols].copy()
-        )
-        df_dict[sheet] = df_filtered
+        
+        missing_cols = [c for c in keep_cols if c not in df.columns]
+        if missing_cols:
+            raise DataLoadError(f"Excel模块 '{sheet}' 缺少必要列: {missing_cols}")
+        
+        df_dict[sheet] = df[keep_cols].copy()
     return df_dict
 
 
 def load_prob_matrix(prob_path: str, modules: List[str]) -> pd.DataFrame:
     """加载概率矩阵，第一行和第一列为模块名，值除以100"""
-    prob_df = pd.read_excel(prob_path, header=0, index_col=0)
-    prob_df = prob_df.reindex(index=modules, columns=modules)
-    prob_df = prob_df / 100.0
+    if not os.path.exists(prob_path):
+        raise DataLoadError(f"概率矩阵文件不存在: {prob_path}")
+    
+    try:
+        prob_df = pd.read_excel(prob_path, header=0, index_col=0)
+    except Exception as e:
+        raise DataLoadError(f"读取概率矩阵文件失败: {prob_path}, 错误: {e}")
+    
+    try:
+        prob_df = prob_df.reindex(index=modules, columns=modules)
+        prob_df = prob_df / 100.0
+    except Exception as e:
+        raise DataLoadError(f"概率矩阵处理失败: {e}")
+    
     return prob_df
 
 
@@ -174,12 +193,22 @@ def load_cases(
     如果提供 rng，则传递给 parse_case_info。
     如果提供 time_gen，则传递给 parse_case_info 用于生成自然时间。
     """
+    if not os.path.exists(cases_dir):
+        raise DataLoadError(f"案例目录不存在: {cases_dir}")
+    
     case_files = sorted([f for f in os.listdir(cases_dir) if f.endswith(".txt")])
+    if not case_files:
+        raise DataLoadError(f"案例目录 '{cases_dir}' 为空，没有找到 .txt 文件")
+    
     cases = []
     prompts = []
     for fname in case_files:
         path = os.path.join(cases_dir, fname)
-        cases.append(parse_case_info(path, rng=rng, time_gen=time_gen))
-        with open(path, "r", encoding="utf-8") as f:
-            prompts.append(f.read())
+        try:
+            cases.append(parse_case_info(path, rng=rng, time_gen=time_gen))
+            with open(path, "r", encoding="utf-8") as f:
+                prompts.append(f.read())
+        except Exception as e:
+            raise DataLoadError(f"读取案例文件 '{fname}' 失败: {e}")
+    
     return cases, prompts

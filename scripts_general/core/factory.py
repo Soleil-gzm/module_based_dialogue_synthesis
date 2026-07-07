@@ -10,6 +10,8 @@ from core.pressure_prob_strategy import (AbsolutePressureStrategy,
 from core.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
 from core.probability import ProbabilityCalculator,ExponentialProbabilityCalculator,SigmoidProbabilityCalculator,LinearProbabilityCalculator
 
+from .exceptions import ConfigError
+
 
 def create_condition_evaluator(config: Config) -> ConditionEvaluator:
     """工厂方法：根据配置创建条件解析器"""
@@ -20,7 +22,7 @@ def create_condition_evaluator(config: Config) -> ConditionEvaluator:
     # elif parser_type == 'simple_eval':
     #     return SimpleEvalConditionEvaluator()
     else:
-        raise ValueError(f"Unknown condition_parser type: {parser_type}")
+        raise ConfigError(f"Unknown condition_parser type: {parser_type}")
 
 
 def create_case_loader(config: Config) -> CaseLoader:
@@ -29,18 +31,18 @@ def create_case_loader(config: Config) -> CaseLoader:
     if loader_type == "default":
         cases_dir = config.get("cases_dir")
         if not cases_dir:
-            raise ValueError("默认加载器需要配置 cases_dir")
+            raise ConfigError("默认加载器需要配置 cases_dir")
         return DefaultCaseLoader(cases_dir)
     elif loader_type == "xiaoying":
         replace_dir = config.get("case_loader.replace_dir")
         system_dir = config.get("case_loader.system_dir")
         if not replace_dir or not system_dir:
-            raise ValueError(
+            raise ConfigError(
                 "小赢加载器需要配置 case_loader.replace_dir 和 case_loader.system_dir"
             )
         return XiaoyingCaseLoader(replace_dir, system_dir)
     else:
-        raise ValueError(f"Unknown case_loader type: {loader_type}")
+        raise ConfigError(f"Unknown case_loader type: {loader_type}")
 
 
 def create_time_generator(config: Config) -> TimeGenerator:
@@ -52,7 +54,7 @@ def create_time_generator(config: Config) -> TimeGenerator:
     # elif gen_type == "relative":
     #     return RelativeTimeGenerator()
     else:
-        raise ValueError(f"Unknown time_generator type: {gen_type}")
+        raise ConfigError(f"Unknown time_generator type: {gen_type}")
 
 
 def create_analyzer(config) -> Analyzer:
@@ -80,7 +82,7 @@ def create_analyzer(config) -> Analyzer:
         # 实例化具体的分析器，并注入组装好的参数
         return DefaultAnalyzer(format=fmt, pressure_config=pressure_config)
     else:
-        raise ValueError(f"Unknown analyzer type: {ana_type}")
+        raise ConfigError(f"Unknown analyzer type: {ana_type}")
 
 
 def create_pressure_strategy(config) -> PressureStrategy:
@@ -97,7 +99,7 @@ def create_pressure_strategy(config) -> PressureStrategy:
     elif strategy_type == "linear_decay":
         return LinearDecayPressureStrategy()
     else:
-        raise ValueError(f"Unknown pressure strategy type: {strategy_type}")
+        raise ConfigError(f"Unknown pressure strategy type: {strategy_type}")
 
 def create_probability_calculator(config: Config, prefix: str) -> ProbabilityCalculator:
     """
@@ -120,4 +122,4 @@ def create_probability_calculator(config: Config, prefix: str) -> ProbabilityCal
         end = config.get(f"{prefix}_end_prob", 1.0)
         return LinearProbabilityCalculator(start, end)
     else:
-        raise ValueError(f"Unknown probability calculator type: {calc_type}")
+        raise ConfigError(f"Unknown probability calculator type: {calc_type}")

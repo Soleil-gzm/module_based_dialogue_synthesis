@@ -9,9 +9,11 @@ import os
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
-from core.data_loader import parse_case_info  # 复用原有解析函数
+from core.data_loader import parse_case_info
 from core.random_service import RandomService
 from core.time_generator import TimeGenerator
+
+from .exceptions import DataLoadError
 
 
 class CaseLoader(ABC):
@@ -35,6 +37,10 @@ class DefaultCaseLoader(CaseLoader):
     """默认加载器：与原有 data_loader.load_cases 行为一致"""
 
     def __init__(self, cases_dir: str):
+        if not cases_dir:
+            raise DataLoadError("cases_dir 不能为空")
+        if not os.path.exists(cases_dir):
+            raise DataLoadError(f"案例目录不存在: {cases_dir}")
         self.cases_dir = cases_dir
 
     def load(
@@ -68,6 +74,12 @@ class XiaoyingCaseLoader(CaseLoader):
     """
 
     def __init__(self, replace_dir: str, system_dir: str):
+        if not replace_dir or not system_dir:
+            raise DataLoadError("replace_dir 和 system_dir 不能为空")
+        if not os.path.exists(replace_dir):
+            raise DataLoadError(f"替换案例目录不存在: {replace_dir}")
+        if not os.path.exists(system_dir):
+            raise DataLoadError(f"系统提示目录不存在: {system_dir}")
         self.replace_dir = replace_dir
         self.system_dir = system_dir
 
@@ -84,9 +96,9 @@ class XiaoyingCaseLoader(CaseLoader):
         system_files = self._get_sorted_files(self.system_dir)
 
         if not replace_files:
-            raise ValueError(f"替换案例目录为空: {self.replace_dir}")
+            raise DataLoadError(f"替换案例目录为空: {self.replace_dir}")
         if not system_files:
-            raise ValueError(f"系统提示目录为空: {self.system_dir}")
+            raise DataLoadError(f"系统提示目录为空: {self.system_dir}")
 
         cases = []
         prompts = []

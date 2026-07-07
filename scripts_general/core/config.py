@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 import yaml
 
+from .exceptions import ConfigError, DataLoadError
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,9 +93,14 @@ class Config:
 def load_config(config_path: str) -> Config:
     """加载YAML配置文件并返回Config对象"""
     if not os.path.exists(config_path):
-        raise FileNotFoundError(f"配置文件不存在: {config_path}")
-    with open(config_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        raise ConfigError(f"配置文件不存在: {config_path}")
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ConfigError(f"配置文件解析错误: {config_path}, 错误: {e}")
+    if data is None:
+        raise ConfigError(f"配置文件为空: {config_path}")
     return Config(data)
 
 

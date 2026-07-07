@@ -8,6 +8,8 @@ import pandas as pd
 from core.config import Config
 from core.random_service import RandomService
 
+from .exceptions import PathGenerationError
+
 
 class PathGenerator:
     def __init__(
@@ -39,7 +41,7 @@ class PathGenerator:
             ):
                 self.logger.warning(
                     f"缓存路径模板 {self.cache_path_template} 缺少 {{num_paths}} 或 {{seed}} 占位符，"
-                    "生成的缓存文件可能会互相覆盖。建议修改为类似 'intermediate/all_paths_{num_paths}_{seed}.json'"
+                    "生成的缓存文件可能会互相覆盖。建议修改为类似 'path/to/all_paths_{num_paths}_{seed}.json'"
                 )
 
     def _get_candidates_by_rules(self, current: str) -> List[str]:
@@ -88,13 +90,15 @@ class PathGenerator:
                     loop_count = self.rng.randint(1, max_repeat_val)
                     return [module] * loop_count
 
-        path = [self.start_module]
-        counts = {mod: 0 for mod in self.modules}
-        counts[self.start_module] = 1
-        banned = set()
-        selected_a = None
-        current = self.start_module
+        # 主循环初始化
+        path = [self.start_module]           # 路径列表，从起始模块开始
+        counts = {mod: 0 for mod in self.modules}  # 每个模块出现次数
+        counts[self.start_module] = 1        # 起始模块计数为1
+        banned = set()                       # 已达到最大次数的模块集合
+        selected_a = None                    # 已选择的A集模块（路径中只能有一个）
+        current = self.start_module          # 当前模块
 
+        # 候选模块筛选
         while True:
             candidates = self._get_candidates_by_rules(current)
             
@@ -114,8 +118,12 @@ class PathGenerator:
                     if pd.notna(prob_val) and prob_val > 0:
                         candidates.append(terminal_mod)
             if not candidates:
+                self.logger.warning(
+                    f"路径生成中断：当前模块 '{current}' 没有可用的候选模块，路径: {path}"
+                )
                 break
 
+            # 概率采样
             probs = self.prob_df.loc[current].copy()
 
             # 增强从 B_set 跳回被选中 A_set 模块的概率
@@ -134,15 +142,18 @@ class PathGenerator:
             ]  # 只保留当前模块到 candidates 列表中模块的转移概率，移除那些不符合候选规则的目标模块。
 
             if probs.sum() == 0:
+                self.logger.warning(
+                    f"路径生成中断：当前模块 '{current}' 的候选模块概率和为0，路径: {path}"
+                )
                 break
             probs /= probs.sum()
-            # print(probs.sum())
             # 使用 numpy 随机选择（通过 self.rng 管理种子）
             next_node = self.rng.np_choice(probs.index.to_numpy(), p=probs.to_numpy())
 
             if next_node in self.a_set and selected_a is None:
                 selected_a = next_node
-
+                
+            # 状态更新与终止判断
             path.append(next_node)
             counts[next_node] += 1
             max_repeat_val = self.max_repeat.get(next_node, 100)
