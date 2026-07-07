@@ -29,6 +29,7 @@ class PathGenerator:
         self.start_module = config.get("start_module", self.modules[0])
         self.cache_path_template = config.get("paths_cache")
         self.self_loop_modules = config.get("self_loop_modules", {})
+        self.transition_rules = config.get("transition_rules", {})
 
         # 验证缓存模板是否包含必要占位符
         if self.cache_path_template:
@@ -40,6 +41,41 @@ class PathGenerator:
                     f"缓存路径模板 {self.cache_path_template} 缺少 {{num_paths}} 或 {{seed}} 占位符，"
                     "生成的缓存文件可能会互相覆盖。建议修改为类似 'intermediate/all_paths_{num_paths}_{seed}.json'"
                 )
+
+    def _get_candidates_by_rules(self, current: str) -> List[str]:
+        """
+        根据配置的跳转规则获取当前模块的候选目标模块列表。
+        
+        规则优先级：
+        1. 如果当前模块在 transition_rules 中有配置，按配置规则筛选
+        2. 如果当前模块在 a_set 中，候选为 [current] + b_set
+        3. 如果当前模块在 b_set 中，候选为 b_set（后续会追加 selected_a）
+        4. 默认候选为所有模块
+        
+        Returns:
+            List[str]: 候选模块列表
+        """
+        # 优先使用配置的跳转规则
+        rule = self.transition_rules.get(current)
+        if rule:
+            mode = rule.get("mode", "deny_list")
+            rule_modules = rule.get("modules", [])
+            
+            if mode == "allow_list":
+                return rule_modules
+            elif mode == "deny_list":
+                return [m for m in self.modules if m not in rule_modules]
+            else:
+                self.logger.warning(f"未知的跳转规则模式: {mode}，使用默认规则")
+        
+        # A_set/B_set 规则（已配置化）
+        if current in self.a_set:
+            return [current] + list(self.b_set)
+        elif current in self.b_set:
+            return list(self.b_set)
+        
+        # 默认：所有模块
+        return self.modules[:]
 
     def generate_one(self) -> List[str]:
         if self.self_loop_modules:
@@ -60,26 +96,10 @@ class PathGenerator:
         current = self.start_module
 
         while True:
-            if current == "身份确认":
-                candidates = ["告知", "三方","身份确认"]
-            elif current == "告知":
-                candidates = [m for m in self.modules if m not in ["身份确认", "转告"]]
-            elif current == "信息核实":
-                candidates = [
-                    m
-                    for m in self.modules
-                    if m not in ["告知", "身份确认", "三方", "转告"]
-                ]
-            elif current == "三方":
-                candidates = ["三方", "转告"]
-            elif current in self.a_set:
-                candidates = [current] + list(self.b_set)
-            elif current in self.b_set:
-                candidates = list(self.b_set)
-                if selected_a is not None:
-                    candidates.append(selected_a)
-            else:
-                candidates = self.modules[:]
+            candidates = self._get_candidates_by_rules(current)
+            
+            if current in self.b_set and selected_a is not None:
+                candidates.append(selected_a)
 
             candidates = [m for m in candidates if m not in banned]
             if selected_a is not None:
@@ -128,9 +148,11 @@ class PathGenerator:
             max_repeat_val = self.max_repeat.get(next_node, 100)
             if counts[next_node] >= max_repeat_val:
                 banned.add(next_node)
-            # 身份确认达到最大次数后，路径停止
-            if next_node == "身份确认" and counts[next_node] >= max_repeat_val:
-                break
+                
+                rule = self.transition_rules.get(next_node)
+                if rule and rule.get("force_stop_on_max_repeat", False):
+                    break
+            
             if next_node in self.terminal_nodes:
                 break
             current = next_node
