@@ -13,7 +13,7 @@ start_module: "身份确认"             # 对话起始模块名（必须存在�
 task_name: "xiaoying_v2"             # 任务名称（输出子目录为 {task_name}_{num_paths}_{seed}）
 output_dir: "output"                 # 根输出目录（所有任务输出到该目录下）
 paths_cache_dir: "paths"             # 路径缓存的子目录（相对于 output_dir）
-paths_cache: "output/paths/all_paths_{num_paths}_{seed}.json"  # 路径缓存文件模板
+paths_cache: "output/paths/all_paths_{num_paths}_{seed}.json"  # 路径缓存文件模板（保持原有命名以兼容缓存复用）
 
 # ============================================
 # 2. 生成规模与随机性
@@ -107,10 +107,13 @@ insert_nodes:
 #
 # 配置说明：
 #   每个模块可以配置以下属性：
+#   模块名:
 #     mode: 规则模式
 #       - "allow_list": 白名单模式，只允许跳转到 modules 列表中的模块
 #       - "deny_list": 黑名单模式，禁止跳转到 modules 列表中的模块（默认）
 #     modules: 规则对应的模块列表（根据 mode 不同含义不同）
+#        - "模块A"
+#        - "模块B"
 #     force_stop_on_max_repeat: 是否在达到 max_repeat 次数时强制终止路径（默认 false）
 #
 #   规则优先级：

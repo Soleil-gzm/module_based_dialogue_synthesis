@@ -21,15 +21,15 @@ class PathGenerator:
         self.prob_df = prob_df
         self.rng = rng
         self.logger = logger or logging.getLogger("PathGenerator")
-        self.modules = config.get("modules")
-        self.max_repeat = config.get("max_repeat")
-        self.terminal_nodes = set(config.get("terminal_modules", []))
+        self.modules = config.get("modules")            # 所有模块列表
+        self.max_repeat = config.get("max_repeat")      # 每个模块最大重复次数
+        self.terminal_nodes = set(config.get("terminal_modules", []))       # 终止模块
         self.a_set = set(config.get("a_set", []))
         self.b_set = set(config.get("b_set", []))
         self.start_module = config.get("start_module", self.modules[0])
         self.cache_path_template = config.get("paths_cache")
         self.self_loop_modules = config.get("self_loop_modules", {})
-        self.transition_rules = config.get("transition_rules", {})
+        self.transition_rules = config.get("transition_rules", {})      # 跳转规则
 
         # 验证缓存模板是否包含必要占位符
         if self.cache_path_template:

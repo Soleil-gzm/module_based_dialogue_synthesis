@@ -18,7 +18,7 @@ paths_cache: "output/paths/all_paths_{num_paths}_{seed}.json"  # 路径缓存文
 # ============================================
 # 2. 生成规模与随机性
 # ============================================
-num_paths: 40000                     # 要生成的对话数量（兼容旧配置，与 num_dialogues 等效）
+num_paths: 10000                     # 要生成的对话数量（兼容旧配置，与 num_dialogues 等效）
 # num_dialogues: 40000               # 新命名：要生成的对话数量（优先级高于 num_paths）
 # num_paths_to_generate: 1000        # 实际生成的不重复路径数（小于 num_dialogues 时循环复用）
 random_seed: 42                      # 全局随机种子（用于可复现性）

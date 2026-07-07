@@ -191,10 +191,14 @@ def generate_single_process(
     timestamp,
     logger,
     checkpoint_interval,
+    task_name=None,
+    seed=None,
 ):
     """单进程流式生成，带进度条、断点续传和 trace 收集，最终写入标准 JSON 数组"""
     trace_enabled = config.get("trace_enabled", False)
-    out_file = os.path.join(task_dir, f"general_dialogues_{timestamp}.json")
+    task_name = task_name or config.get("task_name", "general")
+    seed = seed or config.get("random_seed", 42)
+    out_file = os.path.join(task_dir, f"{task_name}_generate_{num_dialogues}_{seed}_{timestamp}.json")
     checkpoint_file = os.path.join(task_dir, "checkpoint.json")
 
     # 恢复检查点
@@ -262,7 +266,7 @@ def generate_single_process(
     trace_file = None
     if trace_enabled and all_traces:
         trace_file = os.path.join(
-            task_dir, "intermediate", "traces", f"traces_{timestamp}.json"
+            task_dir, "intermediate", "traces", f"{task_name}_traces_{num_dialogues}_{seed}_{timestamp}.json"
         )
         os.makedirs(os.path.dirname(trace_file), exist_ok=True)
         with open(trace_file, "w", encoding="utf-8") as f:
@@ -430,7 +434,7 @@ def main():
 
         # 合并对话分片为标准 JSON 数组
         final_output_file = os.path.join(
-            task_dir, f"general_dialogues_{timestamp}.json"
+            task_dir, f"{task_name}_generate_{num_dialogues}_{seed}_{timestamp}.json"
         )
         logger.info("合并对话分片...")
         merge_shards_to_json(shard_files, final_output_file)
@@ -438,7 +442,7 @@ def main():
         # 合并 trace 分片
         trace_file = None
         if trace_enabled and trace_shard_files:
-            trace_file = os.path.join(traces_dir, f"traces_{timestamp}.json")
+            trace_file = os.path.join(traces_dir, f"{task_name}_traces_{num_dialogues}_{seed}_{timestamp}.json")
             logger.info("合并 trace 分片...")
             merge_trace_shards(trace_shard_files, trace_file)
             logger.info(f"追踪数据已保存至 {trace_file}")
@@ -461,6 +465,8 @@ def main():
             timestamp,
             logger,
             checkpoint_interval,
+            task_name=task_name,
+            seed=seed,
         )
 
     # 10. 自动分析（如果配置启用且 trace 存在）
@@ -469,7 +475,7 @@ def main():
         and trace_file
         and os.path.exists(trace_file)
     ):
-        analysis_output = os.path.join(task_dir, "intermediate", "analysis", timestamp)
+        analysis_output = os.path.join(task_dir, "intermediate", "analysis", f"{task_name}_generate_analysis_{timestamp}")
         plot_format = config.get("auto_analysis.format", "html")
         try:
             from core.analyzer import DefaultAnalyzer
