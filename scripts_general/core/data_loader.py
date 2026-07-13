@@ -133,6 +133,16 @@ def parse_case_info(
             data["罚息"] = raw
             match = re.search(r"[\d.]+", raw)
             data["罚息_数值"] = float(match.group()) if match else 0.0
+        elif line.startswith("- 应还金额："):
+            raw = line.split("：")[1].strip()
+            data["应还金额"] = raw
+            match = re.search(r"[\d.]+", raw)
+            data["应还金额_数值"] = float(match.group()) if match else 0.0
+        elif line.startswith("- 总本金："):
+            raw = line.split("：")[1].strip()
+            data["总本金"] = raw
+            match = re.search(r"[\d.]+", raw)
+            data["总本金_数值"] = float(match.group()) if match else 0.0
 
     # 获取逾期金额数值（用于随机金额生成）
     overdue_amount = data.get("逾期金额_数值", 0.0)
