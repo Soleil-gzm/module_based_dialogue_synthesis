@@ -110,11 +110,11 @@ def parse_case_info(
             data["当前时间"] = line.split("：")[1].strip()
         elif line.startswith("- 还款日："):
             data["还款日"] = line.split("：")[1].strip()
-        elif line.startswith("- 逾期金额："):
+        elif line.startswith("- 应还金额："):
             raw = line.split("：")[1].strip()
-            data["逾期金额"] = raw
+            data["应还金额"] = raw
             match = re.search(r"[\d.]+", raw)
-            data["逾期金额_数值"] = float(match.group()) if match else 0.0
+            data["应还金额_数值"] = float(match.group()) if match else 0.0
         elif line.startswith("- 总欠款："):
             raw = line.split("：")[1].strip()
             data["总欠款"] = raw
@@ -151,8 +151,8 @@ def parse_case_info(
             match = re.search(r"[\d.]+", raw)
             data["总本金_数值"] = float(match.group()) if match else 0.0
 
-    # 获取逾期金额数值（用于随机金额生成）
-    overdue_amount = data.get("逾期金额_数值", 0.0)
+    # 获取应还金额数值（用于随机金额生成）
+    overdue_amount = data.get("应还金额_数值", 0.0)
 
     # 生成随机字段
     if rng is not None:

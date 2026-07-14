@@ -134,7 +134,7 @@ def fill_placeholders(text: str, case: Dict[str, Any], requires_abs_overdue: boo
         "{今天日期}": case.get("今天日期", ""),
         "{查账时间}": case.get("查账时间", ""),
         "{当前时间}": case.get("当前时间", ""),
-        "{逾期金额}": case.get("逾期金额", ""),
+        "{应还金额}": case.get("应还金额", ""),
         "{总欠款}": case.get("总欠款", ""),
         "{本金}": case.get("本金", ""),
         "{利息}": case.get("利息", ""),
