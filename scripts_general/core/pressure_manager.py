@@ -15,13 +15,16 @@ class PressureManager:
     def __init__(self, pressure_df: pd.DataFrame, rng: RandomService, config: Config):
         self.df = pressure_df
         self.rng = rng
-        # 预计算可用的 repeat 值及最大 repeat
-        self._available_repeats = set()
-        for val in self.df["repeat(次数)"].dropna():
-            for r in str(val).split("/"):
-                if r.strip().isdigit():
-                    self._available_repeats.add(int(r.strip()))
-        self.max_repeat = max(self._available_repeats) if self._available_repeats else 3
+        if self.df.empty:
+            self._available_repeats = set()
+            self.max_repeat = 0
+        else:
+            self._available_repeats = set()
+            for val in self.df["repeat(次数)"].dropna():
+                for r in str(val).split("/"):
+                    if r.strip().isdigit():
+                        self._available_repeats.add(int(r.strip()))
+            self.max_repeat = max(self._available_repeats) if self._available_repeats else 3
         self.flexible_stop_prob = config.get("flexible_stop_prob", 0.3)
 
     def get_pressure_segment(

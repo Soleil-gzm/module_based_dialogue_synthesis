@@ -161,8 +161,11 @@ class DialogueBuilder:
         valid_rows = []
         for _, row in candidates.iterrows():
             cond_str = row.get("conditions(条件)", "")
-            if self.condition_evaluator.evaluate(cond_str, case):
-                valid_rows.append(row)
+            eval_result = self.condition_evaluator.evaluate_with_metadata(cond_str, case)
+            if eval_result["matched"]:
+                row_with_meta = row.copy()
+                row_with_meta["_condition_meta"] = eval_result
+                valid_rows.append(row_with_meta)
         if not valid_rows:
             self.logger.debug(f"模块 {node} repeat={repeat} 无满足条件的行")
             self.trace_collector.set_module_status(
@@ -171,6 +174,8 @@ class DialogueBuilder:
             return False, ""
 
         row = self.rng.choice(valid_rows)
+        condition_meta = row.get("_condition_meta", {"requires_abs_overdue": False})
+        self._current_condition_meta = condition_meta
         self.trace_collector.set_module_selected_uid(
             self._current_module_trace, row["uid"]
         )
@@ -360,6 +365,7 @@ class DialogueBuilder:
         case_id = case.get("_filename", case.get("客户姓名", "unknown"))
         self.trace_collector.start_dialogue(path, case_id)
         self.pressure_count = 0
+        self._current_condition_meta = {"requires_abs_overdue": False}
 
         messages = []
         sys_content = f"{prompt_text}"
@@ -390,9 +396,10 @@ class DialogueBuilder:
                 self.trace_collector.set_stop_reason("path_natural_end")
 
         # 占位符填充
+        requires_abs = getattr(self, "_current_condition_meta", {}).get("requires_abs_overdue", False)
         for msg in messages:
             if "content" in msg:
-                msg["content"] = fill_placeholders(msg["content"], case)
+                msg["content"] = fill_placeholders(msg["content"], case, requires_abs_overdue=requires_abs)
 
         # 计算总轮数并存入 trace
         if self.trace_enabled:

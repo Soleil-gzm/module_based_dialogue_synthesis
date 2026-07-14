@@ -357,7 +357,13 @@ def main():
     logger.info(f"加载案例数量: {len(cases)}")
 
     # 6. 加载施压话术表（所有进程共用）
-    pressure_df = pd.read_excel(excel_path, sheet_name="链接施压话术")
+    pressure_sheet_name = config.get("pressure_sheet_name", "链接施压话术")
+    try:
+        pressure_df = pd.read_excel(excel_path, sheet_name=pressure_sheet_name)
+        logger.info(f"加载施压话术表: {pressure_sheet_name}")
+    except ValueError:
+        pressure_df = pd.DataFrame()
+        logger.warning(f"施压话术表 '{pressure_sheet_name}' 不存在，将跳过施压话术")
 
     # 7. 条件解析器与时间生成器（用于案例加载）
     condition_evaluator = create_condition_evaluator(config)

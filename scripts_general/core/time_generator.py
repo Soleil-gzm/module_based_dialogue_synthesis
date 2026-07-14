@@ -30,7 +30,7 @@ class SimpleNaturalTimeGenerator(TimeGenerator):
             minute_str = f"点{minute}分"
         else:
             minute_str = "点"
-        prefix = rng.choice(["今天", "明天", ""])
+        prefix = rng.choice(["今天", "昨天", ""])
         if prefix:
             return f"{prefix}{period}{hour}{minute_str}"
         return f"{period}{hour}{minute_str}"

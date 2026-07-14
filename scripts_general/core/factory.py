@@ -1,6 +1,6 @@
 from core.analyzer import Analyzer, DefaultAnalyzer
 from core.case_loader import CaseLoader, DefaultCaseLoader, XiaoyingCaseLoader
-from core.condition import ConditionEvaluator, KeywordConditionEvaluator
+from core.condition import ConditionEvaluator, KeywordConditionEvaluator, OverdueConditionEvaluator
 from core.config import Config
 from core.pressure_prob_strategy import (AbsolutePressureStrategy,
                                          LinearDecayPressureStrategy,
@@ -16,9 +16,8 @@ def create_condition_evaluator(config: Config) -> ConditionEvaluator:
     parser_type = config.get("condition_parser", "keyword")
     if parser_type == "keyword":
         return KeywordConditionEvaluator()
-    # 未来可扩展其他类型
-    # elif parser_type == 'simple_eval':
-    #     return SimpleEvalConditionEvaluator()
+    elif parser_type == "overdue":
+        return OverdueConditionEvaluator()
     else:
         raise ValueError(f"Unknown condition_parser type: {parser_type}")
 

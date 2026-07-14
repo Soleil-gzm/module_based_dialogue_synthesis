@@ -117,7 +117,7 @@ def get_random_descendant_chain(
     return chain, deeper_stop
 
 
-def fill_placeholders(text: str, case: Dict[str, Any]) -> str:
+def fill_placeholders(text: str, case: Dict[str, Any], requires_abs_overdue: bool = False) -> str:
     """替换文本中的花括号占位符"""
     if not isinstance(text, str):
         return text
@@ -131,7 +131,6 @@ def fill_placeholders(text: str, case: Dict[str, Any]) -> str:
         "{客户姓名}": case.get("客户姓名", ""),
         "{客户性别}": case.get("客户性别", ""),
         "{客户姓氏}": case.get("客户姓氏", ""),
-        "{逾期天数}": str(case.get("逾期天数", "")),
         "{今天日期}": case.get("今天日期", ""),
         "{查账时间}": case.get("查账时间", ""),
         "{当前时间}": case.get("当前时间", ""),
@@ -149,7 +148,12 @@ def fill_placeholders(text: str, case: Dict[str, Any]) -> str:
         "{应还金额}": case.get("应还金额", ""),
         "{总本金}": case.get("总本金", ""),
         "{empty_tag}": "。",
+        "{逾期天数}":case.get("逾期天数_显示值", "")
     }
+    # if requires_abs_overdue:
+    #     replacements["{逾期天数}"] = case.get("逾期天数_显示值", "")
+    # else:
+    #     replacements["{逾期天数}"] = str(case.get("逾期天数", ""))
     for k, v in replacements.items():
-        text = text.replace(k, v)
+        text = text.replace(k, str(v))
     return text
