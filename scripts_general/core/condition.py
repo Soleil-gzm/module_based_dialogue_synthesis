@@ -76,8 +76,9 @@ class OverdueConditionEvaluator(ConditionEvaluator):
             comparison_op = match.group(1)
             threshold_str = match.group(2)
 
-            overdue_value = case.get("逾期天数_数值", 0)
-            if overdue_value == 0:
+            if "逾期天数_数值" in case:
+                overdue_value = case["逾期天数_数值"]
+            else:
                 overdue_str = case.get("逾期天数", "0")
                 try:
                     overdue_value = int(overdue_str)
