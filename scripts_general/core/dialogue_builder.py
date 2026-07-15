@@ -174,7 +174,7 @@ class DialogueBuilder:
             return False, ""
 
         row = self.rng.choice(valid_rows)
-        condition_meta = row.get("_condition_meta", {"requires_abs_overdue": False})
+        condition_meta = row.get("_condition_meta", {})
         self._current_condition_meta = condition_meta
         self.trace_collector.set_module_selected_uid(
             self._current_module_trace, row["uid"]
@@ -401,11 +401,10 @@ class DialogueBuilder:
             if overall_stop_reason is None:
                 self.trace_collector.set_stop_reason("path_natural_end")
 
-        # 占位符填充
-        requires_abs = getattr(self, "_current_condition_meta", {}).get("requires_abs_overdue", False)
+        # 占位符填充（始终使用逾期天数_显示，已取绝对值）
         for msg in messages:
             if "content" in msg:
-                msg["content"] = fill_placeholders(msg["content"], case, requires_abs_overdue=requires_abs)
+                msg["content"] = fill_placeholders(msg["content"], case)
 
         # 计算总轮数并存入 trace
         if self.trace_enabled:

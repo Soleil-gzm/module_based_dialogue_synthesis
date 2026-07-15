@@ -37,7 +37,13 @@ def should_stop_by_flexible(
     return flex_stop == 1 and rng.random() <= stop_prob
 
 
-def get_ancestors(uid: int, df: pd.DataFrame, rng: RandomService, condition_evaluator=None, case=None) -> List[pd.Series]:
+def get_ancestors(
+    uid: int, 
+    df: pd.DataFrame, 
+    rng: RandomService,
+    condition_evaluator=None,
+    case=None
+) -> List[pd.Series]:
     """
     递归获取所有祖先行（从远祖到父的顺序）。
     如果 parent(继承) 包含多个值（用 / 分隔），则随机选择一个作为父级。
@@ -71,6 +77,7 @@ def get_ancestors(uid: int, df: pd.DataFrame, rng: RandomService, condition_eval
         
         parent_series = parent_row.iloc[0]
         
+        # 如果提供了条件评估器，检查祖先行是否满足条件
         if condition_evaluator is not None and case is not None:
             cond_str = parent_series.get("conditions(条件)", "")
             if not condition_evaluator.evaluate(cond_str, case):
@@ -107,6 +114,7 @@ def get_random_descendant_chain(
 
     children = df[df.apply(contains_parent, axis=1)]
     
+    # 如果提供了条件评估器，只保留满足条件的子节点
     if condition_evaluator is not None and case is not None:
         children = children[
             children.apply(
@@ -134,7 +142,7 @@ def get_random_descendant_chain(
     return chain, deeper_stop
 
 
-def fill_placeholders(text: str, case: Dict[str, Any], requires_abs_overdue: bool = False) -> str:
+def fill_placeholders(text: str, case: Dict[str, Any]) -> str:
     """替换文本中的花括号占位符"""
     if not isinstance(text, str):
         return text
@@ -148,6 +156,7 @@ def fill_placeholders(text: str, case: Dict[str, Any], requires_abs_overdue: boo
         "{客户姓名}": case.get("客户姓名", ""),
         "{客户性别}": case.get("客户性别", ""),
         "{客户姓氏}": case.get("客户姓氏", ""),
+        "{逾期天数}": case.get("逾期天数_显示", ""),
         "{今天日期}": case.get("今天日期", ""),
         "{查账时间}": case.get("查账时间", ""),
         "{当前时间}": case.get("当前时间", ""),
@@ -162,15 +171,9 @@ def fill_placeholders(text: str, case: Dict[str, Any], requires_abs_overdue: boo
         "{随机时间}": case.get("随机时间", ""),
         "{随机数字}": case.get("随机数字", ""),
         "{随机还款日}": case.get("随机还款日", ""),
-        "{应还金额}": case.get("应还金额", ""),
         "{总本金}": case.get("总本金", ""),
         "{empty_tag}": "。",
-        "{逾期天数}":case.get("逾期天数_显示值", "")
     }
-    # if requires_abs_overdue:
-    #     replacements["{逾期天数}"] = case.get("逾期天数_显示值", "")
-    # else:
-    #     replacements["{逾期天数}"] = str(case.get("逾期天数", ""))
     for k, v in replacements.items():
         text = text.replace(k, str(v))
     return text

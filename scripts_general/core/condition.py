@@ -5,7 +5,7 @@
 - 旧格式：检查是否包含"逾期"关键字
 - 新格式（未逾期）：
   - "未逾期" → 无条件匹配
-  - "未逾期&{逾期天数}小于0" → 逾期天数 < 0，且需取绝对值
+  - "未逾期&{逾期天数}小于0" → 逾期天数 < 0
   - "未逾期&{逾期天数}等于0" → 逾期天数 == 0
 """
 
@@ -25,6 +25,14 @@ class ConditionEvaluator(ABC):
     def evaluate_with_metadata(self, condition_str: str, case: Dict[str, Any]) -> Dict[str, Any]:
         pass
 
+    def _parse_overdue_value(self, case: Dict[str, Any]) -> int:
+        """从case中解析逾期天数数值，用于条件判断"""
+        overdue_str = case.get("逾期天数", "0")
+        try:
+            return int(overdue_str)
+        except (ValueError, TypeError):
+            return 0
+
 
 class KeywordConditionEvaluator(ConditionEvaluator):
     def evaluate(self, condition_str: str, case: Dict[str, Any]) -> bool:
@@ -36,7 +44,6 @@ class KeywordConditionEvaluator(ConditionEvaluator):
         if not condition_str or pd.isna(condition_str):
             return {
                 "matched": True,
-                "requires_abs_overdue": False,
                 "parsed_condition": "无条件",
                 "overdue_value": 0,
             }
@@ -44,7 +51,6 @@ class KeywordConditionEvaluator(ConditionEvaluator):
         matched = "逾期" in condition_str
         return {
             "matched": matched,
-            "requires_abs_overdue": False,
             "parsed_condition": f"旧格式（包含'逾期'）",
             "overdue_value": 0,
         }
@@ -64,7 +70,6 @@ class OverdueConditionEvaluator(ConditionEvaluator):
         if not condition_str or pd.isna(condition_str):
             return {
                 "matched": True,
-                "requires_abs_overdue": False,
                 "parsed_condition": "无条件",
                 "overdue_value": 0,
             }
@@ -75,18 +80,9 @@ class OverdueConditionEvaluator(ConditionEvaluator):
         if match:
             comparison_op = match.group(1)
             threshold_str = match.group(2)
-
-            if "逾期天数_数值" in case:
-                overdue_value = case["逾期天数_数值"]
-            else:
-                overdue_str = case.get("逾期天数", "0")
-                try:
-                    overdue_value = int(overdue_str)
-                except (ValueError, TypeError):
-                    overdue_value = 0
+            overdue_value = self._parse_overdue_value(case)
 
             matched = False
-            requires_abs_overdue = False
             parsed_condition = "未逾期"
 
             if comparison_op is None:
@@ -100,7 +96,6 @@ class OverdueConditionEvaluator(ConditionEvaluator):
 
                 if comparison_op == "小于":
                     matched = overdue_value < threshold
-                    requires_abs_overdue = overdue_value < 0
                     parsed_condition = f"未逾期&逾期天数<{threshold}"
                 elif comparison_op == "等于":
                     matched = overdue_value == threshold
@@ -111,14 +106,12 @@ class OverdueConditionEvaluator(ConditionEvaluator):
 
             return {
                 "matched": matched,
-                "requires_abs_overdue": requires_abs_overdue,
                 "parsed_condition": parsed_condition,
                 "overdue_value": overdue_value,
             }
 
         return {
             "matched": "逾期" in condition_str,
-            "requires_abs_overdue": False,
             "parsed_condition": f"旧格式（包含'逾期'）",
             "overdue_value": 0,
         }
