@@ -37,10 +37,11 @@ def should_stop_by_flexible(
     return flex_stop == 1 and rng.random() <= stop_prob
 
 
-def get_ancestors(uid: int, df: pd.DataFrame, rng: RandomService) -> List[pd.Series]:
+def get_ancestors(uid: int, df: pd.DataFrame, rng: RandomService, condition_evaluator=None, case=None) -> List[pd.Series]:
     """
     递归获取所有祖先行（从远祖到父的顺序）。
     如果 parent(继承) 包含多个值（用 / 分隔），则随机选择一个作为父级。
+    如果提供了 condition_evaluator 和 case，则只返回满足条件的祖先行。
     """
     ancestors = []
     while True:
@@ -51,15 +52,12 @@ def get_ancestors(uid: int, df: pd.DataFrame, rng: RandomService) -> List[pd.Ser
         if pd.isna(parent_val) or parent_val == 0:
             break
 
-        # 处理多值情况：如果是字符串且包含 '/'
         if isinstance(parent_val, str) and "/" in parent_val:
-            # 分割并去除空格，过滤掉空字符串
             possible_parents = [
                 int(p.strip()) for p in parent_val.split("/") if p.strip().isdigit()
             ]
             if not possible_parents:
                 break
-            # 随机选择一个父级
             parent_uid = rng.choice(possible_parents)
         else:
             try:
@@ -70,7 +68,15 @@ def get_ancestors(uid: int, df: pd.DataFrame, rng: RandomService) -> List[pd.Ser
         parent_row = df[df["uid"] == parent_uid]
         if parent_row.empty:
             break
-        ancestors.append(parent_row.iloc[0])
+        
+        parent_series = parent_row.iloc[0]
+        
+        if condition_evaluator is not None and case is not None:
+            cond_str = parent_series.get("conditions(条件)", "")
+            if not condition_evaluator.evaluate(cond_str, case):
+                break
+        
+        ancestors.append(parent_series)
         uid = parent_uid
     return list(reversed(ancestors))
 
@@ -81,8 +87,9 @@ def get_random_descendant_chain(
     rng: RandomService,
     flexible_stop_prob: float = 0.3,
     max_depth: int = 10,
+    condition_evaluator=None,
+    case=None,
 ) -> Tuple[List[pd.Series], bool]:
-    # 首先获取当前行（起始行）
     current_rows = df[df["uid"] == uid]
     if current_rows.empty:
         return [], False
@@ -91,16 +98,25 @@ def get_random_descendant_chain(
     if should_stop_by_flexible(current_row, rng, flexible_stop_prob):
         return [], True
 
-    # 查找子节点：parent(继承) 字段包含当前 uid 的行
     def contains_parent(row):
         parent_val = row.get("parent(继承)")
         if pd.isna(parent_val):
             return False
-        # 将 parent 值转为字符串，按 / 分割，检查是否包含 uid
         parts = str(parent_val).split("/")
         return str(uid) in [p.strip() for p in parts]
 
     children = df[df.apply(contains_parent, axis=1)]
+    
+    if condition_evaluator is not None and case is not None:
+        children = children[
+            children.apply(
+                lambda row: condition_evaluator.evaluate(
+                    row.get("conditions(条件)", ""), case
+                ),
+                axis=1,
+            )
+        ]
+    
     if children.empty or max_depth <= 0:
         return [], False
 
@@ -111,7 +127,8 @@ def get_random_descendant_chain(
         return chain, True
 
     deeper, deeper_stop = get_random_descendant_chain(
-        child_row["uid"], df, rng, flexible_stop_prob, max_depth - 1
+        child_row["uid"], df, rng, flexible_stop_prob, max_depth - 1,
+        condition_evaluator, case
     )
     chain.extend(deeper)
     return chain, deeper_stop

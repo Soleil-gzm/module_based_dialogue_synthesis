@@ -200,13 +200,19 @@ class DialogueBuilder:
             self._current_module_trace, goodbye_val
         )
 
-        # 获得前后继承链
-        ancestors = get_ancestors(row["uid"], df_node, self.rng)
+        # 获得前后继承链（传递条件评估器以过滤不满足条件的行）
+        ancestors = get_ancestors(
+            row["uid"], df_node, self.rng,
+            condition_evaluator=self.condition_evaluator,
+            case=case
+        )
         descendant_chain, flexible_stopped = get_random_descendant_chain(
             row["uid"],
             df_node,
             self.rng,
             flexible_stop_prob=self.config.get("flexible_stop_prob", 0.3),
+            condition_evaluator=self.condition_evaluator,
+            case=case
         )
         if flexible_stopped:
             self.trace_collector.set_module_flexible_stop(
