@@ -85,8 +85,7 @@ class PathGenerator:
                 cum_prob += prob
                 if rand_val < cum_prob:
                     max_repeat_val = self.max_repeat.get(module, 1)
-                    loop_count = self.rng.randint(1, max_repeat_val)
-                    return [module] * loop_count
+                    return [module] * max_repeat_val
 
         path = [self.start_module]
         counts = {mod: 0 for mod in self.modules}
