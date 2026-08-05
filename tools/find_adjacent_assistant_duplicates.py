@@ -4,50 +4,60 @@
 """
 分析 JSON 文件中每个对话的 messages 列表，
 按顺序找出相邻的 assistant 消息（中间可能隔了 user），
-如果它们的内容（忽略数字后）相同，则判定为重复，
-将包含重复的对话保存到新的 JSON 文件中。
+如果它们的内容（可忽略数字）相似度 >= 设定的阈值，则判定为重复，
+将包含此类重复的对话保存到新的 JSON 文件中。
 """
 
 import json
 import re
 import sys
 from pathlib import Path
+from difflib import SequenceMatcher
 
 
 # ========== 硬编码配置 ==========
-INPUT_JSON = "tool_analysis/data/data-backbone-due-2w-variants-260723.json"       # 输入 JSON 文件路径
-OUTPUT_JSON = "tool_analysis/data-backbone-due-2w-variants-260723_clean_duplicates1.json"  # 输出 JSON 文件路径
+INPUT_JSON = "tool_analysis/data/data-backbone-due-2w-variants-260723.json"
+OUTPUT_JSON = "tool_analysis/data-backbone-due-2w-variants-260723_clean_duplicates0.6.json"
+SIMILARITY_THRESHOLD = 0.6   # 0.0~1.0，设为 1.0 表示必须完全相同
+IGNORE_NUMBERS = True         # 是否忽略数字（金额、日期等占位符）
 # ===================================
 
 
-def normalize_content(text: str) -> str:
-    """归一化：移除所有数字，忽略金额、日期等占位符差异"""
-    return re.sub(r'\d+', '', text)
+def normalize_content(text: str, ignore_numbers: bool = True) -> str:
+    """归一化文本，可选择是否移除数字"""
+    if ignore_numbers:
+        return re.sub(r'\d+', '', text)
+    return text
 
-
-def find_adjacent_assistant_duplicates(messages):
+def find_adjacent_assistant_duplicates(messages, threshold: float, ignore_numbers: bool):
     """
     提取所有 assistant 消息（按顺序），
     比较第 N 个和第 N+1 个 assistant 的内容（忽略数字后是否相同）。
-    返回列表，每个元素为 (index1, index2, content1, content2)。
+    返回列表，每个元素为 (index1, index2, content1, content2, similarity_score)。
     """
-    # 1. 按顺序提取所有 assistant 消息的 (索引, content)
     assistants = []
     for i, msg in enumerate(messages):
         if msg.get("role") == "assistant":
             assistants.append((i, msg.get("content", "")))
 
-    # 2. 如果 assistant 少于 2 个，不可能有重复
     if len(assistants) < 2:
         return []
 
     duplicates = []
-    # 3. 两两比较（第0个和第1个，第1个和第2个，以此类推）
     for j in range(len(assistants) - 1):
         idx1, content1 = assistants[j]
         idx2, content2 = assistants[j + 1]
-        if normalize_content(content1) == normalize_content(content2):
-            duplicates.append((idx1, idx2, content1, content2))
+        # 计算相似度
+        s1 = normalize_content(content1, ignore_numbers)
+        s2 = normalize_content(content2, ignore_numbers)
+        if threshold >= 1.0:
+            is_dup = (s1 == s2)
+            score = 1.0 if is_dup else 0.0
+        else:
+            score = SequenceMatcher(None, s1, s2).ratio()
+            is_dup = (score >= threshold)
+        if is_dup:
+            duplicates.append((idx1, idx2, content1, content2, score))
 
     return duplicates
 
@@ -61,6 +71,8 @@ def main():
         sys.exit(1)
 
     print(f"📌 读取文件: {input_path}")
+    print(f"📌 相似度阈值: {SIMILARITY_THRESHOLD}")
+    print(f"📌 忽略数字: {IGNORE_NUMBERS}")
 
     with open(input_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -78,7 +90,7 @@ def main():
         messages = dialogue.get("messages", [])
         if not messages:
             continue
-        duplicates = find_adjacent_assistant_duplicates(messages)
+        duplicates = find_adjacent_assistant_duplicates(messages, SIMILARITY_THRESHOLD, IGNORE_NUMBERS)
         if duplicates:
             dialogue_copy = dialogue.copy()
             dialogue_copy["_has_adjacent_assistant_duplicate"] = True
