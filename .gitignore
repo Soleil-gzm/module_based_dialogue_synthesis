@@ -9,4 +9,6 @@ output1/
 output_v1/
 .pytest_cache
 configs/
+tool_analysis/
 config_task/
+pytest.ini
