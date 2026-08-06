@@ -168,7 +168,7 @@ def worker_generate(
 
 # ==================== 合并分片文件（转换为标准 JSON 数组） ====================
 def merge_shards_to_json(shard_files, output_file):
-    """将多个 JSON Lines 分片合并为一个标准的 JSON 数组文件（保留分片以支持断点续传）"""
+    """将多个 JSON Lines 分片合并为一个标准的 JSON 数组文件，合并完成后删除分片"""
     with open(output_file, "w", encoding="utf-8") as f_out:
         f_out.write("[\n")
         first = True
@@ -181,17 +181,28 @@ def merge_shards_to_json(shard_files, output_file):
                     first = False
         f_out.write("\n]\n")
 
+    # 合并成功后删除分片文件
+    for shard in shard_files:
+        if os.path.exists(shard):
+            os.remove(shard)
+
 
 def merge_trace_shards(shard_files, output_file):
-    """合并 trace 分片（每个分片是一个 JSON 列表，保留分片以支持断点续传）"""
+    """合并 trace 分片（每个分片是一个 JSON 列表），合并完成后删除分片"""
     all_traces = []
     for shard in shard_files:
         if os.path.exists(shard) and os.path.getsize(shard) > 0:
             with open(shard, "r", encoding="utf-8") as f:
                 traces = json.load(f)
                 all_traces.extend(traces)
+
     with open(output_file, "w", encoding="utf-8") as f_out:
         json.dump(all_traces, f_out, ensure_ascii=False, indent=2)
+
+    # 合并成功后删除分片文件
+    for shard in shard_files:
+        if os.path.exists(shard):
+            os.remove(shard)
 
 
 # ==================== 主函数 ====================
