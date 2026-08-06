@@ -46,7 +46,7 @@ def process(data, threshold: float = 1.0, ignore_numbers: bool = True, return_st
 
     stats = {
         'total_dialogues': len(data),
-        'duplicate_dialogues': 0,   # 至少有1对重复的对话数
+        'duplicate_dialogues': 0,   # 对重复的对话数
         'removed_pairs': 0,         # 删除的 user+assistant 轮对数
         'modified_dialogues': 0,    # 实际修改了 messages 的对话数
     }
