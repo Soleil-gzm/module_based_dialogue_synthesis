@@ -10,23 +10,20 @@
 # ============================================
 # 1. 项目基础配置
 # ============================================
-company: "example"                  # 公司/业务标识（仅用于日志和命名）
+company: "suning_not_overdue"                  # 公司/业务标识（仅用于日志和命名）
 start_module: "身份确认"             # 对话起始模块名（必须存在于 modules 列表中）
-task_name: "general"                # 任务名称（输出子目录为 {task_name}_{num_dialogues}_{seed}）
-output_dir: "output"                # 根输出目录（所有任务输出到该目录下）
-paths_cache_dir: "paths"            # 路径缓存的子目录（相对于 output_dir）
-# paths_cache: "output/paths/all_paths_{num_paths}_{seed}.json"  # 默认值：路径缓存文件模板（保持原有命名以兼容缓存复用）
+task_name: "suning_not_overdue"             # 任务名称（输出子目录为 {task_name}_{num_paths}_{seed}）
+output_dir: "output"                 # 根输出目录（所有任务输出到该目录下）
+paths_cache_dir: "paths_suning_not_overdue"             # 路径缓存的子目录（相对于 output_dir）
+paths_cache: "output/paths_suning_not_overdue/all_paths_{num_paths}_{seed}.json"  # 路径缓存文件模板（保持原有命名以兼容缓存复用）
 
 
 # ============================================
 # 2. 生成规模与随机性
 # ============================================
-num_dialogues: 40000                # 要生成的对话数量（新命名，推荐使用）
-# num_paths: 40000                   # 旧命名，与 num_dialogues 等效，num_dialogues 优先级更高
-num_paths_to_generate: 10000        # 实际生成的不重复路径数（小于 num_dialogues 时循环复用路径）
-random_seed: 42                     # 全局随机种子（用于可复现性）
-checkpoint_interval: 5000           # 断点续传保存间隔（每生成 N 条对话保存一次）
-
+num_paths: 2000                # 要生成的对话数量（兼容旧配置，与 num_dialogues 等效）
+random_seed: 52                      # 全局随机种子（用于可复现性）
+checkpoint_interval: 50000           # 断点续传保存间隔（每生成 N 条对话保存一次）
 
 # ============================================
 # 3. 数据文件路径
@@ -36,13 +33,12 @@ prob_path: "datas/example/prob.xlsx"        # 模块转移概率矩阵 Excel 文
 
 # 案例加载器配置（支持多种类型）
 case_loader:
-  type: "default"                   # 加载器类型：default（单目录） 或 xiaoying（双目录）
+  type: "xiaoying"                   # 加载器类型：default（单目录） 或 xiaoying（双目录）
   # default 模式所需参数（当 type="default" 时启用）
-  cases_dir: "datas/cases"          # 案例文件目录（每个 .txt 同时作为 prompt 和占位数据）
+  # cases_dir: "datas/cases"          # 案例文件目录（每个 .txt 同时作为 prompt 和占位数据）
   # xiaoying 模式所需参数（当 type="xiaoying" 时启用）
-  # replace_dir: "datas/xiaoying/cases_replace"   # 占位数据目录
-  # system_dir: "datas/xiaoying/cases_system"     # 系统提示目录
-
+  replace_dir: "datas/suning/not_overdue/cases1_replace"   # 占位数据目录
+  system_dir: "datas/suning/not_overdue/cases1_system"     # 系统提示目录
 
 # ============================================
 # 4. 模块定义与业务规则
@@ -86,8 +82,8 @@ b_set:
 
 # 终止模块（路径遇到这些模块时停止继续扩展）
 terminal_modules:
-  - "承诺还款"
   - "已还款"
+
 
 # 独立循环模块配置（这些模块的路径独立于正常路径，只在自身循环）
 # 格式：模块名: 该模块路径在所有路径中的占比概率
@@ -106,68 +102,7 @@ insert_nodes:
 
 
 # ============================================
-# 5. 跳转规则配置（核心配置：替代代码中的硬编码规则）
-# ============================================
-# transition_rules: 定义模块之间的跳转规则，支持白名单和黑名单两种模式
-#
-# 配置说明：
-#   每个模块可以配置以下属性：
-#   模块名:
-#     mode: 规则模式
-#       - "allow_list": 白名单模式，只允许跳转到 modules 列表中的模块
-#       - "deny_list": 黑名单模式，禁止跳转到 modules 列表中的模块（默认）
-#     modules: 规则对应的模块列表（根据 mode 不同含义不同）
-#        - "模块A"
-#        - "模块B"
-#     force_stop_on_max_repeat: 是否在达到 max_repeat 次数时强制终止路径（默认 false）
-#
-#   规则优先级：
-#     1. 如果当前模块在 transition_rules 中有配置，按配置规则筛选候选模块
-#     2. 如果当前模块在 a_set 中，候选为 [current] + b_set（A集规则）
-#     3. 如果当前模块在 b_set 中，候选为 b_set + [selected_a]（B集规则）
-#     4. 默认候选为所有模块
-#
-#   额外规则（自动应用，无需配置）：
-#     - A_set 模块不能跳转到其他 A_set 模块（只能有一个 A_set 模块）
-#     - 已被 ban 的模块（达到 max_repeat 次数）不会出现在候选中
-#     - 终止模块（terminal_modules）如果在概率表中有非零概率，会被加入候选
-#
-transition_rules:
-  # 身份确认：只能跳转到 告知、三方、身份确认（白名单模式），达到最大次数时强制终止
-  身份确认:
-    mode: "allow_list"              # 白名单模式：只允许跳转到指定模块
-    modules:
-      - "告知"
-      - "三方"
-      - "身份确认"
-    force_stop_on_max_repeat: true  # 达到 max_repeat 次数时强制停止路径
-
-  # 告知：不能跳转到 身份确认、转告（黑名单模式）
-  告知:
-    mode: "deny_list"               # 黑名单模式：禁止跳转到指定模块
-    modules:
-      - "身份确认"
-      - "转告"
-
-  # 信息核实：不能跳转到 告知、身份确认、三方、转告（黑名单模式）
-  信息核实:
-    mode: "deny_list"
-    modules:
-      - "告知"
-      - "身份确认"
-      - "三方"
-      - "转告"
-
-  # 三方：只能跳转到 三方、转告（白名单模式）
-  三方:
-    mode: "allow_list"
-    modules:
-      - "三方"
-      - "转告"
-
-
-# ============================================
-# 6. 施压话术配置
+# 5. 施压话术配置
 # ============================================
 # 固定施压概率（仅在 pressure_dynamic_enabled=false 时使用）
 pressure_prob: 0.3
@@ -297,19 +232,22 @@ multiprocessing:
 #   1. a_set 和 b_set 的模块必须存在于 modules 列表中
 #   2. terminal_modules 的模块必须存在于 modules 列表中
 #   3. insert_nodes 的模块必须存在于 a_set 或 b_set 中
-#   4. transition_rules 中的模块必须存在于 modules 列表中
-#   5. self_loop_modules 的模块必须存在于 modules 列表中
-#   6. case_loader 类型与路径配置必须匹配（default 需要 cases_dir，xiaoying 需要 replace_dir 和 system_dir）
-#   7. 概率值必须在 0~1 范围内
+#   4. self_loop_modules 的模块必须存在于 modules 列表中
+#   5. case_loader 类型与路径配置必须匹配（default 需要 cases_dir，xiaoying 需要 replace_dir 和 system_dir）
+#   6. 概率值必须在 0~1 范围内
 
 # 【自动同步机制】
 #   modules 和 max_repeat 会从 Excel 模板自动提取并覆盖配置值
 #   如需手动控制，确保 Excel 模板中的模块和 repeat(次数) 列与配置一致
 
 # 【路径生成规则】
+#   模块跳转逻辑完全由 prob 表控制：
+#     - prob 表中概率为 0 的模块：不允许跳转（等效于 deny_list）
+#     - prob 表中概率非 0 的模块：允许跳转
 #   A_set 模块特性：路径中只能出现一个 A_set 模块，从 B_set 跳回已选 A_set 的概率会被增强
 #   B_set 模块特性：可以多次出现，候选集包含其他 B_set 模块和已选 A_set 模块
 #   终止模块：路径遇到 terminal_modules 中的模块时立即停止
+#   独立循环模块：self_loop_modules 中的模块会生成独立的单模块循环路径
 
 # 【动态概率计算】
 #   概率 = start_prob + (end_prob - start_prob) * t^exponent

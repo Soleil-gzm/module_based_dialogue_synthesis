@@ -29,7 +29,7 @@ class PathGenerator:
         self.start_module = config.get("start_module", self.modules[0])
         self.cache_path_template = config.get("paths_cache")
         self.self_loop_modules = config.get("self_loop_modules", {})
-        self.transition_rules = config.get("transition_rules", {})      # 跳转规则
+        self.force_stop_on_max_repeat = config.get("force_stop_on_max_repeat", False)
 
         # 验证缓存模板是否包含必要占位符
         if self.cache_path_template:
@@ -42,40 +42,59 @@ class PathGenerator:
                     "生成的缓存文件可能会互相覆盖。建议修改为类似 'intermediate/all_paths_{num_paths}_{seed}.json'"
                 )
 
-    def _get_candidates_by_rules(self, current: str) -> List[str]:
+        # 校验 prob 表
+        self._validate_prob_matrix()
+
+    def _validate_prob_matrix(self):
         """
-        根据配置的跳转规则获取当前模块的候选目标模块列表。
-        
-        规则优先级：
-        1. 如果当前模块在 transition_rules 中有配置，按配置规则筛选
-        2. 如果当前模块在 a_set 中，候选为 [current] + b_set
-        3. 如果当前模块在 b_set 中，候选为 b_set（后续会追加 selected_a）
-        4. 默认候选为所有模块
-        
-        Returns:
-            List[str]: 候选模块列表
+        校验概率矩阵的有效性
+        - 检测全 0 行（会导致路径生成死循环或立即终止）
+        - 检测起始模块是否有出边
+        - 检测模块是否在概率表中存在
         """
-        # 优先使用配置的跳转规则
-        rule = self.transition_rules.get(current)
-        if rule:
-            mode = rule.get("mode", "deny_list")
-            rule_modules = rule.get("modules", [])
-            
-            if mode == "allow_list":
-                return rule_modules
-            elif mode == "deny_list":
-                return [m for m in self.modules if m not in rule_modules]
-            else:
-                self.logger.warning(f"未知的跳转规则模式: {mode}，使用默认规则")
-        
-        # A_set/B_set 规则（已配置化）
-        if current in self.a_set:
-            return [current] + list(self.b_set)
-        elif current in self.b_set:
-            return list(self.b_set)
-        
-        # 默认：所有模块
-        return self.modules[:]
+        issues = []
+
+        # 1. 检查全 0 行（跳过终止模块和自循环模块，它们有独立的处理逻辑）
+        for module in self.modules:
+            if module in self.terminal_nodes or module in self.self_loop_modules:
+                continue
+            row = self.prob_df.loc[module]
+            has_any_outgoing = any(row > 0)
+            if not has_any_outgoing:
+                issues.append(f"模块 '{module}' 的概率表全为 0（无出边），路径会立即终止")
+
+        # 2. 检查起始模块是否有出边
+        if self.start_module in self.modules:
+            start_row = self.prob_df.loc[self.start_module]
+            has_outgoing = any(start_row > 0)
+            if not has_outgoing:
+                issues.append(f"起始模块 '{self.start_module}' 无出边概率")
+
+        # 3. 检查模块是否在概率表中存在
+        for module in self.modules:
+            if module not in self.prob_df.index:
+                issues.append(f"模块 '{module}' 不在概率表索引中")
+            if module not in self.prob_df.columns:
+                issues.append(f"模块 '{module}' 不在概率表列中")
+
+        # 输出校验结果
+        if issues:
+            self.logger.warning("=" * 60)
+            self.logger.warning("概率矩阵校验发现问题：")
+            for issue in issues:
+                self.logger.warning(f"  ⚠️ {issue}")
+            self.logger.warning("=" * 60)
+        else:
+            self.logger.info("概率矩阵校验通过")
+
+    def _get_candidates_from_prob(self, current: str) -> List[str]:
+        """
+        直接从 prob 表获取当前模块的候选跳转目标
+        概率为 0 的模块自动排除（等效于 deny_list）
+        """
+        probs = self.prob_df.loc[current]
+        candidates = [m for m in probs.index if probs[m] > 0]
+        return candidates
 
     def generate_one(self) -> List[str]:
         if self.self_loop_modules:
@@ -95,7 +114,7 @@ class PathGenerator:
         current = self.start_module
 
         while True:
-            candidates = self._get_candidates_by_rules(current)
+            candidates = self._get_candidates_from_prob(current)
             
             if current in self.b_set and selected_a is not None:
                 candidates.append(selected_a)
@@ -148,8 +167,7 @@ class PathGenerator:
             if counts[next_node] >= max_repeat_val:
                 banned.add(next_node)
                 
-                rule = self.transition_rules.get(next_node)
-                if rule and rule.get("force_stop_on_max_repeat", False):
+                if self.force_stop_on_max_repeat:
                     break
             
             if next_node in self.terminal_nodes:

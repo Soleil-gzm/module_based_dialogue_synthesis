@@ -457,6 +457,7 @@ def main():
 
     else:
         # ========== 单进程模式 ==========
+        pressure_manager = PressureManager(pressure_df, rng, config)
         builder = DialogueBuilder(
             config, df_dict, condition_evaluator, rng, pressure_manager, logger
         )
