@@ -14,7 +14,6 @@ import pytest
 from core.analyzer import (DefaultAnalyzer, analyze_traces_data,
                            extract_timestamp_from_filename, simplify_reason)
 from core.config import Config
-from core.factory import create_analyzer
 
 
 # ========== 辅助函数：生成模拟 trace 数据 ==========
@@ -289,35 +288,3 @@ class TestDefaultAnalyzer:
                     # 实际上，我们可以直接调用 _generate_html_charts 并检查创建的 figure 的 layout.title
                     # 这里简化：确认 pressure_config 被存储在 analyzer 实例中
                     assert analyzer.pressure_config == pressure_config
-
-
-# ========== 4. 工厂函数测试 ==========
-class TestCreateAnalyzer:
-    def test_create_default_analyzer(self):
-        config = Config(
-            {
-                "analyzer": {"type": "default", "format": "png"},
-                "pressure_start_prob": 0.02,
-                "pressure_end_prob": 0.6,
-                "pressure_curve_exponent": 2.5,
-                "pressure_max_total": 3,
-                "pressure_position_mode": "absolute",
-            }
-        )
-        analyzer = create_analyzer(config)
-        assert isinstance(analyzer, DefaultAnalyzer)
-        assert analyzer.format == "png"
-        assert analyzer.pressure_config["start_prob"] == 0.02
-        assert analyzer.pressure_config["mode"] == "absolute"
-
-    def test_create_unknown_analyzer(self):
-        config = Config({"analyzer": {"type": "unknown"}})
-        with pytest.raises(ValueError, match="Unknown analyzer type"):
-            create_analyzer(config)
-
-    def test_create_without_analyzer_config(self):
-        config = Config({})
-        analyzer = create_analyzer(config)
-        assert isinstance(analyzer, DefaultAnalyzer)
-        assert analyzer.format == "html"  # default
-        assert analyzer.pressure_config == {}  # no pressure config

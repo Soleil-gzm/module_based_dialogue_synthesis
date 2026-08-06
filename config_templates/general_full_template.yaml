@@ -169,7 +169,7 @@ goodbye_min_idx: 2                  # 强制忽略前 N 个模块的再见（索
 # ============================================
 # 8. 解析器配置
 # ============================================
-condition_parser: "keyword"         # 条件解析器类型：keyword（关键词匹配）
+condition_parser: "overdue"         # 条件解析器类型：keyword（关键词匹配）
 time_generator:
   type: "simple_natural"            # 时间生成器类型：simple_natural（随机生成自然口语化时间）
 
@@ -188,84 +188,15 @@ logging:
 
 
 # ============================================
-# 10. 自动分析配置（生成对话后自动分析 trace）
+# 10. 分析配置（生成对话后自动分析 trace）
 # ============================================
-auto_analysis:
+analysis:
   enabled: true                     # 是否启用自动分析
   format: "html"                    # 图表格式：html（需要 plotly）或 png（需要 matplotlib）
 
-
 # ============================================
-# 11. 分析器配置（独立运行或自动分析时使用）
-# ============================================
-analyzer:
-  type: "default"                   # 分析器类型（当前仅 default）
-  format: "html"                    # 图表格式（与 auto_analysis.format 保持一致）
-
-
-# ============================================
-# 12. 扩展列名（若 Excel 列名与默认不同可修改）
-# ============================================
-keep_columns:
-  - "uid"
-  - "parent(继承)"
-  - "repeat(次数)"
-  - "conditions(条件)"
-  - "human(客户)"
-  - "assistant(专员)"
-  - "flexible_stop(可选不继承)"
-  - "是否再见"
-
-
-# ============================================
-# 13. 多进程配置
+# 11. 多进程配置
 # ============================================
 multiprocessing:
-  enabled: false                    # 是否启用多进程并行生成
-  # num_processes: 32               # 默认值：进程数（若不设置，默认为 CPU 核心数）
+  num_processes: 1               # 进程数：1=单进程串行，>1=多进程并行（默认 CPU 核心数）
 
-
-# ============================================
-# 附录：配置说明与示例
-# ============================================
-# 【配置验证规则】
-#   1. a_set 和 b_set 的模块必须存在于 modules 列表中
-#   2. terminal_modules 的模块必须存在于 modules 列表中
-#   3. insert_nodes 的模块必须存在于 a_set 或 b_set 中
-#   4. self_loop_modules 的模块必须存在于 modules 列表中
-#   5. case_loader 类型与路径配置必须匹配（default 需要 cases_dir，xiaoying 需要 replace_dir 和 system_dir）
-#   6. 概率值必须在 0~1 范围内
-
-# 【自动同步机制】
-#   modules 和 max_repeat 会从 Excel 模板自动提取并覆盖配置值
-#   如需手动控制，确保 Excel 模板中的模块和 repeat(次数) 列与配置一致
-
-# 【路径生成规则】
-#   模块跳转逻辑完全由 prob 表控制：
-#     - prob 表中概率为 0 的模块：不允许跳转（等效于 deny_list）
-#     - prob 表中概率非 0 的模块：允许跳转
-#   A_set 模块特性：路径中只能出现一个 A_set 模块，从 B_set 跳回已选 A_set 的概率会被增强
-#   B_set 模块特性：可以多次出现，候选集包含其他 B_set 模块和已选 A_set 模块
-#   终止模块：路径遇到 terminal_modules 中的模块时立即停止
-#   独立循环模块：self_loop_modules 中的模块会生成独立的单模块循环路径
-
-# 【动态概率计算】
-#   概率 = start_prob + (end_prob - start_prob) * t^exponent
-#   其中 t 为归一化位置（0~1），由 pressure_strategy 决定：
-#     - normalized: t = idx / (total-1)（基于路径长度归一化）
-#     - absolute: t = min(1.0, idx / max_expected_modules)（基于绝对索引）
-#     - sigmoid: t = 1/(1+exp(-slope*(x-0.5)))（Sigmoid 曲线）
-#     - linear_decay: t = 1 - idx/(total-1)（线性衰减）
-
-# 【案例加载器类型说明】
-#   default：单目录模式，每个 .txt 文件同时作为 prompt 和占位数据来源
-#   xiaoying：双目录模式，replace_dir 存放占位数据，system_dir 存放系统提示
-
-# 【输出目录结构】
-#   {output_dir}/{task_name}_{num_dialogues}_{seed}/
-#   ├── {task_name}_generate_{num_dialogues}_{seed}_{timestamp}.json  # 生成的对话数据
-#   ├── intermediate/
-#   │   ├── logs/                      # 日志文件
-#   │   ├── traces/                    # 追踪数据
-#   │   └── analysis/                  # 分析报告
-#   └── shard_*.jsonl                  # 多进程模式下的临时分片文件（生成后会被合并删除）

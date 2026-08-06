@@ -307,12 +307,12 @@ def main():
 
     # 多进程配置
     mp_cfg = config.get("multiprocessing", {})
-    mp_enabled = mp_cfg.get("enabled", False)
+    num_processes = mp_cfg.get("num_processes", mp.cpu_count())
+    mp_enabled = num_processes > 1
     if mp_enabled:
-        num_processes = mp_cfg.get("num_processes", mp.cpu_count())
         print(f"多进程模式启用，进程数: {num_processes}")
     else:
-        num_processes = 1
+        print(f"单进程模式，进程数: 1")
 
     # 任务目录
     task_dir_name = f"{task_name}_{num_dialogues}_{seed}"
@@ -478,12 +478,12 @@ def main():
 
     # 10. 自动分析（如果配置启用且 trace 存在）
     if (
-        config.get("auto_analysis.enabled", False)
+        config.get("analysis.enabled", False)
         and trace_file
         and os.path.exists(trace_file)
     ):
         analysis_output = os.path.join(task_dir, "intermediate", "analysis", f"{task_name}_generate_analysis_{timestamp}")
-        plot_format = config.get("auto_analysis.format", "html")
+        plot_format = config.get("analysis.format", "html")
         try:
             from core.analyzer import DefaultAnalyzer
 
@@ -509,7 +509,7 @@ def main():
             logger.info(f"自动分析完成，报告保存在 {analysis_output}")
         except Exception as e:
             logger.error(f"自动分析失败: {e}", exc_info=True)
-    elif config.get("auto_analysis.enabled", False):
+    elif config.get("analysis.enabled", False):
         logger.warning("trace 文件不存在，跳过自动分析")
 
 
