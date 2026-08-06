@@ -307,7 +307,7 @@ def main():
 
     # 多进程配置
     mp_cfg = config.get("multiprocessing", {})
-    num_processes = mp_cfg.get("num_processes", mp.cpu_count())
+    num_processes = mp_cfg.get("num_processes", 1)
     mp_enabled = num_processes > 1
     if mp_enabled:
         print(f"多进程模式启用，进程数: {num_processes}")
