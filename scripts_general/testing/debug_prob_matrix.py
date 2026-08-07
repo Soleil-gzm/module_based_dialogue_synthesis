@@ -15,7 +15,7 @@ def debug_prob_matrix():
     a_set = config.get("a_set", [])
     
     # 加载 prob 表
-    prob_df = load_prob_matrix(config.get("prob_path"), config.get("modules"))
+    prob_df, modules = load_prob_matrix(config.get("prob_path"))
     
     print("A_set 模块列表：", a_set)
     print("\nA_set 模块之间的概率矩阵：")

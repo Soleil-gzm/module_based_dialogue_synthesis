@@ -26,7 +26,7 @@ import argparse
 from datetime import datetime
 
 import pandas as pd
-from core.config import load_config, auto_sync_config_from_excel
+from core.config import load_config, sync_config_from_prob
 from core.data_loader import load_prob_matrix, load_sheets
 from core.factory import (
     create_case_loader,
@@ -58,10 +58,6 @@ def main():
     # 1. 加载配置
     config_path = args.config
     config = load_config(config_path)
-
-    # 1.5 自动从 Excel 话术模板同步 modules 和 max_repeat
-    config = auto_sync_config_from_excel(config)
-    config_dict = config.to_dict()
 
     # 2. 读取基本参数（兼容旧版 num_paths）
     task_name = config.get("task_name", "general")
@@ -103,26 +99,32 @@ def main():
     logger.info(f"配置文件: {config_path}")
     logger.info(f"任务目录: {task_dir}")
 
-    # 4. 随机服务（仅用于路径生成）
+    # 4. 加载 prob 表 → 提取 modules（唯一来源）
+    prob_path = config.get("prob_path")
+    logger.info(f"加载概率矩阵: {prob_path}")
+    prob_df, modules = load_prob_matrix(prob_path)
+    logger.info(f"概率矩阵加载完成，共 {len(modules)} 个模块: {modules}")
+
+    # 5. 以 modules 为准，从 Excel 同步 max_repeat
+    config = sync_config_from_prob(config, modules)
+    config_dict = config.to_dict()
+
+    # 6. 随机服务（仅用于路径生成）
     rng = RandomService(seed)
     logger.info(f"随机种子: {seed}")
 
-    # 5. 加载数据
+    # 7. 加载 Excel 模块数据（按 prob 表 modules 校验）
     logger.info("加载 Excel 模块...")
     excel_path = config.get("excel_path")
-    modules = config.get("modules")
     df_dict = load_sheets(excel_path, modules)
 
-    logger.info("加载概率矩阵...")
-    prob_path = config.get("prob_path")
-    prob_df = load_prob_matrix(prob_path, modules)
-
+    # 8. 加载案例
     logger.info("加载案例...")
     case_loader = create_case_loader(config)
     cases, prompts = case_loader.load(rng=rng)
     logger.info(f"加载案例数量: {len(cases)}")
 
-    # 6. 加载施压话术表（所有进程共用）
+    # 9. 加载施压话术表（所有进程共用）
     pressure_sheet_name = config.get("pressure_sheet_name", "链接施压话术")
     try:
         pressure_df = pd.read_excel(excel_path, sheet_name=pressure_sheet_name)
@@ -131,14 +133,14 @@ def main():
         pressure_df = pd.DataFrame()
         logger.warning(f"施压话术表 '{pressure_sheet_name}' 不存在，将跳过施压话术")
 
-    # 7. 条件解析器与时间生成器（用于案例加载）
+    # 10. 条件解析器与时间生成器（用于案例加载）
     condition_evaluator = create_condition_evaluator(config)
     time_gen = create_time_generator(config)
     case_loader = create_case_loader(config)
     cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)
     logger.info(f"最终加载案例数量: {len(cases)}")
 
-    # 8. 路径生成（使用 num_paths_to_generate）
+    # 11. 路径生成（使用 num_paths_to_generate）
     paths_cache_template = config.get(
         "paths_cache", "output/paths/all_paths_{num_paths}_{seed}.json"
     )

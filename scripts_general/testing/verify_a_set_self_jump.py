@@ -18,7 +18,7 @@ def verify_a_set_self_jump():
     a_set = set(config.get("a_set", []))
     
     # 加载数据
-    prob_df = load_prob_matrix(config.get("prob_path"), config.get("modules"))
+    prob_df, modules = load_prob_matrix(config.get("prob_path"))
     rng = RandomService(config.get("random_seed"))
     
     # 创建路径生成器

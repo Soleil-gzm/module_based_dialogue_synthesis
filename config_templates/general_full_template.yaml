@@ -28,8 +28,10 @@ checkpoint_interval: 50000           # 断点续传保存间隔（每生成 N �
 # ============================================
 # 3. 数据文件路径
 # ============================================
-excel_path: "datas/example/话术模板.xlsx"   # 话术模板 Excel 文件（包含所有模块 sheet 和链接施压话术 sheet）
-prob_path: "datas/example/prob.xlsx"        # 模块转移概率矩阵 Excel 文件
+# prob 表是模块的唯一来源：modules 从 prob 表的行/列名自动提取
+# Excel 话术模板的 sheet 名必须与 prob 表模块名一致，否则报错
+prob_path: "datas/example/prob.xlsx"        # 模块转移概率矩阵 Excel 文件（模块名来源）
+excel_path: "datas/example/话术模板.xlsx"   # 话术模板 Excel 文件（每个模块一个 sheet + 链接施压话术 sheet）
 
 # 案例加载器配置（支持多种类型）
 case_loader:
@@ -43,12 +45,11 @@ case_loader:
 # ============================================
 # 4. 模块定义与业务规则
 # ============================================
-# modules:                          # 模块列表（可选：从 Excel 模板自动提取，如需手动指定取消注释）
-#   - "身份确认"
-#   - "告知"
-#   ...
+# modules: 自动从 prob 表提取，无需配置
+# 如在 YAML 中配置将被覆盖并警告
 
-# max_repeat:                       # 每个模块的最大重复次数（可选：从 Excel 模板自动提取，如需手动覆盖取消注释）
+# max_repeat:                       # 每个模块的最大重复次数（自动从 Excel 的 repeat(次数) 列提取）
+#   如需覆盖特定模块的值，取消注释并指定：
 #   身份确认: 4
 #   告知: 1
 #   ...
