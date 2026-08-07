@@ -80,13 +80,21 @@ def load_prob_matrix(prob_path: str) -> Tuple[pd.DataFrame, List[str]]:
     prob_df.index = modules
     prob_df.columns = [str(c).strip() for c in prob_df.columns]
 
-    # 校验行列一致
-    if list(prob_df.index) != list(prob_df.columns):
+    # 校验行列一致（以行模块名为基准）
+    row_modules = set(prob_df.index)
+    col_modules = set(prob_df.columns)
+    missing_cols = row_modules - col_modules
+    extra_cols = col_modules - row_modules
+
+    if missing_cols:
         raise ValueError(
-            f"prob 表行列模块名不一致:\n"
-            f"  行: {list(prob_df.index)}\n"
-            f"  列: {list(prob_df.columns)}"
+            f"prob 表列缺少行中定义的模块:\n"
+            f"  缺失列模块: {sorted(missing_cols)}\n"
+            f"  行模块名: {list(prob_df.index)}"
         )
+    if extra_cols:
+        logger.warning(f"prob 表有多余的列（行中未定义，已忽略）: {sorted(extra_cols)}")
+        prob_df = prob_df.drop(columns=list(extra_cols))
 
     prob_df = prob_df / 100.0
     return prob_df, modules
