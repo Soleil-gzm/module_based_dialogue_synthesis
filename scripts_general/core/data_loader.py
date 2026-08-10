@@ -16,7 +16,7 @@ import pandas as pd
 from core.random_service import RandomService
 from core.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("DialogueBuilder")
 
 
 def load_sheets(

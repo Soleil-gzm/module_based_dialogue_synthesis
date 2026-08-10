@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 import yaml
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("DialogueBuilder")
 
 
 def _parse_repeat_value(value) -> int:
@@ -175,6 +175,7 @@ def sync_config_from_prob(config: Config, prob_modules: List[str]) -> Config:
         yaml_val = yaml_max_repeat.get(module)
         if yaml_val is not None:
             # YAML 显式配置，覆盖 Excel 默认值
+            logger.info(f"YAML覆盖: {module}: {yaml_val} (Excel: {excel_val})")
             updated_max_repeat[module] = yaml_val
             if yaml_val != excel_val:
                 max_repeat_overrides[module] = (excel_val, yaml_val)

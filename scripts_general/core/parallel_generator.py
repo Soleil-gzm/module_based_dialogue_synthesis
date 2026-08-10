@@ -81,7 +81,7 @@ def worker_generate(
     total_paths = len(all_paths)
     total_cases = len(cases)
 
-    resume_start = start_idx + already_done
+    resume_start = start_idx + already_done  # 判断task完成多少
     total_expected = end_idx - start_idx
 
     # 已完成全部，直接返回
@@ -118,7 +118,7 @@ def worker_generate(
                 line = dumps_json({"messages": messages})
                 f_out.write(line + "\n")
                 if (i - start_idx + 1) % checkpoint_interval == 0:
-                    f_out.flush()
+                    f_out.flush()       # flush() 强制把 Python 缓冲区里的数据写入磁盘。
                 if trace_enabled:
                     all_traces.append(builder.get_trace_data())
             except Exception as e:
@@ -199,7 +199,7 @@ def generate_dialogues(
         (final_output_file, trace_file)
     """
     # 分片切分
-    chunk_size = (num_dialogues + num_processes - 1) // num_processes
+    chunk_size = (num_dialogues + num_processes - 1) // num_processes       # 向上取整
     ranges = []
     for p in range(num_processes):
         start = p * chunk_size
@@ -239,7 +239,7 @@ def generate_dialogues(
                     task_dir, f"trace_shard_{p:03d}_{start}_{end}.json"
                 )
                 trace_shard_files.append(trace_shard)
-            continue
+            continue        # 不加入 tasks
 
         if already_done > 0:
             resumed_count += 1
