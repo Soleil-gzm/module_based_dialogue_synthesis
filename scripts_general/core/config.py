@@ -163,31 +163,23 @@ def sync_config_from_prob(config: Config, prob_modules: List[str]) -> Config:
         logger.warning("=" * 60)
     config_dict["modules"] = prob_modules
 
-    # max_repeat: Excel 默认值，YAML 可覆盖
+    # max_repeat: Excel 是唯一来源，YAML 配置不一致时仅提醒（不覆盖）
     excel_path = config.get("excel_path")
     excel_max_repeat = extract_max_repeat_from_excel(excel_path, prob_modules)
+    yaml_max_repeat = config_dict.get("max_repeat") or {}
 
-    yaml_max_repeat = config_dict.get("max_repeat", {})
-    updated_max_repeat = {}
-    max_repeat_overrides = {}
-    for module in prob_modules:
-        excel_val = excel_max_repeat.get(module, 1)
-        yaml_val = yaml_max_repeat.get(module)
-        if yaml_val is not None:
-            # YAML 显式配置，覆盖 Excel 默认值
-            logger.info(f"YAML覆盖: {module}: {yaml_val} (Excel: {excel_val})")
-            updated_max_repeat[module] = yaml_val
-            if yaml_val != excel_val:
-                max_repeat_overrides[module] = (excel_val, yaml_val)
-        else:
-            updated_max_repeat[module] = excel_val
+    diff = {}
+    for module, yaml_val in yaml_max_repeat.items():
+        if module in excel_max_repeat and yaml_val != excel_max_repeat[module]:
+            diff[module] = (excel_max_repeat[module], yaml_val)
 
-    if max_repeat_overrides:
-        logger.info("=" * 60)
-        logger.info("max_repeat 使用 YAML 覆盖值（其余从 Excel 提取）")
-        for module, (excel_val, yaml_val) in max_repeat_overrides.items():
-            logger.info(f"  {module}: Excel={excel_val} -> YAML={yaml_val}")
-        logger.info("=" * 60)
+    config_dict["max_repeat"] = excel_max_repeat
 
-    config_dict["max_repeat"] = updated_max_repeat
+    if diff:
+        logger.warning("=" * 60)
+        logger.warning("max_repeat YAML 配置与 Excel 不一致（已使用 Excel 的值）")
+        for module, (excel_val, yaml_val) in diff.items():
+            logger.warning(f"  {module}: Excel={excel_val}, YAML={yaml_val}")
+        logger.warning("  如需修改 max_repeat，请直接修改 Excel 的 repeat(次数) 列")
+        logger.warning("=" * 60)
     return Config(config_dict)
