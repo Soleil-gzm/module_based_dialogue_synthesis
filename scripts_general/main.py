@@ -30,7 +30,6 @@ from core.config import load_config, sync_config_from_prob
 from core.data_loader import load_prob_matrix, load_sheets
 from core.factory import (
     create_case_loader,
-    create_condition_evaluator,
     create_time_generator,
 )
 from core.logger import get_logger, init_logger
@@ -118,13 +117,7 @@ def main():
     excel_path = config.get("excel_path")
     df_dict = load_sheets(excel_path, modules)
 
-    # 8. 加载案例
-    logger.info("加载案例...")
-    case_loader = create_case_loader(config)
-    cases, prompts = case_loader.load(rng=rng)
-    logger.info(f"加载案例数量: {len(cases)}")
-
-    # 9. 加载施压话术表（所有进程共用）
+    # 8. 加载施压话术表（所有进程共用）
     pressure_sheet_name = config.get("pressure_sheet_name", "链接施压话术")
     try:
         pressure_df = pd.read_excel(excel_path, sheet_name=pressure_sheet_name)
@@ -133,14 +126,13 @@ def main():
         pressure_df = pd.DataFrame()
         logger.warning(f"施压话术表 '{pressure_sheet_name}' 不存在，将跳过施压话术")
 
-    # 10. 条件解析器与时间生成器（用于案例加载）
-    condition_evaluator = create_condition_evaluator(config)
+    # 9. 时间生成器与案例加载
     time_gen = create_time_generator(config)
     case_loader = create_case_loader(config)
     cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)
-    logger.info(f"最终加载案例数量: {len(cases)}")
+    logger.info(f"加载案例数量: {len(cases)}")
 
-    # 11. 路径生成（使用 num_paths_to_generate）
+    # 10. 路径生成（使用 num_paths_to_generate）
     paths_cache_template = config.get(
         "paths_cache", "output/paths/all_paths_{num_paths}_{seed}.json"
     )
@@ -179,7 +171,7 @@ def main():
         force_regenerate=args.force,
     )
 
-    # 10. 自动分析（如果配置启用且 trace 存在）
+    # 11. 自动分析（如果配置启用且 trace 存在）
     if (
         config.get("analysis.enabled", False)
         and trace_file
