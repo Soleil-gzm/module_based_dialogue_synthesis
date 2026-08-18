@@ -118,7 +118,7 @@ def main():
     df_dict = load_sheets(excel_path, modules)
 
     # 8. 加载施压话术表（所有进程共用）
-    pressure_sheet_name = config.get("pressure_sheet_name", "链接施压话术")
+    pressure_sheet_name = config.get("pressure_sheet_name", "链接话术")
     try:
         pressure_df = pd.read_excel(excel_path, sheet_name=pressure_sheet_name)
         logger.info(f"加载施压话术表: {pressure_sheet_name}")
