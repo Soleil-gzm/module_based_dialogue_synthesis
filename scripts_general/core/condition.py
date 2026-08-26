@@ -120,22 +120,22 @@ class OverdueConditionEvaluator(ConditionEvaluator):
             val = case.get("利息_数值", 0)
             matched = base_has_overdue and (val > 0)
             # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&逾期笔数>0", "overdue_value": self._parse_overdue_value(case)}
+            return {"matched": matched, "parsed_condition": "逾期&利息>0", "overdue_value": self._parse_overdue_value(case)}
         elif "利息为空" in condition_str:
             val = case.get("利息_数值", 0)
             matched = base_has_overdue and (val == 0)
             # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&逾期笔数==0", "overdue_value": self._parse_overdue_value(case)}
+            return {"matched": matched, "parsed_condition": "逾期&利息==0", "overdue_value": self._parse_overdue_value(case)}
         elif "罚息不为空" in condition_str:
             val = case.get("罚息_数值", 0)
             matched = base_has_overdue and (val > 0)
             # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&逾期笔数>0", "overdue_value": self._parse_overdue_value(case)}
+            return {"matched": matched, "parsed_condition": "逾期&罚息>0", "overdue_value": self._parse_overdue_value(case)}
         elif "罚息为空" in condition_str:
             val = case.get("罚息_数值", 0)
             matched = base_has_overdue and (val == 0)
             # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&逾期笔数==0", "overdue_value": self._parse_overdue_value(case)}
+            return {"matched": matched, "parsed_condition": "逾期&罚息==0", "overdue_value": self._parse_overdue_value(case)}
         # ===== 新增结束 =====
 
         # 旧格式：处理 "未逾期&{逾期天数}小于/等于/大于N" 或 "未逾期"
