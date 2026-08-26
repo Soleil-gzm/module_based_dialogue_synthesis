@@ -60,95 +60,77 @@ class KeywordConditionEvaluator(ConditionEvaluator):
 
 
 class OverdueConditionEvaluator(ConditionEvaluator):
-    # 类变量在程序加载类定义时只编译一次
-    _OVERDUE_CONDITION_PATTERN = re.compile(
-        r'未逾期(?:&\{逾期天数\}(小于|等于|大于)(\d+))?'
-    )
+    """
+    旧版条件解析器（已修复组合条件短路问题）。
+    
+    支持格式：
+    1. 旧格式："未逾期" 或 "未逾期&{逾期天数}小于/等于/大于N"
+    2. 新格式：用 & 连接的复合条件，如 "逾期&总欠款不为空&利息为空"
+    
+    修复说明：2026-08-27 修复了 if-elif 短路导致组合条件不全的问题。
+    现在采用"先提取所有标志位，最后统一合并"的方式。
+    """
+    
+    _OVERDUE_CONDITION_PATTERN = re.compile(r'未逾期(?:&\{逾期天数\}(小于|等于|大于)(\d+))?')
+
+    # ===== 安全类型转换工具 =====
+    @staticmethod
+    def _safe_float(value, default=0.0) -> float:
+        """安全转 float，任何异常返回默认值"""
+        if value is None:
+            return default
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            import re
+            cleaned = re.sub(r'[^\d.]', '', value)
+            if cleaned == '' or cleaned == '.':
+                return default
+            try:
+                return float(cleaned)
+            except ValueError:
+                return default
+        return default
+
+    @staticmethod
+    def _safe_int(value, default=0) -> int:
+        """安全转 int，任何异常返回默认值"""
+        if value is None:
+            return default
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        if isinstance(value, str):
+            import re
+            cleaned = re.sub(r'[^\d]', '', value)
+            if cleaned == '':
+                return default
+            try:
+                return int(cleaned)
+            except ValueError:
+                return default
+        return default
 
     def evaluate(self, condition_str: str, case: Dict[str, Any]) -> bool:
         result = self.evaluate_with_metadata(condition_str, case)
         return result["matched"]
 
     def evaluate_with_metadata(self, condition_str: str, case: Dict[str, Any]) -> Dict[str, Any]:
+        # ===== 边界1：空条件 =====
         if not condition_str or pd.isna(condition_str):
-            return {
-                "matched": True,
-                "parsed_condition": "无条件",
-                "overdue_value": 0,
-            }
-
-        # ===== 清洗不可见字符（防全角空格等） =====
-        condition_str = str(condition_str).strip().replace('\u00A0', ' ').replace('\u3000', ' ')
-        # ===== 清洗结束 =====
-
-        # ===== 新增：临时处理新甲方的复合条件（2026-08-26任务） =====
-        # 基础判断：是否包含"逾期"关键词
-        base_has_overdue = "逾期" in condition_str
+            return {"matched": True, "parsed_condition": "无条件", "overdue_value": 0}
         
-        # 针对新字段的具体判断（为空 = 数值 == 0）
-        if "总欠款不为空" in condition_str:
-            val = case.get("总欠款_数值", 0)
-            matched = base_has_overdue and (val > 0)
-            # logger.debug(f"条件判断: {condition_str} -> 总欠款_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&总欠款>0", "overdue_value": self._parse_overdue_value(case)}
-        elif "总欠款为空" in condition_str:
-            val = case.get("总欠款_数值", 0)
-            matched = base_has_overdue and (val == 0)
-            # logger.debug(f"条件判断: {condition_str} -> 总欠款_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&总欠款==0", "overdue_value": self._parse_overdue_value(case)}
-        elif "本金不为空" in condition_str:
-            val = case.get("本金_数值", 0)
-            matched = base_has_overdue and (val > 0)
-            # logger.debug(f"条件判断: {condition_str} -> 本金_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&本金>0", "overdue_value": self._parse_overdue_value(case)}
-        elif "本金为空" in condition_str:
-            val = case.get("本金_数值", 0)
-            matched = base_has_overdue and (val == 0)
-            # logger.debug(f"条件判断: {condition_str} -> 本金_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&本金==0", "overdue_value": self._parse_overdue_value(case)}
-        elif "逾期笔数不为空" in condition_str:
-            val = case.get("逾期笔数_数值", 0)
-            matched = base_has_overdue and (val > 0)
-            # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&逾期笔数>0", "overdue_value": self._parse_overdue_value(case)}
-        elif "逾期笔数为空" in condition_str:
-            val = case.get("逾期笔数_数值", 0)
-            matched = base_has_overdue and (val == 0)
-            # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&逾期笔数==0", "overdue_value": self._parse_overdue_value(case)}
-        elif "利息不为空" in condition_str:
-            val = case.get("利息_数值", 0)
-            matched = base_has_overdue and (val > 0)
-            # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&利息>0", "overdue_value": self._parse_overdue_value(case)}
-        elif "利息为空" in condition_str:
-            val = case.get("利息_数值", 0)
-            matched = base_has_overdue and (val == 0)
-            # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&利息==0", "overdue_value": self._parse_overdue_value(case)}
-        elif "罚息不为空" in condition_str:
-            val = case.get("罚息_数值", 0)
-            matched = base_has_overdue and (val > 0)
-            # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&罚息>0", "overdue_value": self._parse_overdue_value(case)}
-        elif "罚息为空" in condition_str:
-            val = case.get("罚息_数值", 0)
-            matched = base_has_overdue and (val == 0)
-            # logger.debug(f"条件判断: {condition_str} -> 逾期笔数_数值={val}, 结果={matched}")
-            return {"matched": matched, "parsed_condition": "逾期&罚息==0", "overdue_value": self._parse_overdue_value(case)}
-        # ===== 新增结束 =====
-
-        # 旧格式：处理 "未逾期&{逾期天数}小于/等于/大于N" 或 "未逾期"
+        condition_str = str(condition_str).strip()
+        
+        # ===== 边界2：旧格式（"未逾期&..."） =====
         match = self._OVERDUE_CONDITION_PATTERN.match(condition_str)
-
         if match:
             comparison_op = match.group(1)
             threshold_str = match.group(2)
             overdue_value = self._parse_overdue_value(case)
-
             matched = False
             parsed_condition = "未逾期"
-
             if comparison_op is None:
                 matched = True
                 parsed_condition = "未逾期（无条件）"
@@ -157,7 +139,6 @@ class OverdueConditionEvaluator(ConditionEvaluator):
                     threshold = int(threshold_str)
                 except ValueError:
                     threshold = 0
-
                 if comparison_op == "小于":
                     matched = overdue_value < threshold
                     parsed_condition = f"未逾期&逾期天数<{threshold}"
@@ -167,19 +148,89 @@ class OverdueConditionEvaluator(ConditionEvaluator):
                 elif comparison_op == "大于":
                     matched = overdue_value > threshold
                     parsed_condition = f"未逾期&逾期天数>{threshold}"
-
-            # logger.debug(f"条件判断(旧格式): {condition_str} -> 逾期天数={overdue_value}, 结果={matched}")
-            return {
-                "matched": matched,
-                "parsed_condition": parsed_condition,
-                "overdue_value": overdue_value,
-            }
-
-        # 如果既没命中新条件，也没命中旧正则，最后回退到仅判断是否包含"逾期"
-        fallback_matched = "逾期" in condition_str
-        # logger.warning(f"条件未命中任何分支，使用回退逻辑: {condition_str} -> {fallback_matched}")
+            return {"matched": matched, "parsed_condition": parsed_condition, "overdue_value": overdue_value}
+        
+        # ===== 边界3：新格式（组合条件）- 使用标志位模式 =====
+        # 基础标志：是否包含"逾期"
+        base_has_overdue = "逾期" in condition_str
+        
+        # ----- 提取各个字段的标志位（None 表示该条件未出现） -----
+        flag_total = None
+        if "总欠款不为空" in condition_str:
+            val = self._safe_float(case.get("总欠款_数值", 0))
+            flag_total = val > 0
+        elif "总欠款为空" in condition_str:
+            val = self._safe_float(case.get("总欠款_数值", 0))
+            flag_total = val == 0
+        
+        flag_principal = None
+        if "本金不为空" in condition_str:
+            val = self._safe_float(case.get("本金_数值", 0))
+            flag_principal = val > 0
+        elif "本金为空" in condition_str:
+            val = self._safe_float(case.get("本金_数值", 0))
+            flag_principal = val == 0
+        
+        flag_interest = None
+        if "利息不为空" in condition_str:
+            val = self._safe_float(case.get("利息_数值", 0))
+            flag_interest = val > 0
+        elif "利息为空" in condition_str:
+            val = self._safe_float(case.get("利息_数值", 0))
+            flag_interest = val == 0
+        
+        flag_penalty = None
+        if "罚息不为空" in condition_str:
+            val = self._safe_float(case.get("罚息_数值", 0))
+            flag_penalty = val > 0
+        elif "罚息为空" in condition_str:
+            val = self._safe_float(case.get("罚息_数值", 0))
+            flag_penalty = val == 0
+        
+        flag_overdue_count = None
+        if "逾期笔数不为空" in condition_str:
+            val = self._safe_int(case.get("逾期笔数_数值", 0))
+            flag_overdue_count = val > 0
+        elif "逾期笔数为空" in condition_str:
+            val = self._safe_int(case.get("逾期笔数_数值", 0))
+            flag_overdue_count = val == 0
+        
+        # ----- 收集所有非 None 的标志位 -----
+        flags = [
+            f for f in [
+                flag_total, flag_principal, flag_interest, 
+                flag_penalty, flag_overdue_count
+            ] if f is not None
+        ]
+        
+        # ----- 合并结果 -----
+        if not flags:
+            # 只有"逾期"这一个条件
+            matched = base_has_overdue
+            parsed_condition = "逾期" if base_has_overdue else "无逾期"
+        else:
+            # "逾期" + 其他所有条件，全部用 AND 连接
+            matched = base_has_overdue and all(flags)
+            # 构造可读的条件描述（用于追踪）
+            condition_parts = ["逾期"] if base_has_overdue else []
+            for flag, label in zip(
+                [flag_total, flag_principal, flag_interest, flag_penalty, flag_overdue_count],
+                ["总欠款", "本金", "利息", "罚息", "逾期笔数"]
+            ):
+                if flag is not None:
+                    condition_parts.append(f"{label}{'' if flag else ' 为空?'}")
+            parsed_condition = " & ".join(condition_parts) if condition_parts else "无条件"
+        
         return {
-            "matched": fallback_matched,
-            "parsed_condition": f"回退（包含'逾期'）",
-            "overdue_value": 0,
+            "matched": matched,
+            "parsed_condition": parsed_condition,
+            "overdue_value": self._parse_overdue_value(case),
+            "atomic_results": {  # 额外返回原子详情，方便排查
+                "逾期": base_has_overdue,
+                "总欠款": flag_total,
+                "本金": flag_principal,
+                "利息": flag_interest,
+                "罚息": flag_penalty,
+                "逾期笔数": flag_overdue_count,
+            }
         }
