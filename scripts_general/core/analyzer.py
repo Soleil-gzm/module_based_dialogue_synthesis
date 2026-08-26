@@ -196,22 +196,25 @@ class DefaultAnalyzer(Analyzer):
                 )
         print(f"Report saved: {output_file}")
 
-    def _create_histogram(self, data, title, xlabel, ylabel, output_html, nbins=20):
+    def _create_histogram(self, data, title, xlabel, ylabel, output_html, nbins=20, bin_size=None):
         if not data:
             print(f"警告: 没有数据可绘制 {title}")
             return
-        fig = go.Figure(
-            data=[
-                go.Histogram(x=data, nbinsx=nbins, marker_color="#1f77b4", opacity=0.75)
-            ]
-        )
-        fig.update_layout(
+        hist_kwargs = dict(x=data, marker_color="#1f77b4", opacity=0.75)
+        layout_kwargs = dict(
             title=title,
             xaxis_title=xlabel,
             yaxis_title=ylabel,
             template="plotly_white",
             bargap=0.1,
         )
+        if bin_size is not None:
+            hist_kwargs["xbins"] = dict(size=bin_size)
+            layout_kwargs["xaxis_dtick"] = bin_size
+        else:
+            hist_kwargs["nbinsx"] = nbins
+        fig = go.Figure(data=[go.Histogram(**hist_kwargs)])
+        fig.update_layout(**layout_kwargs)
         fig.write_html(output_html)
         print(f"保存直方图: {output_html}")
 
@@ -313,6 +316,7 @@ class DefaultAnalyzer(Analyzer):
             "Number of Turns (user+assistant pairs)",
             "Frequency",
             os.path.join(output_dir, "dialogue_length_histogram.html"),
+            bin_size=1,
         )
         self._create_bar_chart(
             stats["goodbye_handling"],

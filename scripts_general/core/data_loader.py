@@ -1,15 +1,12 @@
 """
-Step 4：拆分数据加载模块
-操作：创建 core/data_loader.py，包含：
+数据加载模块。
 
-load_sheets(excel_path, modules, condition_keyword)：返回 {module: DataFrame}
-
-load_prob_matrix(prob_path, modules)
-
-load_cases(cases_dir)：返回 (cases_list, prompts_list)
-原因：数据准备逻辑独立，便于测试和复用（例如更换 Excel 来源）。
+load_sheets(excel_path, modules, keep_cols) → {module: DataFrame}
+load_prob_matrix(prob_path) → (prob_df, modules)  # modules 的唯一来源
+load_cases(cases_dir, rng, time_gen) → (cases_list, prompts_list)
 """
 
+import logging
 import os
 import random
 import re
@@ -19,29 +16,47 @@ import pandas as pd
 from core.random_service import RandomService
 from core.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
 
+logger = logging.getLogger("DialogueBuilder")
+
 
 def load_sheets(
     excel_path: str, modules: List[str], keep_cols: List[str] = None
 ) -> Dict[str, pd.DataFrame]:
     """
-    加载所有模块sheet，保留所有行（不再预过滤条件）。
-    条件筛选将在 DialogueBuilder 中由 ConditionEvaluator 动态执行。
+    按 prob 表定义的 modules 加载 Excel sheets，校验一致性。
+    - prob 表要求的模块在 Excel 中缺失 → 报错
+    - Excel 中多余的 sheet（非模块）→ 警告并忽略
     """
+    xls = pd.ExcelFile(excel_path)
+    excel_sheets = set(xls.sheet_names)
+
+    # 校验：prob 表要求的模块必须存在于 Excel
+    missing = [m for m in modules if m not in excel_sheets]
+    if missing:
+        xls.close()
+        raise ValueError(f"Excel 缺少 prob 表要求的模块 sheet: {missing}")
+
+    # 提示：Excel 中有 prob 表未定义的 sheet（忽略）
+    known_extra = {"链接施压话术", "逻辑"}
+    extra = excel_sheets - set(modules) - known_extra
+    if extra:
+        logger.warning(f"Excel 中有 prob 表未定义的 sheet（已忽略）: {extra}")
+
+    if keep_cols is None:
+        keep_cols = [
+            "uid",
+            "parent(继承)",
+            "repeat(次数)",
+            "conditions(条件)",
+            "human(客户)",
+            "assistant(专员)",
+            "flexible_stop(可选不继承)",
+            "是否再见",
+        ]
+
     df_dict = {}
     for sheet in modules:
         df = pd.read_excel(excel_path, sheet_name=sheet)
-        if keep_cols is None:
-            # 默认保留所有核心列（可根据需要增减）
-            keep_cols = [
-                "uid",
-                "parent(继承)",
-                "repeat(次数)",
-                "conditions(条件)",
-                "human(客户)",
-                "assistant(专员)",
-                "flexible_stop(可选不继承)",
-                "是否再见",
-            ]
         # 只保留需要的列，但不进行行过滤
         df_filtered = (
             df[keep_cols].copy()
@@ -49,15 +64,40 @@ def load_sheets(
             else df.loc[:, keep_cols].copy()
         )
         df_dict[sheet] = df_filtered
+    xls.close()
     return df_dict
 
 
-def load_prob_matrix(prob_path: str, modules: List[str]) -> pd.DataFrame:
-    """加载概率矩阵，第一行和第一列为模块名，值除以100"""
+def load_prob_matrix(prob_path: str) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    加载概率矩阵，模块名从 index/columns 提取（唯一来源）。
+    校验行列模块名一致后返回 (prob_df, modules)。
+    """
     prob_df = pd.read_excel(prob_path, header=0, index_col=0)
-    prob_df = prob_df.reindex(index=modules, columns=modules)
+
+    # 标准化模块名（strip 空白）
+    modules = [str(m).strip() for m in prob_df.index]
+    prob_df.index = modules
+    prob_df.columns = [str(c).strip() for c in prob_df.columns]
+
+    # 校验行列一致（以行模块名为基准）
+    row_modules = set(prob_df.index)
+    col_modules = set(prob_df.columns)
+    missing_cols = row_modules - col_modules
+    extra_cols = col_modules - row_modules
+
+    if missing_cols:
+        raise ValueError(
+            f"prob 表列缺少行中定义的模块:\n"
+            f"  缺失列模块: {sorted(missing_cols)}\n"
+            f"  行模块名: {list(prob_df.index)}"
+        )
+    if extra_cols:
+        logger.warning(f"prob 表有多余的列（行中未定义，已忽略）: {sorted(extra_cols)}")
+        prob_df = prob_df.drop(columns=list(extra_cols))
+
     prob_df = prob_df / 100.0
-    return prob_df
+    return prob_df, modules
 
 
 def parse_case_info(

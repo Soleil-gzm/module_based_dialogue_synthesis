@@ -16,7 +16,7 @@ def debug_b_to_a_prob():
     b_set = config.get("b_set", [])
     
     # 加载 prob 表
-    prob_df = load_prob_matrix(config.get("prob_path"), config.get("modules"))
+    prob_df, modules = load_prob_matrix(config.get("prob_path"))
     
     print("B_set 模块到 A_set 模块的概率分布：")
     print("=" * 100)
