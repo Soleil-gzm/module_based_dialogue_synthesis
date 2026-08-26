@@ -75,6 +75,33 @@ class OverdueConditionEvaluator(ConditionEvaluator):
             }
 
         condition_str = str(condition_str).strip()
+        
+        # ===== 新增：临时处理新甲方的复合条件（2026-08-26任务） =====
+        # 基础判断：是否包含"逾期"关键词
+        base_has_overdue = "逾期" in condition_str
+        
+        # 针对新字段的具体判断（为空 = 数值 == 0）
+        if "总欠款不为空" in condition_str:
+            matched = base_has_overdue and (case.get("总欠款_数值", 0) > 0)
+            return {"matched": matched, "parsed_condition": "逾期&总欠款>0", "overdue_value": self._parse_overdue_value(case)}
+        elif "总欠款为空" in condition_str:
+            matched = base_has_overdue and (case.get("总欠款_数值", 0) == 0)
+            return {"matched": matched, "parsed_condition": "逾期&总欠款==0", "overdue_value": self._parse_overdue_value(case)}
+        elif "本金不为空" in condition_str:
+            matched = base_has_overdue and (case.get("本金_数值", 0) > 0)
+            return {"matched": matched, "parsed_condition": "逾期&本金>0", "overdue_value": self._parse_overdue_value(case)}
+        elif "本金为空" in condition_str:
+            matched = base_has_overdue and (case.get("本金_数值", 0) == 0)
+            return {"matched": matched, "parsed_condition": "逾期&本金==0", "overdue_value": self._parse_overdue_value(case)}
+        elif "逾期笔数不为空" in condition_str:
+            matched = base_has_overdue and (case.get("逾期笔数_数值", 0) > 0)
+            return {"matched": matched, "parsed_condition": "逾期&逾期笔数>0", "overdue_value": self._parse_overdue_value(case)}
+        elif "逾期笔数为空" in condition_str:
+            matched = base_has_overdue and (case.get("逾期笔数_数值", 0) == 0)
+            return {"matched": matched, "parsed_condition": "逾期&逾期笔数==0", "overdue_value": self._parse_overdue_value(case)}
+        # ===== 新增结束 =====
+
+        # 旧格式：处理 "未逾期&{逾期天数}小于/等于/大于N" 或 "未逾期"
         match = self._OVERDUE_CONDITION_PATTERN.match(condition_str)
 
         if match:
@@ -110,6 +137,7 @@ class OverdueConditionEvaluator(ConditionEvaluator):
                 "overdue_value": overdue_value,
             }
 
+        # 如果既没命中新条件，也没命中旧正则，最后回退到仅判断是否包含"逾期"
         return {
             "matched": "逾期" in condition_str,
             "parsed_condition": f"旧格式（包含'逾期'）",

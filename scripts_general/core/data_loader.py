@@ -141,6 +141,14 @@ def parse_case_info(
             except (ValueError, TypeError):
                 overdue_value = 0
             data["逾期天数_显示"] = str(abs(overdue_value))
+        # 新增逾期笔数
+        elif line.startswith("- 逾期笔数："):
+            raw = line.split("：")[1].strip()
+            data["逾期笔数"] = raw
+            try:
+                data["逾期笔数_数值"] = int(raw)
+            except ValueError:
+                data["逾期笔数_数值"] = 0
         elif line.startswith("- 今天日期："):
             data["今天日期"] = line.split("：")[1].strip()
         elif line.startswith("- 查账时间："):
