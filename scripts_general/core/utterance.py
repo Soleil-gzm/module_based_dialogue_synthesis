@@ -172,6 +172,7 @@ def fill_placeholders(text: str, case: Dict[str, Any]) -> str:
         "{随机数字}": case.get("随机数字", ""),
         "{随机还款日}": case.get("随机还款日", ""),
         "{总本金}": case.get("总本金", ""),
+        "{逾期笔数}": case.get("逾期笔数_数值", ""),
         "{empty_tag}": "。",
     }
     for k, v in replacements.items():
