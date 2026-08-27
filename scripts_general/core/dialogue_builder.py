@@ -179,6 +179,8 @@ class DialogueBuilder:
         self.trace_collector.set_module_selected_uid(
             self._current_module_trace, row["uid"]
         )
+        # 新增：把 Excel 里的原始条件字符串也记入 trace
+        self._current_module_trace["condition_text"] = row.get("conditions(条件)", "")
 
         # 提取 flexible_stop 和是否再见的原始值
         flexible_val = row.get("flexible_stop(可选不继承)", 0)
