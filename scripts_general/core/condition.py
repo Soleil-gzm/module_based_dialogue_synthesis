@@ -61,17 +61,20 @@ class KeywordConditionEvaluator(ConditionEvaluator):
 
 class OverdueConditionEvaluator(ConditionEvaluator):
     """
-    旧版条件解析器（已修复组合条件短路问题）。
+    旧版条件解析器（已修复组合条件短路问题，现同时支持逾期和未逾期）。
     
     支持格式：
     1. 旧格式："未逾期" 或 "未逾期&{逾期天数}小于/等于/大于N"
-    2. 新格式：用 & 连接的复合条件，如 "逾期&总欠款不为空&利息为空"
+    2. 新格式（逾期）：用 & 连接的复合条件，如 "逾期&总欠款不为空&利息为空"
+    3. 新格式（未逾期）：用 & 连接的复合条件，如 "未逾期&总欠款不为空&利息不为空"
     
     修复说明：2026-08-27 修复了 if-elif 短路导致组合条件不全的问题。
     现在采用"先提取所有标志位，最后统一合并"的方式。
+    同日修复正则未锚定结尾导致 "未逾期&利息不为空" 被误判为无条件匹配的问题（添加 $），
+    以及 "未逾期" 包含 "逾期" 子串导致基础条件分支永远走 else 的问题。
     """
     
-    _OVERDUE_CONDITION_PATTERN = re.compile(r'未逾期(?:&\{逾期天数\}(小于|等于|大于)(\d+))?')
+    _OVERDUE_CONDITION_PATTERN = re.compile(r'未逾期(?:&\{逾期天数\}(小于|等于|大于)(\d+))?$')
 
     # ===== 安全类型转换工具 =====
     @staticmethod
@@ -123,7 +126,7 @@ class OverdueConditionEvaluator(ConditionEvaluator):
         
         condition_str = str(condition_str).strip()
         
-        # ===== 边界2：旧格式（"未逾期&..."） =====
+        # ===== 边界2：旧格式（"未逾期&{逾期天数}..."） =====
         match = self._OVERDUE_CONDITION_PATTERN.match(condition_str)
         if match:
             comparison_op = match.group(1)
@@ -151,8 +154,18 @@ class OverdueConditionEvaluator(ConditionEvaluator):
             return {"matched": matched, "parsed_condition": parsed_condition, "overdue_value": overdue_value}
         
         # ===== 边界3：新格式（组合条件）- 使用标志位模式 =====
-        # 基础标志：是否包含"逾期"
-        base_has_overdue = "逾期" in condition_str
+        # ---- 基础条件判断（支持“未逾期”和“逾期”） ----
+        overdue_val = self._parse_overdue_value(case)
+        if "未逾期" in condition_str:
+            base_matched = (overdue_val == 0)  # 未逾期：逾期天数 == 0
+            base_label = "未逾期"
+        elif "逾期" in condition_str:
+            # 条件包含"逾期"（不含"未逾期"），默认匹配逾期场景
+            base_matched = True
+            base_label = "逾期"
+        else:
+            base_matched = True
+            base_label = "无逾期"
         
         # ----- 提取各个字段的标志位（None 表示该条件未出现） -----
         flag_total = None
@@ -205,28 +218,27 @@ class OverdueConditionEvaluator(ConditionEvaluator):
         
         # ----- 合并结果 -----
         if not flags:
-            # 只有"逾期"这一个条件
-            matched = base_has_overdue
-            parsed_condition = "逾期" if base_has_overdue else "无逾期"
+            # 只有基础条件
+            matched = base_matched
+            parsed_condition = base_label
         else:
-            # "逾期" + 其他所有条件，全部用 AND 连接
-            matched = base_has_overdue and all(flags)
+            matched = base_matched and all(flags)
             # 构造可读的条件描述（用于追踪）
-            condition_parts = ["逾期"] if base_has_overdue else []
+            condition_parts = [base_label]
             for flag, label in zip(
                 [flag_total, flag_principal, flag_interest, flag_penalty, flag_overdue_count],
                 ["总欠款", "本金", "利息", "罚息", "逾期笔数"]
             ):
                 if flag is not None:
-                    condition_parts.append(f"{label}{'' if flag else ' 为空?'}")
-            parsed_condition = " & ".join(condition_parts) if condition_parts else "无条件"
+                    condition_parts.append(f"{label}{'' if flag else '为空?'}")
+            parsed_condition = " & ".join(condition_parts)
         
         return {
             "matched": matched,
             "parsed_condition": parsed_condition,
-            "overdue_value": self._parse_overdue_value(case),
-            "atomic_results": {  # 额外返回原子详情，方便排查
-                "逾期": base_has_overdue,
+            "overdue_value": overdue_val,
+            "atomic_results": {
+                base_label: base_matched,
                 "总欠款": flag_total,
                 "本金": flag_principal,
                 "利息": flag_interest,
@@ -234,3 +246,4 @@ class OverdueConditionEvaluator(ConditionEvaluator):
                 "逾期笔数": flag_overdue_count,
             }
         }
+    
