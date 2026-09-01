@@ -2,7 +2,7 @@
 阶段 0 · 步骤 4：黄金样本回归验证脚本。
 
 重构条件解析器后，用此脚本比对"新解析器输出"与"黄金样本"是否一致。
-当前先用 OverdueConditionEvaluator 跑一遍做自洽性检查（应 100% 通过）。
+当前先用 ConditionParser 跑一遍做自洽性检查（应 100% 通过）。
 
 用法：
     cd scripts_general
@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.condition import ConditionEvaluator, OverdueConditionEvaluator, KeywordConditionEvaluator
+from core.condition import ConditionParser
 
 
 def reconstruct_case(case_values: Dict[str, Any]) -> Dict[str, Any]:
@@ -37,22 +37,11 @@ def reconstruct_case(case_values: Dict[str, Any]) -> Dict[str, Any]:
     return case
 
 
-def build_evaluator(name: str):
-    if name == "overdue":
-        return OverdueConditionEvaluator()
-    if name == "keyword":
-        return KeywordConditionEvaluator()
-    if name == "parser":
-        from core.conditions import ConditionParser
-        return ConditionParser()
-    raise ValueError(f"未知 evaluator: {name}")
-
-
-def verify(golden_path: str, evaluator_name: str) -> Tuple[int, int, List[Dict]]:
+def verify(golden_path: str) -> Tuple[int, int, List[Dict]]:
     with open(golden_path, "r", encoding="utf-8") as f:
         payload = json.load(f)
 
-    evaluator = build_evaluator(evaluator_name)
+    evaluator = ConditionParser()
     samples: List[Dict] = payload["samples"]
     passed = 0
     failed = 0
@@ -85,13 +74,12 @@ def verify(golden_path: str, evaluator_name: str) -> Tuple[int, int, List[Dict]]
 def main():
     parser = argparse.ArgumentParser(description="黄金样本回归验证")
     parser.add_argument("--golden", required=True, help="golden_samples.json 路径")
-    parser.add_argument("--evaluator", default="overdue", help="评估器类型：overdue|keyword")
     args = parser.parse_args()
 
     print(f"加载黄金样本: {args.golden}")
-    print(f"使用评估器: {args.evaluator}")
+    print(f"使用评估器: ConditionParser")
 
-    passed, failed, diffs = verify(args.golden, args.evaluator)
+    passed, failed, diffs = verify(args.golden)
     total = passed + failed
 
     print(f"\n===== 验证结果 =====")
@@ -112,8 +100,7 @@ def main():
             print(f"  ... 还有 {len(diffs) - 20} 条差异未显示")
 
     if failed:
-        # 把差异写文件便于排查
-        diff_path = args.golden.replace(".json", f".diff_{args.evaluator}.json")
+        diff_path = args.golden.replace(".json", ".diff.json")
         with open(diff_path, "w", encoding="utf-8") as f:
             json.dump(diffs, f, ensure_ascii=False, indent=2)
         print(f"\n差异详情已写入: {diff_path}")

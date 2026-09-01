@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from core.conditions.base import ConditionEvaluator
 from core.conditions.atomic import AtomicCondition, parse_overdue_value
 from core.conditions.overdue_legacy import OverdueLegacyCondition
 from core.conditions.overdue_flag import OverdueFlagCondition
@@ -21,7 +22,7 @@ from core.conditions.field_nullability import FieldNullabilityCondition
 from core.conditions.unknown import UnknownTokenCondition
 
 
-class ConditionParser:
+class ConditionParser(ConditionEvaluator):
     def __init__(self, strict: bool = False):
         self._whole_str: List[AtomicCondition] = []
         self._token: List[AtomicCondition] = []
@@ -84,7 +85,7 @@ class ConditionParser:
 
     def evaluate_with_metadata(self, condition_str, case: Dict[str, Any]) -> Dict[str, Any]:
         """
-        返回与原 OverdueConditionEvaluator.evaluate_with_metadata 兼容的结构：
+        返回结构：
         {matched, parsed_condition, overdue_value, atomic_results}
         """
         pred, conds, descs, preds = self.parse(condition_str)

@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
-from core.condition import ConditionEvaluator
+from core.condition import ConditionParser
 from core.config import Config
 from core.factory import create_pressure_strategy,create_probability_calculator
 from core.pressure_manager import PressureManager
@@ -23,14 +23,13 @@ class DialogueBuilder:
         self,
         config: Config,
         df_dict: Dict[str, pd.DataFrame],
-        condition_evaluator: ConditionEvaluator,
         rng: RandomService,
         pressure_manager: PressureManager,
         logger: logging.Logger = None,
     ):
         self.config = config
         self.df_dict = df_dict
-        self.condition_evaluator = condition_evaluator
+        self.condition_evaluator = ConditionParser()
         self.rng = rng
         self.pressure_manager = pressure_manager
         self.logger = logger or logging.getLogger("DialogueBuilder")

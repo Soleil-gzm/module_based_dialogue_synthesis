@@ -15,7 +15,6 @@ from tqdm import tqdm
 from core.config import Config
 from core.dialogue_builder import DialogueBuilder
 from core.pressure_manager import PressureManager
-from core.factory import create_condition_evaluator
 from core.random_service import RandomService
 
 # ==================== JSON 序列化（支持 orjson 加速） ====================
@@ -72,10 +71,9 @@ def worker_generate(
 
     config = Config(config_dict)
     rng = RandomService(seed + process_id)  # 独立种子
-    condition_evaluator = create_condition_evaluator(config)
     pressure_manager = PressureManager(pressure_df, rng, config)
     builder = DialogueBuilder(
-        config, df_dict, condition_evaluator, rng, pressure_manager, None
+        config, df_dict, rng, pressure_manager, None
     )
 
     total_paths = len(all_paths)

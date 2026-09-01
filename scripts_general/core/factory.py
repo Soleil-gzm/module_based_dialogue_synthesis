@@ -1,6 +1,5 @@
 from core.analyzer import DefaultAnalyzer
 from core.case_loader import CaseLoader, DefaultCaseLoader, XiaoyingCaseLoader
-from core.condition import ConditionEvaluator, KeywordConditionEvaluator, OverdueConditionEvaluator
 from core.config import Config
 from core.pressure_prob_strategy import (AbsolutePressureStrategy,
                                          LinearDecayPressureStrategy,
@@ -9,17 +8,6 @@ from core.pressure_prob_strategy import (AbsolutePressureStrategy,
                                          SigmoidPressureStrategy)
 from core.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
 from core.probability import ProbabilityCalculator,ExponentialProbabilityCalculator,SigmoidProbabilityCalculator,LinearProbabilityCalculator
-
-
-def create_condition_evaluator(config: Config) -> ConditionEvaluator:
-    """工厂方法：根据配置创建条件解析器"""
-    parser_type = config.get("condition_parser", "keyword")
-    if parser_type == "keyword":
-        return KeywordConditionEvaluator()
-    elif parser_type == "overdue":
-        return OverdueConditionEvaluator()
-    else:
-        raise ValueError(f"Unknown condition_parser type: {parser_type}")
 
 
 def create_case_loader(config: Config) -> CaseLoader:

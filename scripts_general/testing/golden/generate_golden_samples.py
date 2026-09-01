@@ -5,7 +5,7 @@
   1. 扫描 case 目录，按 (逾期符号, 总欠款/本金/利息/罚息/逾期笔数 是否>0) 生成签名，
      每个签名保留一个代表 case。
   2. 若真实 case 缺少某些关键组合（如逾期天数<0），构造合成 case 补齐。
-  3. 对 inventory 中每个条件字符串 × 每个代表 case，跑当前 OverdueConditionEvaluator
+  3. 对 inventory 中每个条件字符串 × 每个代表 case，跑 ConditionParser
      .evaluate_with_metadata，把 (condition_str, case_values, result) 存成黄金样本。
 
 用法：
@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from core.data_loader import parse_case_info
 from core.random_service import RandomService
-from core.condition import OverdueConditionEvaluator
+from core.condition import ConditionParser
 
 # 条件评估依赖的数值字段
 NUMERIC_FIELDS = [
@@ -206,7 +206,7 @@ def main():
     print(f"代表 case 总数: {len(all_cases)}")
 
     # 跑黄金样本
-    evaluator = OverdueConditionEvaluator()
+    evaluator = ConditionParser()
     samples: List[Dict[str, Any]] = []
     true_count = 0
     false_count = 0
@@ -229,7 +229,7 @@ def main():
 
     payload = {
         "generated_by": "generate_golden_samples.py",
-        "evaluator": "OverdueConditionEvaluator",
+        "evaluator": "ConditionParser",
         "conditions_count": len(conditions),
         "cases_count": len(all_cases),
         "samples_count": len(samples),
