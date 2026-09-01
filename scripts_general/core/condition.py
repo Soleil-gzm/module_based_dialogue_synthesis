@@ -168,7 +168,7 @@ class OverdueConditionEvaluator(ConditionEvaluator):
             base_label = "无逾期"
         
         # ----- 提取各个字段的标志位（None 表示该条件未出现） -----
-        flag_total = None
+        flag_total = True
         if "总欠款不为空" in condition_str:
             val = self._safe_float(case.get("总欠款_数值", 0))
             flag_total = val > 0
@@ -176,7 +176,7 @@ class OverdueConditionEvaluator(ConditionEvaluator):
             val = self._safe_float(case.get("总欠款_数值", 0))
             flag_total = val == 0
         
-        flag_principal = None
+        flag_principal = True
         if "本金不为空" in condition_str:
             val = self._safe_float(case.get("本金_数值", 0))
             flag_principal = val > 0
@@ -184,7 +184,7 @@ class OverdueConditionEvaluator(ConditionEvaluator):
             val = self._safe_float(case.get("本金_数值", 0))
             flag_principal = val == 0
         
-        flag_interest = None
+        flag_interest = True
         if "利息不为空" in condition_str:
             val = self._safe_float(case.get("利息_数值", 0))
             flag_interest = val > 0
@@ -192,7 +192,7 @@ class OverdueConditionEvaluator(ConditionEvaluator):
             val = self._safe_float(case.get("利息_数值", 0))
             flag_interest = val == 0
         
-        flag_penalty = None
+        flag_penalty = True
         if "罚息不为空" in condition_str:
             val = self._safe_float(case.get("罚息_数值", 0))
             flag_penalty = val > 0
@@ -200,7 +200,7 @@ class OverdueConditionEvaluator(ConditionEvaluator):
             val = self._safe_float(case.get("罚息_数值", 0))
             flag_penalty = val == 0
         
-        flag_overdue_count = None
+        flag_overdue_count = True
         if "逾期笔数不为空" in condition_str:
             val = self._safe_int(case.get("逾期笔数_数值", 0))
             flag_overdue_count = val > 0
