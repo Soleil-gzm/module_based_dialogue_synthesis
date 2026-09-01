@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from core.data_loader import parse_case_info
 from core.random_service import RandomService
-from core.condition import ConditionParser
+from core.conditions import ConditionParser
 
 # 条件评估依赖的数值字段
 NUMERIC_FIELDS = [

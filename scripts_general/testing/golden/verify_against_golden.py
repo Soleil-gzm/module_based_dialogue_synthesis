@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.condition import ConditionParser
+from core.conditions import ConditionParser
 
 
 def reconstruct_case(case_values: Dict[str, Any]) -> Dict[str, Any]:
