@@ -1,41 +1,36 @@
 """
 条件解析器：原子条件注册表 + 分词复合解析。
 
-解析流程（优先级从高到低）：
+解析流程：
 1. 空条件 / NaN → 恒 True
-2. 整体匹配层（whole_str）：旧格式 `未逾期[&{逾期天数}X]` 整体命中则单独求值
-3. 分词层：按 `&` 拆分，逐 token 查注册表，全部 AND 组合
+2. 按 `&` 拆分，逐 token 查注册表，全部 AND 组合
 
 新增条件类型只需写一个 AtomicCondition 子类并 register，主体逻辑不动。
 """
 
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import pandas as pd
 
 from core.conditions.base import ConditionEvaluator
 from core.conditions.atomic import AtomicCondition, parse_overdue_value
-from core.conditions.overdue_legacy import OverdueLegacyCondition
 from core.conditions.overdue_flag import OverdueFlagCondition
+from core.conditions.overdue_days import OverdueDaysCondition
 from core.conditions.field_nullability import FieldNullabilityCondition
 from core.conditions.unknown import UnknownTokenCondition
 
 
 class ConditionParser(ConditionEvaluator):
     def __init__(self, strict: bool = False):
-        self._whole_str: List[AtomicCondition] = []
         self._token: List[AtomicCondition] = []
         self._unknown = UnknownTokenCondition(strict=strict)
         self._register_defaults()
 
     def _register_defaults(self):
-        self.register_whole(OverdueLegacyCondition())
         self.register_token(OverdueFlagCondition())
+        self.register_token(OverdueDaysCondition())
         self.register_token(FieldNullabilityCondition())
-
-    def register_whole(self, cond: AtomicCondition) -> None:
-        self._whole_str.append(cond)
 
     def register_token(self, cond: AtomicCondition) -> None:
         self._token.append(cond)
@@ -51,13 +46,7 @@ class ConditionParser(ConditionEvaluator):
         if not s:
             return _always_true, [], ["无条件"], []
 
-        # 整体匹配层（优先）
-        for cond in self._whole_str:
-            if cond.match(s):
-                pred = partial(cond.evaluate, s)
-                return pred, [cond], [cond.describe(s)], [pred]
-
-        # 分词层
+        # 分词 + 逐 token 查注册表
         tokens = [t.strip() for t in s.split("&") if t.strip()]
         preds: List[Callable[[Dict[str, Any]], bool]] = []
         conds: List[AtomicCondition] = []

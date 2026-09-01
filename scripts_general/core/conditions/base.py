@@ -12,11 +12,3 @@ class ConditionEvaluator(ABC):
     @abstractmethod
     def evaluate_with_metadata(self, condition_str: str, case: Dict[str, Any]) -> Dict[str, Any]:
         pass
-
-    def _parse_overdue_value(self, case: Dict[str, Any]) -> int:
-        """从case中解析逾期天数数值，用于条件判断"""
-        overdue_str = case.get("逾期天数", "0")
-        try:
-            return int(overdue_str)
-        except (ValueError, TypeError):
-            return 0
