@@ -224,7 +224,7 @@ def parse_case_info(
     if rng is not None:
         if time_gen is None:
             time_gen = SimpleNaturalTimeGenerator()
-        data["随机时间"] = time_gen.generate(rng, base_time=data.get("查账时间"))
+        data["随机时间"] = time_gen.generate(rng)
     else:
         periods = ["上午", "下午"]
         period = random.choice(periods)
