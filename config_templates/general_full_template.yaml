@@ -170,7 +170,6 @@ goodbye_min_idx: 2                  # 强制忽略前 N 个模块的再见（索
 # ============================================
 # 8. 解析器配置
 # ============================================
-condition_parser: "overdue"         # 条件解析器类型：keyword（关键词匹配）
 time_generator:
   type: "simple_natural"            # 时间生成器类型：simple_natural（随机生成自然口语化时间）
 
