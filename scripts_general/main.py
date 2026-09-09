@@ -202,6 +202,14 @@ def main():
             )
             analyzer.analyze(trace_file, analysis_output)
             logger.info(f"自动分析完成，报告保存在 {analysis_output}")
+
+            # 模块多样性分析
+            diversity_modules = config.get("analysis.diversity_modules", [])
+            if diversity_modules:
+                from core.analyzer import ModuleDiversityAnalyzer
+                div_analyzer = ModuleDiversityAnalyzer(modules=diversity_modules)
+                div_analyzer.analyze(trace_file, analysis_output)
+                logger.info(f"模块多样性分析完成，报告保存在 {analysis_output}")
         except Exception as e:
             logger.error(f"自动分析失败: {e}", exc_info=True)
     elif config.get("analysis.enabled", False):

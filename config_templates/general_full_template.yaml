@@ -193,6 +193,7 @@ logging:
 analysis:
   enabled: true                     # 是否启用自动分析
   format: "html"                    # 图表格式：html（需要 plotly）或 png（需要 matplotlib）
+  diversity_modules: ["信息问题"]             # 模块多样性分析（生成 txt 报告，无需图表）；填入模块名列表，如 ["告知", "信息问题"]
 
 # ============================================
 # 11. 多进程配置
