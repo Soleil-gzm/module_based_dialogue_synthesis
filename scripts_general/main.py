@@ -171,6 +171,34 @@ def main():
         force_regenerate=args.force,
     )
 
+    # 10. 对话相邻去重（默认开启）
+    if config.get("dedup.enabled", True):
+        try:
+            from core.dedup import DialogueDeduplicator
+
+            dedup_threshold = config.get("dedup.threshold", 0.85)
+            dedup_ignore_numbers = config.get("dedup.ignore_numbers", True)
+            dedup_suffix = config.get("dedup.output_suffix", "_dup")
+
+            deduplicator = DialogueDeduplicator(
+                threshold=dedup_threshold,
+                ignore_numbers=dedup_ignore_numbers,
+                output_suffix=dedup_suffix,
+            )
+            result = deduplicator.deduplicate_file(final_output_file)
+            if result is None:
+                logger.warning("soleil 未安装，跳过对话去重")
+            else:
+                dup_file, stats = result
+                logger.info(
+                    f"对话去重完成: 总{stats['total_dialogues']}条, "
+                    f"含重复{stats['duplicate_dialogues']}条, "
+                    f"删除轮对{stats['removed_pairs']}个, "
+                    f"输出 {dup_file}"
+                )
+        except Exception as e:
+            logger.error(f"对话去重失败: {e}", exc_info=True)
+
     # 11. 自动分析（如果配置启用且 trace 存在）
     if (
         config.get("analysis.enabled", False)
