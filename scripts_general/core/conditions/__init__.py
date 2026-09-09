@@ -12,6 +12,7 @@ from core.conditions.passthrough import PassthroughCondition
 from core.conditions.overdue_flag import OverdueFlagCondition
 from core.conditions.overdue_days import OverdueDaysCondition
 from core.conditions.field_nullability import FieldNullabilityCondition
+from core.conditions.follow_info import FollowInfoCondition
 from core.conditions.unknown import UnknownTokenCondition
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "OverdueFlagCondition",
     "OverdueDaysCondition",
     "FieldNullabilityCondition",
+    "FollowInfoCondition",
     "UnknownTokenCondition",
     "safe_float",
     "safe_int",
