@@ -1,13 +1,22 @@
 """
-话术统计 + 候选集生成脚本
+话术统计 + 候选集生成脚本（按 A/B/C 三类分组输出）
 
 流程：
     1. 读取话术 Excel，统计每个 sheet（模块）的 uid 行数
-    2. 读取 YAML，生成每个模块的候选集
+    2. 读取 YAML，按 A/B/C 三类生成候选集
     3. 输出 JSON 到 intermediate/ 目录，文件名自动带时间戳
 
-用法：
-    python build_candidates.py
+YAML 结构：
+    A: [模块1, 模块2, ...]       # 自循环类
+    B: [模块1, 模块2, ...]       # 可跳转类
+    C: [模块1, 模块2, ...]       # 其他模块
+    excluded: [模块1, ...]       # 可选，不参与概率计算
+
+候选规则：
+    A 类模块 → A组=[自身], B组=所有B, C组=所有C
+    B 类模块 → A组=所有A, B组=所有B, C组=所有C
+    C 类模块 → A组=所有A, B组=所有B, C组=所有C
+    未分类模块 → 按 B 类规则
 """
 
 import json
@@ -61,42 +70,53 @@ def count_rows_from_excel(excel_path: str, exclude_sheets: List[str] = None) -> 
 
 
 # ============================================================
-# 2. 根据 YAML 生成候选集
+# 2. 根据 YAML 生成候选集（按 A/B/C 分组）
 # ============================================================
-def build_candidates_from_yaml(yaml_path: str, variant_counts: Dict[str, int]) -> Dict[str, List[str]]:
+def build_candidates_from_yaml(yaml_path: str, variant_counts: Dict[str, int]) -> Dict[str, Dict[str, List[str]]]:
     """
     规则：
-        custom 里定义 → 用自定义列表
-        excluded 里 → 空
-        A 类 → [自身] + 所有 B
-        B 类 / 未分类 → 所有 A + 所有 B
+        A 类 → {"A": [自身],       "B": 所有B, "C": 所有C}
+        B 类 → {"A": 所有A,         "B": 所有B, "C": 所有C}
+        C 类 → {"A": 所有A,         "B": 所有B, "C": 所有C}
+        未分类 → 按 B 类规则
+        excluded → 三组全空
     """
     with open(yaml_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
 
     a_list = config.get("A", []) or []
     b_list = config.get("B", []) or []
-    custom = config.get("custom", {}) or {}
+    c_list = config.get("C", []) or []
     excluded = config.get("excluded", []) or []
 
     all_modules = set(variant_counts.keys())
     a_set = set(a_list) & all_modules
     b_set = set(b_list) & all_modules
+    c_set = set(c_list) & all_modules
+    excluded_set = set(excluded) & all_modules
 
     candidates = {}
     for module in all_modules:
-        # 1. custom 优先
-        if module in custom:
-            candidates[module] = [m for m in custom[module] if m in all_modules]
-        # 2. excluded
-        elif module in excluded:
-            candidates[module] = []
-        # 3. A 类：自身 + 所有 B
-        elif module in a_set:
-            candidates[module] = [module] + sorted(b_set)
-        # 4. B 类 / 未分类：所有 A + 所有 B
-        else:
-            candidates[module] = sorted(a_set) + sorted(b_set)
+        # excluded：三组全空
+        if module in excluded_set:
+            candidates[module] = {"A": [], "B": [], "C": []}
+            continue
+
+        # A 类：自身 + 所有 B + 所有 C
+        if module in a_set:
+            candidates[module] = {
+                "A": [module],
+                "B": sorted(b_set),
+                "C": sorted(c_set),
+            }
+            continue
+
+        # B、C、未分类：所有 A + 所有 B + 所有 C
+        candidates[module] = {
+            "A": sorted(a_set),
+            "B": sorted(b_set),
+            "C": sorted(c_set),
+        }
 
     return candidates
 
@@ -106,7 +126,7 @@ def build_candidates_from_yaml(yaml_path: str, variant_counts: Dict[str, int]) -
 # ============================================================
 def export_candidates(
     variant_counts: Dict[str, int],
-    candidates: Dict[str, List[str]],
+    candidates: Dict[str, Dict[str, List[str]]],
     output_dir: str
 ) -> str:
     """自动建目录，自动命名（带时间戳），输出 JSON。"""
@@ -132,7 +152,6 @@ def export_candidates(
 # 主流程
 # ============================================================
 def main():
-    # 检查输入文件
     if not os.path.exists(EXCEL_PATH):
         raise FileNotFoundError(f"话术表不存在: {EXCEL_PATH}")
     if not os.path.exists(YAML_PATH):
@@ -157,9 +176,13 @@ def main():
 
     # 预览
     print("\n候选集预览:")
-    for m, cands in candidates.items():
-        cands_str = ", ".join(cands) if cands else "(空)"
-        print(f"  {m} ({variant_counts[m]}行) → {cands_str}")
+    for m, groups in candidates.items():
+        parts = []
+        for cat in ("A", "B", "C"):
+            if groups[cat]:
+                parts.append(f"{cat}=[{', '.join(groups[cat])}]")
+        parts_str = " | ".join(parts) if parts else "(空)"
+        print(f"  {m} ({variant_counts[m]}行) → {parts_str}")
 
 
 if __name__ == "__main__":
