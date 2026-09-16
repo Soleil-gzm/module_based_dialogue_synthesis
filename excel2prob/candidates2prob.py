@@ -1,16 +1,14 @@
 """
-生成 prob 概率表（百分制）
+生成 prob 概率表（百分制，含压缩）
 
-表头顺序：manual → A → B → C（按 YAML 定义顺序）
-
-关键规则：
-    - A 类行：自己的权重 = 所有 A 类模块的 row 之和（因为 A 只能自循环，最终坍缩到一个 A）
-    - B / C / manual 行：每个候选模块用自己 row
-
-输出：Excel，每行概率和 = 100
+压缩方式：
+    "none" → 原始 row 数，不压缩
+    "sqrt" → 开方压缩（推荐起点）
+    "log"  → 对数压缩（更均匀）
 """
 
 import json
+import math
 import os
 from datetime import datetime
 from typing import Dict, List, Set, Union
@@ -22,21 +20,22 @@ import yaml
 # ============================================================
 # 硬编码配置（改这里即可）
 # ============================================================
-CANDIDATES_PATH = "intermediate/candidates_20260916_095303.json"   # 输入：候选文件
-YAML_PATH = "excel2prob/config/categories.yaml"                                # 输入：类别定义 YAML
-OUTPUT_DIR = "intermediate/prob"                                          # 输出目录
+CANDIDATES_PATH = "intermediate/candidates_20260916_095303.json"
+YAML_PATH = "excel2prob/config/categories.yaml"
+OUTPUT_DIR = "intermediate/prob"
+COMPRESS_MODE = "log"   # "none" / "sqrt" / "log"
 
 
 # ============================================================
 # 1. 读取输入
 # ============================================================
-def load_candidates(candidates_path: str) -> dict:
-    with open(candidates_path, "r", encoding="utf-8") as f:
+def load_candidates(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def load_yaml_categories(yaml_path: str) -> dict:
-    with open(yaml_path, "r", encoding="utf-8") as f:
+def load_yaml_categories(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
@@ -83,14 +82,29 @@ def flatten_candidates(cand: Union[Dict[str, List[str]], List[str]]) -> List[str
 
 
 # ============================================================
-# 4. 构建 prob 矩阵
+# 4. 压缩函数
+# ============================================================
+def compress(value: float, mode: str = "sqrt") -> float:
+    if value <= 0:
+        return 0.0
+    if mode == "none":
+        return value
+    if mode == "sqrt":
+        return math.sqrt(value)
+    if mode == "log":
+        return math.log(value + 1)
+    raise ValueError(f"未知压缩方式: {mode}")
+
+
+# ============================================================
+# 5. 构建 prob 矩阵
 # ============================================================
 def build_prob_matrix(
     variant_counts: Dict[str, int],
     candidates: Dict[str, Union[Dict[str, List[str]], List[str]]],
     module_order: List[str],
     a_set: Set[str],
-    manual_set: Set[str]
+    compress_mode: str = "sqrt"
 ) -> pd.DataFrame:
     """
     对每一行：
@@ -100,8 +114,10 @@ def build_prob_matrix(
     """
     matrix = pd.DataFrame(0.0, index=module_order, columns=module_order)
 
-    # 预计算所有 A 类模块的 row 之和
-    a_total = sum(variant_counts.get(m, 0) for m in a_set)
+    # A 类总权重：先对每个 A 压缩，再求和
+    a_total_compressed = sum(
+        compress(variant_counts.get(m, 0), compress_mode) for m in a_set
+    )
 
     for row_module in module_order:
         cand_list = flatten_candidates(candidates[row_module])
@@ -111,10 +127,9 @@ def build_prob_matrix(
         weights = {}
         for m in cand_list:
             if row_module in a_set and m == row_module:
-                # A 类行：自己的权重 = 所有 A 的 row 之和
-                weights[m] = a_total
+                weights[m] = a_total_compressed
             else:
-                weights[m] = variant_counts.get(m, 0)
+                weights[m] = compress(variant_counts.get(m, 0), compress_mode)
 
         total = sum(weights.values())
         if total == 0:
@@ -128,12 +143,12 @@ def build_prob_matrix(
 
 
 # ============================================================
-# 5. 输出 Excel
+# 6. 输出 Excel
 # ============================================================
-def export_prob_matrix(matrix: pd.DataFrame, output_dir: str) -> str:
+def export_prob_matrix(matrix: pd.DataFrame, output_dir: str, mode: str) -> str:
     os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = os.path.join(output_dir, f"prob_{timestamp}.xlsx")
+    output_path = os.path.join(output_dir, f"prob_{mode}_{timestamp}.xlsx")
 
     with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
         matrix.to_excel(writer, sheet_name="prob")
@@ -162,7 +177,7 @@ def export_prob_matrix(matrix: pd.DataFrame, output_dir: str) -> str:
 
 
 # ============================================================
-# 6. 校验
+# 7. 校验
 # ============================================================
 def validate_matrix(matrix: pd.DataFrame, threshold: float = 0.05):
     """检查每行概率和是否为 100（非全 0 行）"""
@@ -192,15 +207,15 @@ def main():
     # 2. 构建矩阵
     config = load_yaml_categories(YAML_PATH)
     a_set = set(config.get("A", []) or []) & set(candidates.keys())
-    manual_set = set((config.get("manual", {}) or {}).keys()) & set(candidates.keys())
 
     module_order = get_module_order(config, candidates)
     # 3. 输出
     matrix = build_prob_matrix(
-        variant_counts, candidates, module_order, a_set, manual_set
+        variant_counts, candidates, module_order, a_set,
+        compress_mode=COMPRESS_MODE
     )
-    output_path = export_prob_matrix(matrix, OUTPUT_DIR)
-    print(f"prob 文件: {output_path}")
+    output_path = export_prob_matrix(matrix, OUTPUT_DIR, COMPRESS_MODE)
+    print(f"prob 文件: {output_path}  (压缩方式: {COMPRESS_MODE})")
     # 4. 校验
     issues = validate_matrix(matrix)
     if issues:
