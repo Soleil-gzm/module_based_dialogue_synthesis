@@ -11,10 +11,18 @@
 
 业务偏好配置（全部可选，不写则行为不变）：
     boost:
-        模块名: 倍数            # 单模块权重倍数
-    self_loop_boost: 1.5        # 全局自循环倍数
+        模块名: 倍数                    # 单模块权重倍数
+
+    self_loop_boost: 1.5               # 形式 1：数字，所有模块统一
+    或
+    self_loop_boost:                    # 形式 2：字典，按类别分层
+        A: 1.5
+        B: 3.0
+        C: 1.0
+        default: 0.9
+
     self_loop_boost_override:
-        模块名: 倍数            # 单模块自循环倍数，覆盖全局
+        模块名: 倍数                    # 单模块覆盖，优先级最高
 
 归一化：
     使用最大余数法，保证每行概率和精确为 100.00
@@ -129,16 +137,50 @@ def normalize_to_100(weights: Dict[str, float]) -> Dict[str, float]:
 
 
 # ============================================================
-# 6. 构建 prob 矩阵
+# 6. 自循环倍数解析（支持数字 / 字典两种形式）
+# ============================================================
+def get_self_loop_multiplier(
+    target: str,
+    a_set: Set[str],
+    b_set: Set[str],
+    c_set: Set[str],
+    self_loop_boost,
+) -> float:
+    """
+    self_loop_boost 支持两种形式：
+      - 数字：所有模块统一倍数
+      - 字典：{A: 1.5, B: 3, C: 1, default: 0.9}
+    优先级：类别键 > default > 1.0
+    """
+    if isinstance(self_loop_boost, (int, float)):
+        return float(self_loop_boost)
+
+    if not isinstance(self_loop_boost, dict):
+        return 1.0
+
+    default = float(self_loop_boost.get("default", 1.0))
+    if target in a_set:
+        return float(self_loop_boost.get("A", default))
+    if target in b_set:
+        return float(self_loop_boost.get("B", default))
+    if target in c_set:
+        return float(self_loop_boost.get("C", default))
+    return default
+
+
+# ============================================================
+# 7. 构建 prob 矩阵
 # ============================================================
 def _build_matrix(
     variant_counts: Dict[str, int],
     candidates: Dict,
     module_order: List[str],
     a_set: Set[str],
+    b_set: Set[str],
+    c_set: Set[str],
     compress_mode: str = "sqrt",
     boost: Dict[str, float] = None,
-    self_loop_boost: float = 1.0,
+    self_loop_boost=1.0,
     self_loop_override: Dict[str, float] = None,
 ) -> pd.DataFrame:
     boost = boost or {}
@@ -153,7 +195,12 @@ def _build_matrix(
     def self_loop_weight(target: str) -> float:
         """自循环权重：普通权重 × 自循环倍数"""
         w = base_weight(target)
-        w *= self_loop_override.get(target, self_loop_boost)
+        if target in self_loop_override:
+            w *= float(self_loop_override[target])
+        else:
+            w *= get_self_loop_multiplier(
+                target, a_set, b_set, c_set, self_loop_boost
+            )
         return w
 
     # A 类总权重：所有 A 的"自循环权重"之和
@@ -210,16 +257,21 @@ def build_prob_matrix(
     candidates = payload["candidates"]
 
     config = load_yaml_categories(yaml_path)
-    a_set = set(config.get("A", []) or []) & set(candidates.keys())
+    all_keys = set(candidates.keys())
+
+    a_set = set(config.get("A", []) or []) & all_keys
+    b_set = set(config.get("B", []) or []) & all_keys
+    c_set = set(config.get("C", []) or []) & all_keys
     module_order = get_module_order(config, candidates)
 
     # 从 YAML 读取业务偏好（全部可选）
     boost = config.get("boost", {}) or {}
-    self_loop_boost = float(config.get("self_loop_boost", 1.0))
+    self_loop_boost = config.get("self_loop_boost", 1.0)
     self_loop_override = config.get("self_loop_boost_override", {}) or {}
 
     return _build_matrix(
-        variant_counts, candidates, module_order, a_set,
+        variant_counts, candidates, module_order,
+        a_set, b_set, c_set,
         compress_mode=compress_mode,
         boost=boost,
         self_loop_boost=self_loop_boost,
@@ -228,7 +280,7 @@ def build_prob_matrix(
 
 
 # ============================================================
-# 7. 保存 Excel
+# 8. 保存 Excel
 # ============================================================
 def save_prob_matrix(matrix: pd.DataFrame, output_path: str) -> str:
     dir_name = os.path.dirname(output_path)
@@ -256,7 +308,7 @@ def save_prob_matrix(matrix: pd.DataFrame, output_path: str) -> str:
 
 
 # ============================================================
-# 8. 校验（容差收紧到 0.005）
+# 9. 校验（容差收紧到 0.005）
 # ============================================================
 def validate_matrix(matrix: pd.DataFrame, threshold: float = 0.005) -> List[str]:
     issues = []
