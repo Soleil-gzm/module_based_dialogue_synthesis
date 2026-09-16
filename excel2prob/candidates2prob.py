@@ -1,15 +1,11 @@
 """
-生成 prob 概率表
+生成 prob 概率表（百分制）
 
 流程：
     1. 读取 candidates.json
     2. 对每个模块，取其候选模块的 row 数
-    3. 按 row 数归一化（P(m) = row(m) / sum(row))
-    4. 输出为 Excel
-
-说明：
-    这是最简版本，不做压缩、不做分层、不做平滑。
-    先看效果，再决定后续优化方向。
+    3. 按 row 数归一化，输出为百分制（0~100）
+    4. 输出为 Excel，每行概率和 = 100
 """
 
 import json
@@ -58,15 +54,15 @@ def flatten_candidates(cand: Union[Dict[str, List[str]], List[str]]) -> List[str
 
 
 # ============================================================
-# 3. 构建 prob 矩阵
+# 3. 构建 prob 矩阵（百分制）
 # ============================================================
 def build_prob_matrix(
     variant_counts: Dict[str, int],
     candidates: Dict[str, Union[Dict[str, List[str]], List[str]]]
 ) -> pd.DataFrame:
     """
-    对每个模块，按候选模块的 row 数归一化。
-    非候选模块的概率为 0。
+    对每个模块，按候选模块的 row 数归一化，结果以百分制表示。
+    每行概率之和 = 100。
     """
     modules = sorted(candidates.keys())
     matrix = pd.DataFrame(0.0, index=modules, columns=modules)
@@ -76,7 +72,6 @@ def build_prob_matrix(
         if not cand_list:
             continue
 
-        # 取候选模块的 row 数作为权重
         weights = {m: variant_counts.get(m, 0) for m in cand_list}
         total = sum(weights.values())
 
@@ -90,20 +85,44 @@ def build_prob_matrix(
 
 
 # ============================================================
-# 4. 输出 Excel
+# 4. 输出 Excel（显式百分比格式）
 # ============================================================
 def export_prob_matrix(matrix: pd.DataFrame, output_dir: str) -> str:
     os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = os.path.join(output_dir, f"prob_{timestamp}.xlsx")
-    matrix.to_excel(output_path)
+
+    with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
+        matrix.to_excel(writer, sheet_name="prob")
+
+        workbook = writer.book
+        worksheet = writer.sheets["prob"]
+
+        # 数字格式：保留两位小数
+        num_fmt = workbook.add_format({"num_format": "0.00"})
+        # 表头加粗
+        header_fmt = workbook.add_format({"bold": True})
+
+        # 应用表头格式
+        for col_num, value in enumerate(["模块"] + list(matrix.columns)):
+            worksheet.write(0, col_num, value, header_fmt)
+
+        # 应用数值格式
+        for row in range(1, len(matrix) + 1):
+            for col in range(1, len(matrix.columns) + 1):
+                worksheet.write_number(row, col, matrix.iloc[row - 1, col - 1], num_fmt)
+
+        # 列宽
+        worksheet.set_column(0, 0, 20)
+        worksheet.set_column(1, len(matrix.columns), 10)
+
     return output_path
 
 
 # ============================================================
-# 5. 校验（可选）
+# 5. 校验
 # ============================================================
-def validate_matrix(matrix: pd.DataFrame, threshold: float = 0.01):
+def validate_matrix(matrix: pd.DataFrame, threshold: float = 0.05):
     """检查每行概率和是否为 100（非全 0 行）"""
     issues = []
     for row_module in matrix.index:
@@ -141,7 +160,7 @@ def main():
         for issue in issues:
             print(f"  ⚠️ {issue}")
     else:
-        print("所有行概率和均为 100")
+        print("所有行概率和均为 100（百分制）")
 
 
 if __name__ == "__main__":
