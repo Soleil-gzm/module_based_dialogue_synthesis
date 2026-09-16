@@ -1,6 +1,14 @@
 """
 生成 prob 概率表（百分制，含压缩）
 
+表头顺序：manual → A → B → C（按 YAML 定义顺序）
+
+关键规则：
+    - manual 字典模式：直接用权重，剩余为 0
+    - manual 列表模式：按 row 数加权（支持压缩）
+    - A 类行：自己的权重 = 所有 A 类模块压缩后之和
+    - B / C 行：每个候选模块按压缩后 row 加权
+
 压缩方式：
     "none" → 原始 row 数，不压缩
     "sqrt" → 开方压缩（推荐起点）
@@ -20,7 +28,7 @@ import yaml
 # ============================================================
 # 硬编码配置（改这里即可）
 # ============================================================
-CANDIDATES_PATH = "intermediate/candidates_20260916_095303.json"
+CANDIDATES_PATH = "intermediate/candidates_20260916_112112.json"
 YAML_PATH = "excel2prob/config/categories.yaml"
 OUTPUT_DIR = "intermediate/prob"
 COMPRESS_MODE = "log"   # "none" / "sqrt" / "log"
@@ -64,15 +72,13 @@ def get_module_order(config: dict, candidates: Dict) -> List[str]:
 # ============================================================
 # 3. 展平候选
 # ============================================================
-def flatten_candidates(cand: Union[Dict[str, List[str]], List[str]]) -> List[str]:
-    """
-    普通模块 → 合并 A/B/C 三组，去重
-    manual 模块 → 直接返回列表
-    """
+def flatten_candidates(cand) -> List[str]:
+    """把候选展平为模块列表（仅用于非权重模式）"""
     if isinstance(cand, list):
         return cand
-    result = []
-    seen = set()
+    if "weights" in cand:
+        return list(cand["weights"].keys())
+    result, seen = [], set()
     for cat in ("A", "B", "C"):
         for m in cand.get(cat, []):
             if m not in seen:
@@ -101,7 +107,7 @@ def compress(value: float, mode: str = "sqrt") -> float:
 # ============================================================
 def build_prob_matrix(
     variant_counts: Dict[str, int],
-    candidates: Dict[str, Union[Dict[str, List[str]], List[str]]],
+    candidates: Dict,
     module_order: List[str],
     a_set: Set[str],
     compress_mode: str = "sqrt"
@@ -114,13 +120,26 @@ def build_prob_matrix(
     """
     matrix = pd.DataFrame(0.0, index=module_order, columns=module_order)
 
-    # A 类总权重：先对每个 A 压缩，再求和
+    # A 类总权重（压缩后求和）
     a_total_compressed = sum(
         compress(variant_counts.get(m, 0), compress_mode) for m in a_set
     )
 
     for row_module in module_order:
-        cand_list = flatten_candidates(candidates[row_module])
+        cand = candidates[row_module]
+
+        # ---- 分支 1：manual 字典模式，直接用权重 ----
+        if isinstance(cand, dict) and "weights" in cand:
+            weights = {m: w for m, w in cand["weights"].items() if m in matrix.columns}
+            total = sum(weights.values())
+            if total == 0:
+                continue
+            for m, w in weights.items():
+                matrix.loc[row_module, m] = round(w / total * 100, 2)
+            continue
+
+        # ---- 分支 2：其他模式，按压缩 row 加权 ----
+        cand_list = flatten_candidates(cand)
         if not cand_list:
             continue
 

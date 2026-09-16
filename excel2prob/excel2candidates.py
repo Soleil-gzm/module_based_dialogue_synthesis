@@ -3,9 +3,32 @@
 
 流程：
     1. 读取话术 Excel，统计所有 sheet（模块）的 uid 行数
-    2. 读取 YAML，只对 YAML 里定义的模块生成候选集
+    2. 读取 YAML，按 A/B/C/manual 生成候选集
     3. 输出 JSON 到 intermediate/ 目录，文件名自动带时间戳
     4. 终端只输出未使用模块的提示
+
+YAML 结构：
+    A: [模块1, 模块2, ...]       # 自循环类
+    B: [模块1, 模块2, ...]       # 可跳转类
+    C: [模块1, 模块2, ...]       # 通用模块
+    manual:
+      模块名1:                    # 列表模式（展开 A/B/C 关键字，按 row 数加权）
+        - 模块A
+        - A
+        - B
+      模块名2:                    # 字典模式（手动指定权重，其余为 0）
+        模块A: 15
+        模块B: 70
+        模块C: 15
+      模块名3:                    # 混合模式：字典里也可以有 A/B/C 关键字
+        自身: 20
+        A: 30
+        B: 50
+
+输出结构：
+    普通模块 → {"A": [...], "B": [...], "C": [...]}
+    manual 列表模式 → ["候选1", "候选2", ...]
+    manual 字典模式 → {"weights": {"模块": 权重, ...}}
 """
 
 import json
@@ -48,43 +71,71 @@ def count_rows_from_excel(excel_path: str) -> Dict[str, int]:
 
 
 # ============================================================
-# 2. 展开 manual 候选（支持 A/B/C 关键字）
+# 2. 展开列表模式的 manual 候选
 # ============================================================
-def expand_manual_candidates(
+def expand_manual_list(
     raw_list: List[str],
     a_set: set,
     b_set: set,
     c_set: set,
     all_modules: set
 ) -> List[str]:
-    """
-    展开 manual 候选列表：
-        - "A" → 所有 A 类模块
-        - "B" → 所有 B 类模块
-        - "C" → 所有 C 类模块
-        - 其他字符串 → 作为普通模块名
-    结果去重，并过滤掉不在话术表里的模块。
-    """
-    category_map = {
-        "A": a_set,
-        "B": b_set,
-        "C": c_set,
-    }
-
-    result = []
-    seen = set()
+    category_map = {"A": a_set, "B": b_set, "C": c_set}
+    result, seen = [], set()
     for item in raw_list:
         members = sorted(category_map[item]) if item in category_map else [item]
         for m in members:
             if m in all_modules and m not in seen:
                 seen.add(m)
                 result.append(m)
-
     return result
 
 
 # ============================================================
-# 3. 根据 YAML 生成候选集
+# 3. 处理字典模式的 manual 候选
+# ============================================================
+def expand_manual_weights(
+    raw_dict: dict,
+    a_set: set,
+    b_set: set,
+    c_set: set,
+    all_modules: set,
+    variant_counts: Dict[str, int]
+) -> Dict[str, float]:
+    """
+    字典模式：手动指定权重。
+    - 普通键（模块名）→ 直接用其值作为权重
+    - 关键字 A/B/C → 展开为该类所有模块，按各自 row 数分摊该值
+    返回：{模块名: 权重}
+    """
+    category_map = {"A": a_set, "B": b_set, "C": c_set}
+    weights = {}
+
+    for key, val in raw_dict.items():
+        val = float(val)
+
+        if key in category_map:
+            members = [m for m in category_map[key] if m in all_modules]
+            if not members:
+                continue
+            total_row = sum(variant_counts.get(m, 0) for m in members)
+            if total_row == 0:
+                per = val / len(members)
+                for m in members:
+                    weights[m] = weights.get(m, 0) + per
+            else:
+                for m in members:
+                    share = val * variant_counts.get(m, 0) / total_row
+                    weights[m] = weights.get(m, 0) + share
+        else:
+            if key in all_modules:
+                weights[key] = weights.get(key, 0) + val
+
+    return weights
+
+
+# ============================================================
+# 4. 根据 YAML 生成候选集
 # ============================================================
 def build_candidates_from_yaml(
     yaml_path: str,
@@ -113,13 +164,20 @@ def build_candidates_from_yaml(
 
     candidates = {}
 
-    # 1. manual 模块
-    for module in manual:
+    # 1. manual 模块（优先处理）
+    for module, raw_entry in manual.items():
         if module not in all_modules:
             continue
-        candidates[module] = expand_manual_candidates(
-            manual[module], a_set, b_set, c_set, all_modules
-        )
+        if isinstance(raw_entry, dict):
+            weights = expand_manual_weights(
+                raw_entry, a_set, b_set, c_set, all_modules, variant_counts
+            )
+            candidates[module] = {"weights": weights}
+        else:
+            expanded = expand_manual_list(
+                raw_entry, a_set, b_set, c_set, all_modules
+            )
+            candidates[module] = expanded
 
     # 2. A 类模块
     for module in sorted(a_set):
@@ -155,11 +213,11 @@ def build_candidates_from_yaml(
 
 
 # ============================================================
-# 4. 输出 JSON
+# 5. 输出 JSON
 # ============================================================
 def export_candidates(
     variant_counts: Dict[str, int],
-    candidates: Dict[str, Union[Dict[str, List[str]], List[str]]],
+    candidates: Dict,
     output_dir: str
 ) -> str:
     """自动建目录，自动命名（带时间戳），输出 JSON。"""
