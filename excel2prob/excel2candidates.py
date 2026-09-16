@@ -5,28 +5,7 @@
     1. 读取话术 Excel，统计所有 sheet（模块）的 uid 行数
     2. 读取 YAML，只对 YAML 里定义的模块生成候选集
     3. 输出 JSON 到 intermediate/ 目录，文件名自动带时间戳
-    4. 输出中单列 unused_modules（在话术表里但未在 YAML 中使用的模块）
-
-YAML 结构：
-    A: [模块1, 模块2, ...]       # 自循环类，路径中只出现一次
-    B: [模块1, 模块2, ...]       # 可跳转类
-    C: [模块1, 模块2, ...]       # 通用模块，A 和 B 都能跳转
-    manual:                     # 手动模块，完全自定义候选
-      模块名:
-        - 候选1
-        - A                     # 关键字：展开为所有 A 类模块
-        - B                     # 关键字：展开为所有 B 类模块
-        - C                     # 关键字：展开为所有 C 类模块
-
-候选规则：
-    A 类模块 → A组=[自身],        B组=所有B, C组=所有C
-    B 类模块 → A组=所有A,          B组=所有B, C组=所有C
-    C 类模块 → A组=所有A,          B组=所有B, C组=所有C
-    manual 模块 → 扁平列表（支持 A/B/C 关键字展开）
-
-输出格式：
-    普通模块 → {"A": [...], "B": [...], "C": [...]}
-    manual 模块 → ["候选1", "候选2", ...]
+    4. 终端只输出未使用模块的提示
 """
 
 import json
@@ -60,12 +39,9 @@ def count_rows_from_excel(excel_path: str) -> Dict[str, int]:
 
     for sheet_name in xls.sheet_names:
         df = xls.parse(sheet_name)
-
         if "uid" in df.columns:
             df = df[df["uid"].astype(str) != "uid"]
-
         df = df.dropna(how="all")
-
         counts[sheet_name] = len(df)
 
     return counts
@@ -98,11 +74,7 @@ def expand_manual_candidates(
     result = []
     seen = set()
     for item in raw_list:
-        if item in category_map:
-            members = sorted(category_map[item])
-        else:
-            members = [item]
-
+        members = sorted(category_map[item]) if item in category_map else [item]
         for m in members:
             if m in all_modules and m not in seen:
                 seen.add(m)
@@ -141,7 +113,7 @@ def build_candidates_from_yaml(
 
     candidates = {}
 
-    # 1. manual 模块（优先处理）
+    # 1. manual 模块
     for module in manual:
         if module not in all_modules:
             continue
@@ -224,44 +196,20 @@ def main():
     if not os.path.exists(YAML_PATH):
         raise FileNotFoundError(f"YAML 不存在: {YAML_PATH}")
 
-    # 1. 统计
-    print(f"[1/3] 读取话术表: {EXCEL_PATH}")
     variant_counts = count_rows_from_excel(EXCEL_PATH)
-    print(f"      统计到 {len(variant_counts)} 个 sheet")
-    for m, c in variant_counts.items():
-        print(f"        {m}: {c} 行")
-
-    # 2. 生成候选集
-    print(f"\n[2/3] 读取 YAML: {YAML_PATH}")
     candidates = build_candidates_from_yaml(YAML_PATH, variant_counts)
-    print(f"      生成 {len(candidates)} 个模块的候选集")
-
-    # 3. 输出
-    print(f"\n[3/3] 输出候选文件")
     output_path, unused_modules = export_candidates(
         variant_counts, candidates, OUTPUT_DIR
     )
-    print(f"      {output_path}")
 
-    # 预览
-    print("\n候选集预览:")
-    for m, cand in candidates.items():
-        if isinstance(cand, list):
-            cand_str = ", ".join(cand) if cand else "(空)"
-            print(f"  [manual] {m} ({variant_counts[m]}行) → [{cand_str}]")
-        else:
-            parts = []
-            for cat in ("A", "B", "C"):
-                if cand[cat]:
-                    parts.append(f"{cat}=[{', '.join(cand[cat])}]")
-            parts_str = " | ".join(parts) if parts else "(空)"
-            print(f"  {m} ({variant_counts[m]}行) → {parts_str}")
+    print(f"候选文件: {output_path}")
 
-    # 未使用模块
     if unused_modules:
-        print(f"\n未使用模块（在话术表中，但 YAML 未定义）:")
+        print("\n未使用模块（在话术表中，但 YAML 未定义）:")
         for m in unused_modules:
             print(f"  {m} ({variant_counts[m]}行)")
+    else:
+        print("所有话术模块均已在 YAML 中使用")
 
 
 if __name__ == "__main__":
