@@ -152,7 +152,6 @@ def export_prob_matrix(matrix: pd.DataFrame, output_dir: str) -> str:
             for col in range(1, len(matrix.columns) + 1):
                 worksheet.write_number(row, col, matrix.iloc[row - 1, col - 1], num_fmt)
 
-        # 列宽
         worksheet.set_column(0, 0, 20)
         worksheet.set_column(1, len(matrix.columns), 10)
 
