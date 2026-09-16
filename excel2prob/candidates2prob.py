@@ -1,11 +1,7 @@
 """
 生成 prob 概率表（百分制）
 
-流程：
-    1. 读取 candidates.json
-    2. 对每个模块，取其候选模块的 row 数
-    3. 按 row 数归一化，输出为百分制（0~100）
-    4. 输出为 Excel，每行概率和 = 100
+表头顺序：manual → A → B → C（按 YAML 定义顺序）
 """
 
 import json
@@ -14,12 +10,14 @@ from datetime import datetime
 from typing import Dict, List, Union
 
 import pandas as pd
+import yaml
 
 
 # ============================================================
 # 硬编码配置（改这里即可）
 # ============================================================
 CANDIDATES_PATH = "intermediate/candidates_20260916_095303.json"   # 输入：候选文件
+YAML_PATH = "excel2prob/config/categories.yaml"                                # 输入：类别定义 YAML
 OUTPUT_DIR = "intermediate/prob"                                          # 输出目录
 
 
@@ -33,7 +31,48 @@ def load_candidates(candidates_path: str) -> dict:
 
 
 # ============================================================
-# 2. 把候选展平为列表
+# 2. 从 YAML 获取模块排列顺序
+# ============================================================
+def get_module_order(yaml_path: str, candidates: Dict) -> List[str]:
+    """
+    按 manual → A → B → C 的顺序返回模块列表。
+    每组内保持 YAML 定义的顺序。
+    """
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+
+    order = []
+
+    # manual
+    for m in (config.get("manual", {}) or {}).keys():
+        if m in candidates and m not in order:
+            order.append(m)
+
+    # A
+    for m in config.get("A", []) or []:
+        if m in candidates and m not in order:
+            order.append(m)
+
+    # B
+    for m in config.get("B", []) or []:
+        if m in candidates and m not in order:
+            order.append(m)
+
+    # C
+    for m in config.get("C", []) or []:
+        if m in candidates and m not in order:
+            order.append(m)
+
+    # 兜底：任何还没被收录的（理论上不会出现）
+    for m in candidates:
+        if m not in order:
+            order.append(m)
+
+    return order
+
+
+# ============================================================
+# 3. 把候选展平为列表
 # ============================================================
 def flatten_candidates(cand: Union[Dict[str, List[str]], List[str]]) -> List[str]:
     """
@@ -54,20 +93,20 @@ def flatten_candidates(cand: Union[Dict[str, List[str]], List[str]]) -> List[str
 
 
 # ============================================================
-# 3. 构建 prob 矩阵（百分制）
+# 4. 构建 prob 矩阵（百分制）
 # ============================================================
 def build_prob_matrix(
     variant_counts: Dict[str, int],
-    candidates: Dict[str, Union[Dict[str, List[str]], List[str]]]
+    candidates: Dict[str, Union[Dict[str, List[str]], List[str]]],
+    module_order: List[str]
 ) -> pd.DataFrame:
     """
-    对每个模块，按候选模块的 row 数归一化，结果以百分制表示。
-    每行概率之和 = 100。
+    行、列都按 module_order 排列。
+    对每个模块，按候选模块的 row 数归一化到百分制。
     """
-    modules = sorted(candidates.keys())
-    matrix = pd.DataFrame(0.0, index=modules, columns=modules)
+    matrix = pd.DataFrame(0.0, index=module_order, columns=module_order)
 
-    for row_module in modules:
+    for row_module in module_order:
         cand_list = flatten_candidates(candidates[row_module])
         if not cand_list:
             continue
@@ -79,13 +118,14 @@ def build_prob_matrix(
             continue
 
         for m, w in weights.items():
-            matrix.loc[row_module, m] = round(w / total * 100, 2)
+            if m in matrix.columns:
+                matrix.loc[row_module, m] = round(w / total * 100, 2)
 
     return matrix
 
 
 # ============================================================
-# 4. 输出 Excel（显式百分比格式）
+# 5. 输出 Excel（显式百分比格式）
 # ============================================================
 def export_prob_matrix(matrix: pd.DataFrame, output_dir: str) -> str:
     os.makedirs(output_dir, exist_ok=True)
@@ -120,7 +160,7 @@ def export_prob_matrix(matrix: pd.DataFrame, output_dir: str) -> str:
 
 
 # ============================================================
-# 5. 校验
+# 6. 校验
 # ============================================================
 def validate_matrix(matrix: pd.DataFrame, threshold: float = 0.05):
     """检查每行概率和是否为 100（非全 0 行）"""
@@ -140,19 +180,21 @@ def validate_matrix(matrix: pd.DataFrame, threshold: float = 0.05):
 def main():
     if not os.path.exists(CANDIDATES_PATH):
         raise FileNotFoundError(f"候选文件不存在: {CANDIDATES_PATH}")
+    if not os.path.exists(YAML_PATH):
+        raise FileNotFoundError(f"YAML 不存在: {YAML_PATH}")
 
     # 1. 读取
     data = load_candidates(CANDIDATES_PATH)
     variant_counts = data["variant_counts"]
     candidates = data["candidates"]
-
     # 2. 构建矩阵
-    matrix = build_prob_matrix(variant_counts, candidates)
-
+    module_order = get_module_order(YAML_PATH, candidates)
+    print(f"模块顺序: manual({sum(1 for m in module_order[:len(candidates)])}) ...")
+    print(f"总计 {len(module_order)} 个模块")
     # 3. 输出
+    matrix = build_prob_matrix(variant_counts, candidates, module_order)
     output_path = export_prob_matrix(matrix, OUTPUT_DIR)
     print(f"prob 文件: {output_path}")
-
     # 4. 校验
     issues = validate_matrix(matrix)
     if issues:
