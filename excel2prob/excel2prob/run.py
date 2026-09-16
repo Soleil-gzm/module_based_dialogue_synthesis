@@ -32,8 +32,8 @@ from excel2prob.prob_builder import build_prob_matrix, save_prob_matrix, validat
 # ============================================================
 EXCEL_DIR = "intermediate/datas"                       # 输入：话术 Excel 文件夹
 YAML_PATH = "excel2prob/config/categories_due.yaml"                 # 输入：类别定义 YAML
-CANDIDATES_DIR = "intermediate/due/candidates"                      # 中间产物目录
-PROB_DIR = "intermediate/due/prob"                                  # 最终产物目录
+CANDIDATES_DIR = "intermediate/due1/candidates"                      # 中间产物目录
+PROB_DIR = "intermediate/due1/prob"                                  # 最终产物目录
 COMPRESS_MODE = "log"                                           # "none" / "sqrt" / "log"
 SAVE_CANDIDATES = True                                          # 是否保存中间 JSON
 
