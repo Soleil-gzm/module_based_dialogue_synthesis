@@ -58,6 +58,13 @@ def _sample_num_tranc(**ctx):
     """逾期笔数。"""
     return 0 if random.random() < 0.4 else random.randint(1, 5)
 
+# 代扣失败原因选项：等概率随机抽取
+REASON_OPTIONS = ["无代扣协议", "银行卡异常", "无"]
+
+def _sample_reason(**ctx):
+    """代扣失败原因映射：随机映射到 3 个原因之一。"""
+    return random.choice(REASON_OPTIONS)
+
 # ---- 金额字段 ----
 
 def _sample_total_amount(**ctx):
@@ -135,6 +142,7 @@ SAMPLERS = {
     "利息":   _sample_interest,
     "罚息":   _sample_penalty,
     "逾期笔数":   _sample_num_tranc,
+    "代扣失败原因": _sample_reason,
 }
 
 # ============== 字段分类 ==============
@@ -162,6 +170,7 @@ GENERATED_FIELDS = [
     "利息",           # mask 驱动，依赖 应还金额
     "罚息",           # mask 驱动，依赖 应还金额
     "逾期笔数",       # mask 驱动，独立
+    "代扣失败原因",       # mask 驱动，独立
 ]
 
 # 参与 mask 组合枚举的字段（可以为 0 或非 0）
@@ -243,7 +252,7 @@ def generate_data(mask_dict):
     return {**STATIC_FIELDS, **values}
 
 
-def load_and_format_prompt2(prompt_path, data):
+def load_and_format_prompt_system(prompt_path, data):
     """加载 prompt template，替换 case 标签。"""
     with open(prompt_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
@@ -256,17 +265,18 @@ def load_and_format_prompt2(prompt_path, data):
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
         today_date=data["今天日期"],
-        time_check='今天晚上8点',
+        time_check=data["查账时间"],
         payment_date=data["还款日"],
         amount=data["应还金额"],
         total_amount=data["总欠款"],
         principal=data["本金"],
         interest=data["利息"],
         penalty=data["罚息"],
+        reason=data["代扣失败原因"],
     )
 
 
-def load_and_format_prompt3(prompt_path, data):
+def load_and_format_prompt_replace(prompt_path, data):
     """加载 prompt template（带查账时间 + 元后缀）。"""
     with open(prompt_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
@@ -280,8 +290,8 @@ def load_and_format_prompt3(prompt_path, data):
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
         today_date=data["今天日期"],
-        # time_check=data["查账时间"],
-        # current_time=data["当前时间"],
+        time_check=data["查账时间"],
+        current_time=data["当前时间"],
         payment_date=data["还款日"],
         amount=data["应还金额"] + '元',
         total_amount=data["总欠款"] + '元',
@@ -296,19 +306,14 @@ def load_and_format_prompt3(prompt_path, data):
 if __name__ == "__main__":
     import os
 
-    COMBINATIONS_PATH = "combinations-M0-100.json"
-    TOTAL_CASES = 100
+    COMBINATIONS_PATH = "combinations-M0-4w.json"
+    TOTAL_CASES = 400
     START_INDEX = 0 
 
-    # ---- 加载 / 生成组合 ----
-    if os.path.exists(COMBINATIONS_PATH):
-        loaded = load_mask_combinations(COMBINATIONS_PATH)
-        combos = loaded["combinations-M0"]
-        print(f"从 {COMBINATIONS_PATH} 加载 {len(combos)} 种组合")
-    else:
-        combos = generate_mask_combinations(COMBINATION_FIELDS)
-        save_mask_combinations(combos, COMBINATIONS_PATH)
-        print(f"生成并保存 {len(combos)} 种组合到 {COMBINATIONS_PATH}")
+    # ---- 每次重新生成，直接覆盖 ----
+    combos = generate_mask_combinations(COMBINATION_FIELDS)
+    save_mask_combinations(combos, COMBINATIONS_PATH)
+    print(f"生成并保存 {len(combos)} 种组合到 {COMBINATIONS_PATH}")
 
     # ---- 均衡分配：每种组合生成相同数量 ----
     cases_per_combo = TOTAL_CASES // len(combos)
@@ -316,8 +321,8 @@ if __name__ == "__main__":
     print(f"每种组合 {cases_per_combo} 条，余 {remainder} 条分配给前 {remainder} 种 → 总计 {TOTAL_CASES}")
 
     # ---- 输出目录（自动创建）----
-    SYSTEM_DIR = "my_case/testify/system"
-    REPLACE_DIR = "my_case/testify/replace"
+    SYSTEM_DIR = "my_case/M0/systemM0_4w"
+    REPLACE_DIR = "my_case/M0/replaceM0_4w"
     os.makedirs(SYSTEM_DIR, exist_ok=True)
     os.makedirs(REPLACE_DIR, exist_ok=True)
 
@@ -329,8 +334,8 @@ if __name__ == "__main__":
             data = generate_data(combo["mask"])
 
             # === system prompt ===
-            prompt_system = load_and_format_prompt2(
-                "generate_task/prompt/prompt_template_for_system1-new.txt", data
+            prompt_system = load_and_format_prompt_system(
+                "scripts_general/case_generator/prompt/M0_notdue/prompt_template_for_system-M0-new-0917.txt", data
             )
             with open(f"{SYSTEM_DIR}/case_{START_INDEX +case_idx+1}.txt",
                       "w", encoding="utf-8") as f:
@@ -342,8 +347,8 @@ if __name__ == "__main__":
                 data_copy["今天日期"], "%Y-%m-%d").strftime("%m月%d日")
             data_copy["还款日"] = datetime.strptime(
                 data_copy["还款日"], "%Y-%m-%d").strftime("%m月%d日")
-            prompt_replace = load_and_format_prompt3(
-                "generate_task/prompt/prompt_template_for_backbone_replace.txt", data_copy
+            prompt_replace = load_and_format_prompt_replace(
+                "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt", data_copy
             )
             with open(f"{REPLACE_DIR}/case_{START_INDEX +case_idx+1}.txt",
                       "w", encoding="utf-8") as f:

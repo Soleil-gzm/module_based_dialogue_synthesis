@@ -261,7 +261,7 @@ def generate_data(mask_dict):
     return {**STATIC_FIELDS, **values}
 
 
-def load_and_format_prompt2(prompt_path, data, follow_info=None):
+def load_and_format_prompt_system(prompt_path, data, follow_info=None):
     """加载 prompt template，替换 case 标签。
 
     follow_info：跟催结果类型（如「承诺还款」），用于替换模板中的
@@ -282,7 +282,7 @@ def load_and_format_prompt2(prompt_path, data, follow_info=None):
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
         today_date=data["今天日期"],
-        time_check='今天晚上8点',
+        time_check=data["查账时间"],
         payment_date=data["还款日"],
         amount=data["应还金额"],
         total_amount=data["总欠款"],
@@ -292,7 +292,7 @@ def load_and_format_prompt2(prompt_path, data, follow_info=None):
     )
 
 
-def load_and_format_prompt3(prompt_path, data):
+def load_and_format_prompt_replace(prompt_path, data):
     """加载 prompt template（带查账时间 + 元后缀）。"""
     with open(prompt_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
@@ -306,8 +306,8 @@ def load_and_format_prompt3(prompt_path, data):
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
         today_date=data["今天日期"],
-        # time_check=data["查账时间"],
-        # current_time=data["当前时间"],
+        time_check=data["查账时间"],
+        current_time=data["当前时间"],
         payment_date=data["还款日"],
         amount=data["应还金额"] + '元',
         total_amount=data["总欠款"] + '元',
@@ -326,15 +326,10 @@ if __name__ == "__main__":
     TOTAL_CASES = 100
     START_INDEX = 300          # ← 新增：输出文件起始序号（默认 1）
 
-    # ---- 加载 / 生成组合 ----
-    if os.path.exists(COMBINATIONS_PATH):
-        loaded = load_mask_combinations(COMBINATIONS_PATH)
-        combos = loaded["combinations"]
-        print(f"从 {COMBINATIONS_PATH} 加载 {len(combos)} 种组合")
-    else:
-        combos = generate_mask_combinations(COMBINATION_FIELDS)
-        save_mask_combinations(combos, COMBINATIONS_PATH)
-        print(f"生成并保存 {len(combos)} 种组合到 {COMBINATIONS_PATH}")
+    # ---- 每次重新生成，直接覆盖 ----
+    combos = generate_mask_combinations(COMBINATION_FIELDS)
+    save_mask_combinations(combos, COMBINATIONS_PATH)
+    print(f"生成并保存 {len(combos)} 种组合到 {COMBINATIONS_PATH}")
 
     # ---- 均衡分配：每种组合生成相同数量 ----
     cases_per_combo = TOTAL_CASES // len(combos)
@@ -356,8 +351,8 @@ if __name__ == "__main__":
 
             # === system prompt（跟催结果等概率抽取）===
             follow_info = random.choice(FOLLOW_INFO_OPTIONS)
-            prompt_system = load_and_format_prompt2(
-                "generate_task/prompt/prompt_template_for_system2-new-follow.txt",
+            prompt_system = load_and_format_prompt_system(
+                "scripts_general/case_generator/prompt/S1_due/prompt_template_for_system-S1-new-follow.txt",
                 data, follow_info=follow_info,
             )
             with open(f"{SYSTEM_DIR}/case_{START_INDEX +case_idx+1}.txt",
@@ -370,8 +365,8 @@ if __name__ == "__main__":
                 data_copy["今天日期"], "%Y-%m-%d").strftime("%m月%d日")
             data_copy["还款日"] = datetime.strptime(
                 data_copy["还款日"], "%Y-%m-%d").strftime("%m月%d日")
-            prompt_replace = load_and_format_prompt3(
-                "generate_task/prompt/prompt_template_for_backbone_replace.txt", data_copy
+            prompt_replace = load_and_format_prompt_replace(
+                "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt", data_copy
             )
             with open(f"{REPLACE_DIR}/case_{START_INDEX +case_idx+1}.txt",
                       "w", encoding="utf-8") as f:
