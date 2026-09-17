@@ -23,8 +23,8 @@ _ROOT = os.path.dirname(_THIS_DIR)
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from excel2prob.candidates_builder import build_candidates, save_candidates
-from excel2prob.prob_builder import build_prob_matrix, save_prob_matrix, validate_matrix
+from scripts_general.excel2prob.excel2prob.candidates_builder import build_candidates, save_candidates
+from scripts_general.excel2prob.excel2prob.prob_builder import build_prob_matrix, save_prob_matrix, validate_matrix
 
 
 # ============================================================
