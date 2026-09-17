@@ -17,23 +17,24 @@ import traceback
 from datetime import datetime
 from glob import glob
 
-# 兼容直接运行和模块运行
+# ============================================================
+# 把 run.py 所在目录加入 sys.path，保证同目录的模块能被导入
+# ============================================================
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(_THIS_DIR)
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+if _THIS_DIR not in sys.path:
+    sys.path.insert(0, _THIS_DIR)
 
-from scripts_general.excel2prob.excel2prob.candidates_builder import build_candidates, save_candidates
-from scripts_general.excel2prob.excel2prob.prob_builder import build_prob_matrix, save_prob_matrix, validate_matrix
+from candidates_builder import build_candidates, save_candidates
+from prob_builder import build_prob_matrix, save_prob_matrix, validate_matrix
 
 
 # ============================================================
 # 硬编码配置（改这里即可）
 # ============================================================
-EXCEL_DIR = "prob_generator/datas"                       # 输入：话术 Excel 文件夹
-YAML_PATH = "excel2prob/config/categories_notdue.yaml"                 # 输入：类别定义 YAML
-CANDIDATES_DIR = "prob_generator/notdue2/candidates"                      # 中间产物目录
-PROB_DIR = "prob_generator/notdue2/prob"                                  # 最终产物目录
+EXCEL_DIR = "prob_generator/datas/due"                       # 输入：话术 Excel 文件夹
+YAML_PATH = "scripts_general/excel2prob/config/categories_due.yaml"                 # 输入：类别定义 YAML
+CANDIDATES_DIR = "prob_generator/due/candidates"                      # 中间产物目录
+PROB_DIR = "prob_generator/due/prob"                                  # 最终产物目录
 COMPRESS_MODE = "log"                                           # "none" / "sqrt" / "log"
 SAVE_CANDIDATES = True                                          # 是否保存中间 JSON
 

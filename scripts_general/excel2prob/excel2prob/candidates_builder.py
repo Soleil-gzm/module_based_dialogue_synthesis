@@ -57,12 +57,12 @@ def expand_manual_list(
 # 3. 展开字典模式（权重）
 # ============================================================
 def expand_manual_weights(
-    raw_dict: dict,
-    a_set: set,
-    b_set: set,
-    c_set: set,
-    all_modules: set,
-    variant_counts: Dict[str, int]
+    raw_dict: dict,          # YAML 里的原始字典，如 {"特殊模块": 20, "A": 30, "B": 50}
+    a_set: set,              # A 类所有模块
+    b_set: set,              # B 类所有模块
+    c_set: set,              # C 类所有模块
+    all_modules: set,        # 话术表里所有模块（过滤不存在的）
+    variant_counts: Dict[str, int]   # 每个模块的 row 数（用于按比例分摊）
 ) -> Dict[str, float]:
     category_map = {"A": a_set, "B": b_set, "C": c_set}
     weights = {}
