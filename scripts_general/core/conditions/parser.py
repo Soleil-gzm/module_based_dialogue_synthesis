@@ -20,6 +20,7 @@ from core.conditions.overdue_days import OverdueDaysCondition
 from core.conditions.field_nullability import FieldNullabilityCondition
 from core.conditions.follow_info import FollowInfoCondition
 from core.conditions.unknown import UnknownTokenCondition
+from core.conditions.deduct_failure_reason import DeductFailureReasonCondition
 
 
 class ConditionParser(ConditionEvaluator):
@@ -33,6 +34,7 @@ class ConditionParser(ConditionEvaluator):
         self.register_token(OverdueDaysCondition())
         self.register_token(FieldNullabilityCondition())
         self.register_token(FollowInfoCondition())
+        self.register_token(DeductFailureReasonCondition()) 
 
     def register_token(self, cond: AtomicCondition) -> None:
         self._token.append(cond)

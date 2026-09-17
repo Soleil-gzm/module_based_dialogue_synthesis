@@ -307,7 +307,10 @@ if __name__ == "__main__":
     import os
 
     COMBINATIONS_PATH = "combinations-M0-4w.json"
-    TOTAL_CASES = 40000
+    # TOTAL_CASES = 40000
+    # START_INDEX = 0 
+    # 验证集
+    TOTAL_CASES = 100
     START_INDEX = 0 
 
     # ---- 每次重新生成，直接覆盖 ----
@@ -321,8 +324,13 @@ if __name__ == "__main__":
     print(f"每种组合 {cases_per_combo} 条，余 {remainder} 条分配给前 {remainder} 种 → 总计 {TOTAL_CASES}")
 
     # ---- 输出目录（自动创建）----
-    SYSTEM_DIR = "case_generate/M0/systemM0_4w"
-    REPLACE_DIR = "case_generate/M0/replaceM0_4w"
+    # SYSTEM_DIR = "case_generate/M0/systemM0_4w"
+    # REPLACE_DIR = "case_generate/M0/replaceM0_4w"
+
+    # 验证集
+    SYSTEM_DIR = "case_generate/testify/system400"
+    REPLACE_DIR = "case_generate/testify/replace400"
+
     os.makedirs(SYSTEM_DIR, exist_ok=True)
     os.makedirs(REPLACE_DIR, exist_ok=True)
 

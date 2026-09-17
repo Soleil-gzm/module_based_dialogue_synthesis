@@ -14,6 +14,7 @@ from core.conditions.overdue_days import OverdueDaysCondition
 from core.conditions.field_nullability import FieldNullabilityCondition
 from core.conditions.follow_info import FollowInfoCondition
 from core.conditions.unknown import UnknownTokenCondition
+from core.conditions.deduct_failure_reason import DeductFailureReasonCondition
 
 __all__ = [
     "ConditionEvaluator",
@@ -24,6 +25,7 @@ __all__ = [
     "OverdueDaysCondition",
     "FieldNullabilityCondition",
     "FollowInfoCondition",
+    "DeductFailureReasonCondition", 
     "UnknownTokenCondition",
     "safe_float",
     "safe_int",
