@@ -31,7 +31,7 @@ from prob_builder import build_prob_matrix, save_prob_matrix, validate_matrix
 # ============================================================
 # 硬编码配置（改这里即可）
 # ============================================================
-EXCEL_DIR = "datas/suning-notdueM0-0917"                       # 输入：话术 Excel 文件夹
+EXCEL_DIR = "datas/suning-notdueM0-0917/excel"                       # 输入：话术 Excel 文件夹
 YAML_PATH = "datas/suning-notdueM0-0917/categories_notdue-0917.yaml"                 # 输入：类别定义 YAML
 CANDIDATES_DIR = "datas/suning-notdueM0-0917/prob_generator/candidates"                      # 中间产物目录
 PROB_DIR = "datas/suning-notdueM0-0917/prob_generator/prob"                                  # 最终产物目录

@@ -16,6 +16,8 @@ from core.time_generator import TimeGenerator
 
 # 从 system 文件中提取 "跟催-XXX" 的正则
 _FOLLOW_INFO_PATTERN = re.compile(r"跟催-(.+?)(?:\s*$|\n)", re.MULTILINE)
+# ★ 新增：从 system 中提取 <代扣失败原因> 标签
+_DEDUCT_FAILURE_PATTERN = re.compile(r"<代扣失败原因>\s*([^<\n]+)")
 
 
 class CaseLoader(ABC):
@@ -94,7 +96,6 @@ class XiaoyingCaseLoader(CaseLoader):
 
         cases = []
         prompts = []
-        # 确定配对长度：简单使用最大值并循环复用
         max_len = max(len(replace_files), len(system_files))
 
         for i in range(max_len):
@@ -102,7 +103,6 @@ class XiaoyingCaseLoader(CaseLoader):
             replace_file = replace_files[i % len(replace_files)]
             replace_path = os.path.join(self.replace_dir, replace_file)
             case = parse_case_info(replace_path, rng=rng, time_gen=time_gen)
-            # 添加 _filename 字段（不含扩展名）
             case["_filename"] = os.path.splitext(replace_file)[0]
             cases.append(case)
 
@@ -113,9 +113,14 @@ class XiaoyingCaseLoader(CaseLoader):
                 prompt_text = f.read()
             prompts.append(prompt_text)
 
-            # 从 system 文件提取跟催信息，写入 case dict 供条件解析器使用
+            # 从 system 文件提取跟催信息
             m = _FOLLOW_INFO_PATTERN.search(prompt_text)
             if m:
                 case["跟催信息"] = m.group(1).strip()
+
+            # ★ 新增：从 system 文件提取代扣失败原因，写入 case["代扣结果"]
+            m2 = _DEDUCT_FAILURE_PATTERN.search(prompt_text)
+            if m2:
+                case["代扣结果"] = m2.group(1).strip()
 
         return cases, prompts
