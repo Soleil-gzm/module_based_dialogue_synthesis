@@ -356,3 +356,97 @@ class DefaultAnalyzer(Analyzer):
             print(
                 f"Format '{self.format}' not supported or plotly missing, skipping charts."
             )
+
+
+class ModuleDiversityAnalyzer(Analyzer):
+    """
+    模块条件 × UID 多样性分析器。
+    只生成 txt 报告，不生成图表，不输出到终端。
+    """
+
+    def __init__(self, modules: List[str]):
+        self.modules = modules
+
+    def analyze(self, trace_path: str, output_dir: str, **kwargs) -> None:
+        if not os.path.exists(trace_path):
+            raise FileNotFoundError(f"Trace file not found: {trace_path}")
+        os.makedirs(output_dir, exist_ok=True)
+
+        with open(trace_path, "r", encoding="utf-8") as f:
+            traces = json.load(f)
+
+        for module_name in self.modules:
+            self._analyze_single_module(traces, module_name, output_dir)
+
+    def _analyze_single_module(
+        self, traces: List[Dict], module_name: str, output_dir: str
+    ):
+        """分析单个模块，输出 txt 报告。"""
+        from collections import defaultdict, Counter
+
+        condition_uid_counter = defaultdict(Counter)
+        condition_total_counter = Counter()
+
+        for trace in traces:
+            for mod in trace.get("modules", []):
+                if mod.get("module") != module_name:
+                    continue
+                cond_text = mod.get("condition_text", "")
+                if not cond_text or cond_text == "无条件":
+                    cond_text = "无条件(空)"
+                uid = mod.get("selected_uid", -1)
+                if uid == -1:
+                    continue
+                condition_uid_counter[cond_text][uid] += 1
+                condition_total_counter[cond_text] += 1
+
+        report_file = os.path.join(
+            output_dir, f"diversity_report_{module_name}.txt"
+        )
+
+        with open(report_file, "w", encoding="utf-8") as f:
+            if not condition_uid_counter:
+                f.write(f"模块 '{module_name}' 无数据\n")
+                return
+
+            all_conditions = condition_total_counter.most_common()
+            f.write(f"模块 '{module_name}' 条件 × UID 多样性报告\n")
+            f.write("=" * 80 + "\n")
+            f.write(f"共 {len(all_conditions)} 个条件\n")
+            f.write(
+                f"{'条件':<30} {'总次数':>8} {'不同UID数':>10} {'最大UID占比':>12} {'多样性评分':>10}\n"
+            )
+            f.write("-" * 80 + "\n")
+
+            for cond, total in all_conditions:
+                uid_counts = condition_uid_counter[cond]
+                unique_uids = len(uid_counts)
+                max_count = max(uid_counts.values()) if uid_counts else 0
+                max_ratio = max_count / total if total > 0 else 0
+                diversity = 1 - max_ratio
+                f.write(
+                    f"{cond:<30} {total:>8} {unique_uids:>10} {max_ratio:>11.2%} {diversity:>9.2f}\n"
+                )
+
+            f.write("\n" + "=" * 80 + "\n")
+            f.write("多样性警报 (最大UID占比 > 50%):\n")
+            f.write("-" * 80 + "\n")
+            alert_count = 0
+            for cond, total in all_conditions:
+                uid_counts = condition_uid_counter[cond]
+                unique_uids = len(uid_counts)
+                max_count = max(uid_counts.values()) if uid_counts else 0
+                max_ratio = max_count / total if total > 0 else 0
+                if max_ratio > 0.5:
+                    f.write(
+                        f"  [!] {cond}: 最大UID占比 {max_ratio:.1%} (仅 {unique_uids} 个不同UID)\n"
+                    )
+                    alert_count += 1
+            if alert_count == 0:
+                f.write("  所有条件多样性良好，无明显单调问题。\n")
+
+            f.write("\n" + "=" * 80 + "\n")
+            f.write("解读指南:\n")
+            f.write("- '最大UID占比' 越接近 100%，说明该条件只命中固定的1-2句话术，多样性差。\n")
+            f.write("- '多样性评分' 越接近 1.0，说明该条件下各 UID 分布越均匀。\n")
+            f.write("- 建议关注 '最大UID占比 > 50%' 的条件，检查 Excel 里的 'parent(继承)' 或 'flexible_stop' 是否限制了随机性。\n")

@@ -6,12 +6,16 @@
 """
 
 import os
+import re
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
 from core.data_loader import parse_case_info  # 复用原有解析函数
 from core.random_service import RandomService
 from core.time_generator import TimeGenerator
+
+# 从 system 文件中提取 "跟催-XXX" 的正则
+_FOLLOW_INFO_PATTERN = re.compile(r"跟催-(.+?)(?:\s*$|\n)", re.MULTILINE)
 
 
 class CaseLoader(ABC):
@@ -106,6 +110,12 @@ class XiaoyingCaseLoader(CaseLoader):
             system_file = system_files[i % len(system_files)]
             system_path = os.path.join(self.system_dir, system_file)
             with open(system_path, "r", encoding="utf-8") as f:
-                prompts.append(f.read())
+                prompt_text = f.read()
+            prompts.append(prompt_text)
+
+            # 从 system 文件提取跟催信息，写入 case dict 供条件解析器使用
+            m = _FOLLOW_INFO_PATTERN.search(prompt_text)
+            if m:
+                case["跟催信息"] = m.group(1).strip()
 
         return cases, prompts
