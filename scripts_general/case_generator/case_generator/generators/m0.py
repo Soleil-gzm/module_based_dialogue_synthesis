@@ -310,6 +310,17 @@ def generate(config):
     REPLACE_DIR = config["replace_dir"]
     START_INDEX = 0
 
+    # ---- testify 配置 ----
+    testify_cfg = config.get("testify")
+    if testify_cfg:
+        TESTIFY_SYSTEM_DIR = testify_cfg["system_dir"]
+        TESTIFY_REPLACE_DIR = testify_cfg["replace_dir"]
+        TESTIFY_START = testify_cfg["start"]
+        TESTIFY_END = testify_cfg["end"]
+        TESTIFY_QUOTA = TESTIFY_END - TESTIFY_START + 1
+        os.makedirs(TESTIFY_SYSTEM_DIR, exist_ok=True)
+        os.makedirs(TESTIFY_REPLACE_DIR, exist_ok=True)
+
     # ---- 每次重新生成，直接覆盖 ----
     combos = generate_mask_combinations(COMBINATION_FIELDS)
     save_mask_combinations(combos, COMBINATIONS_PATH)
@@ -333,11 +344,19 @@ def generate(config):
 
             # === system prompt ===
             prompt_system = load_and_format_prompt_system(
-                config["prompt_system_path"], data
+                config["prompt_system_path"], data,
+                # s1_follow.py / m0_follow.py 需要加上下面这行参数：
+                # follow_info=follow_info,
             )
-            with open(f"{SYSTEM_DIR}/case_{START_INDEX +case_idx+1}.txt",
+            with open(f"{SYSTEM_DIR}/case_{START_INDEX + case_idx + 1}.txt",
                       "w", encoding="utf-8") as f:
                 f.write(prompt_system)
+
+            # ----- 同步写入 testify/system -----
+            if testify_cfg and case_idx < TESTIFY_QUOTA:
+                with open(f"{TESTIFY_SYSTEM_DIR}/case_{TESTIFY_START + case_idx}.txt",
+                          "w", encoding="utf-8") as f:
+                    f.write(prompt_system)
 
             # === replace prompt（日期转月日格式）===
             data_copy = dict(data)
@@ -348,9 +367,15 @@ def generate(config):
             prompt_replace = load_and_format_prompt_replace(
                 config["prompt_replace_path"], data_copy
             )
-            with open(f"{REPLACE_DIR}/case_{START_INDEX +case_idx+1}.txt",
+            with open(f"{REPLACE_DIR}/case_{START_INDEX + case_idx + 1}.txt",
                       "w", encoding="utf-8") as f:
                 f.write(prompt_replace)
+
+            # ----- 同步写入 testify/replace -----
+            if testify_cfg and case_idx < TESTIFY_QUOTA:
+                with open(f"{TESTIFY_REPLACE_DIR}/case_{TESTIFY_START + case_idx}.txt",
+                          "w", encoding="utf-8") as f:
+                    f.write(prompt_replace)
 
             case_idx += 1
 
