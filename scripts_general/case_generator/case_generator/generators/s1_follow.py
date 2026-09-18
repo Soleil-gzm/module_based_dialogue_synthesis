@@ -257,15 +257,11 @@ def generate_data(mask_dict):
 
 
 def load_and_format_prompt_system(prompt_path, data, follow_info=None):
-    """加载 prompt template，替换 case 标签。
-
-    follow_info：跟催结果类型（如「承诺还款」），用于替换模板中的
-    「跟催-{follow-info}」占位符。该占位符含连字符，不能作为 format
-    关键字参数，因此在交给 PromptTemplate 之前先做字面量替换。
-    """
+    """加载 prompt template，替换 case 标签。"""
     with open(prompt_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
 
+    # 关键：提前替换掉带连字符的占位符
     if follow_info is not None:
         prompt_template = prompt_template.replace("{follow-info}", follow_info)
 
@@ -285,7 +281,6 @@ def load_and_format_prompt_system(prompt_path, data, follow_info=None):
         interest=data["利息"],
         penalty=data["罚息"],
     )
-
 
 def load_and_format_prompt_replace(prompt_path, data):
     """加载 prompt template（带查账时间 + 元后缀）。"""
@@ -345,9 +340,13 @@ def generate(config):
         for _ in range(n):
             data = generate_data(combo["mask"])
 
+            # === 新增：从选项中随机抽取 follow_info ===
+            follow_info = random.choice(FOLLOW_INFO_OPTIONS)
+            
             # === system prompt ===
+            # 【修改点】将 follow_info 传递给函数
             prompt_system = load_and_format_prompt_system(
-                config["prompt_system_path"], data
+                config["prompt_system_path"], data, follow_info=follow_info
             )
             with open(f"{SYSTEM_DIR}/case_{START_INDEX +case_idx+1}.txt",
                       "w", encoding="utf-8") as f:

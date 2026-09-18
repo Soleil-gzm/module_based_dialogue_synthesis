@@ -324,6 +324,8 @@ def load_and_format_prompt_replace(prompt_path, data):
 
 # ============== 主流程：M0-follow（未逾期·跟催）=============
 
+# ============== 主流程：M0-follow（未逾期·跟催）=============
+
 def generate(config):
     # 从配置中读取参数
     random.seed(config["seed"])
@@ -354,9 +356,13 @@ def generate(config):
         for _ in range(n):
             data = generate_data(combo["mask"])
 
+            # === 新增：从选项中随机抽取 follow_info ===
+            follow_info = random.choice(FOLLOW_INFO_OPTIONS)
+
             # === system prompt ===
+            # 【修改点】将 follow_info 传递给函数
             prompt_system = load_and_format_prompt_system(
-                config["prompt_system_path"], data
+                config["prompt_system_path"], data, follow_info=follow_info
             )
             with open(f"{SYSTEM_DIR}/case_{START_INDEX +case_idx+1}.txt",
                       "w", encoding="utf-8") as f:
