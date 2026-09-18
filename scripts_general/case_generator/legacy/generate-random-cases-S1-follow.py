@@ -9,7 +9,7 @@ from soleil.data.combination import (
     load_mask_combinations,
 )
 
-random.seed(45)
+random.seed(35)
 
 from soleil import random_name
 from soleil import generate_time
@@ -38,7 +38,8 @@ def _sample_today_date(**ctx):
     return generate_time.generate_random_date()
 
 def _sample_days_past_due(**ctx):
-    return 0  # M0: 固定为 0
+    """S1: 首催，逾期天数1~31。"""
+    return random.randint(1, 31)
 
 def _sample_jobnumber(**ctx):
     return generate_jobnumber()
@@ -57,13 +58,6 @@ def _sample_payment_date(**ctx):
 def _sample_num_tranc(**ctx):
     """逾期笔数。"""
     return 0 if random.random() < 0.4 else random.randint(1, 5)
-
-# 代扣失败原因选项：等概率随机抽取
-REASON_OPTIONS = ["无代扣协议", "银行卡异常", "无"]
-
-def _sample_reason(**ctx):
-    """代扣失败原因映射：随机映射到 3 个原因之一。"""
-    return random.choice(REASON_OPTIONS)
 
 # ---- 金额字段 ----
 
@@ -142,7 +136,6 @@ SAMPLERS = {
     "利息":   _sample_interest,
     "罚息":   _sample_penalty,
     "逾期笔数":   _sample_num_tranc,
-    "代扣失败原因": _sample_reason,
 }
 
 # ============== 字段分类 ==============
@@ -160,7 +153,7 @@ GENERATED_FIELDS = [
     "姓名",          # → dict: {姓, 名, 姓名, 性别}
     "当前时间",       # 独立
     "今天日期",       # 独立
-    "逾期天数",       # 独立（M0: 固定 0）
+    "逾期天数",       # 独立（S1-follow: 1~30）
     "专员工号",       # 独立
     "查账时间",       # 依赖 当前时间
     "还款日",         # 依赖 今天日期, 逾期天数
@@ -170,7 +163,6 @@ GENERATED_FIELDS = [
     "利息",           # mask 驱动，依赖 应还金额
     "罚息",           # mask 驱动，依赖 应还金额
     "逾期笔数",       # mask 驱动，独立
-    "代扣失败原因",       # mask 驱动，独立
 ]
 
 # 参与 mask 组合枚举的字段（可以为 0 或非 0）
@@ -181,6 +173,19 @@ ALWAYS_NONZERO_FIELDS = ["应还金额"]
 
 # 需要 2 位小数格式化的字段
 NUMERIC_FIELDS = ["总欠款", "应还金额", "本金", "利息", "罚息"]
+
+# 跟催结果类型：system prompt 中「跟催-{follow-info}」从以下 9 类中等概率抽取
+FOLLOW_INFO_OPTIONS = [
+    "未接通",
+    "无有效沟通",
+    "承诺还款",
+    "要时间",
+    "资金困难",
+    "对欠款有异议",
+    "协商诉求",
+    "投诉风险",
+    "其他",
+]
 
 
 # ============== 工具函数 ==============
@@ -252,10 +257,18 @@ def generate_data(mask_dict):
     return {**STATIC_FIELDS, **values}
 
 
-def load_and_format_prompt_system(prompt_path, data):
-    """加载 prompt template，替换 case 标签。"""
+def load_and_format_prompt_system(prompt_path, data, follow_info=None):
+    """加载 prompt template，替换 case 标签。
+
+    follow_info：跟催结果类型（如「承诺还款」），用于替换模板中的
+    「跟催-{follow-info}」占位符。该占位符含连字符，不能作为 format
+    关键字参数，因此在交给 PromptTemplate 之前先做字面量替换。
+    """
     with open(prompt_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
+
+    if follow_info is not None:
+        prompt_template = prompt_template.replace("{follow-info}", follow_info)
 
     prompt_template_load = PromptTemplate.from_template(prompt_template)
     return prompt_template_load.format(
@@ -272,7 +285,6 @@ def load_and_format_prompt_system(prompt_path, data):
         principal=data["本金"],
         interest=data["利息"],
         penalty=data["罚息"],
-        reason=data["代扣失败原因"],
     )
 
 
@@ -301,17 +313,17 @@ def load_and_format_prompt_replace(prompt_path, data):
     )
 
 
-# ============== 主流程：M0（未逾期）=============
+# ============== 主流程：S1-follow（跟催）=============
 
 if __name__ == "__main__":
     import os
 
-    COMBINATIONS_PATH = "combinations-M0-4w.json"
-    # TOTAL_CASES = 40000
-    # START_INDEX = 0 
+    COMBINATIONS_PATH = "combinations-S1-follow-2w.json"
+    TOTAL_CASES = 20000
+    START_INDEX = 0          # ← 新增：输出文件起始序号（默认 1）
     # 验证集
-    TOTAL_CASES = 100
-    START_INDEX = 0 
+    # TOTAL_CASES = 100
+    # START_INDEX = 300 
 
     # ---- 每次重新生成，直接覆盖 ----
     combos = generate_mask_combinations(COMBINATION_FIELDS)
@@ -324,12 +336,12 @@ if __name__ == "__main__":
     print(f"每种组合 {cases_per_combo} 条，余 {remainder} 条分配给前 {remainder} 种 → 总计 {TOTAL_CASES}")
 
     # ---- 输出目录（自动创建）----
-    # SYSTEM_DIR = "case_generate/M0/systemM0_4w"
-    # REPLACE_DIR = "case_generate/M0/replaceM0_4w"
+    SYSTEM_DIR = "datas/suning-notdueS1-0918/S1/S1-follow-2w/systemS1-follow-2w"
+    REPLACE_DIR = "datas/suning-notdueS1-0918/S1/S1-follow-2w/replaceS1-follow-2w"
 
     # 验证集
-    SYSTEM_DIR = "case_generate/testify/system400"
-    REPLACE_DIR = "case_generate/testify/replace400"
+    # SYSTEM_DIR = "datas/suning-notdueM0-0917/M0/testify/system400"
+    # REPLACE_DIR = "datas/suning-notdueM0-0917/M0/testify/replace400"
 
     os.makedirs(SYSTEM_DIR, exist_ok=True)
     os.makedirs(REPLACE_DIR, exist_ok=True)
@@ -341,9 +353,11 @@ if __name__ == "__main__":
         for _ in range(n):
             data = generate_data(combo["mask"])
 
-            # === system prompt ===
+            # === system prompt（跟催结果等概率抽取）===
+            follow_info = random.choice(FOLLOW_INFO_OPTIONS)
             prompt_system = load_and_format_prompt_system(
-                "scripts_general/case_generator/prompt/M0_notdue/prompt_template_for_system-M0-new-0917.txt", data
+                "scripts_general/case_generator/prompt/S1_due/prompt_template_for_system-S1-new-follow-0918.txt",
+                data, follow_info=follow_info,
             )
             with open(f"{SYSTEM_DIR}/case_{START_INDEX +case_idx+1}.txt",
                       "w", encoding="utf-8") as f:
@@ -364,4 +378,4 @@ if __name__ == "__main__":
 
             case_idx += 1
 
-    print(f"完成，共生成 {case_idx} 条 case（M0: 未逾期）")
+    print(f"完成，共生成 {case_idx} 条 case（S1-follow: 跟催）")

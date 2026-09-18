@@ -1,6 +1,7 @@
 import random
 from datetime import datetime, timedelta
 import json
+import os
 
 from langchain_core.prompts import PromptTemplate
 from soleil.data.combination import (
@@ -8,8 +9,6 @@ from soleil.data.combination import (
     save_mask_combinations,
     load_mask_combinations,
 )
-
-random.seed(39)
 
 from soleil import random_name
 from soleil import generate_time
@@ -38,12 +37,8 @@ def _sample_today_date(**ctx):
     return generate_time.generate_random_date()
 
 def _sample_days_past_due(**ctx):
-    """S1: 首催，逾期天数 30% 概率为 1，否则 2~30。"""
-    tmp = random.random()
-    if tmp < 0.3:
-        return 1
-    else:
-        return random.randint(2, 30)
+    """S1: 首催，逾期天数1~31。"""
+    return random.randint(1, 31)
 
 def _sample_jobnumber(**ctx):
     return generate_jobnumber()
@@ -157,7 +152,7 @@ GENERATED_FIELDS = [
     "姓名",          # → dict: {姓, 名, 姓名, 性别}
     "当前时间",       # 独立
     "今天日期",       # 独立
-    "逾期天数",       # 独立（S1: 1~30）
+    "逾期天数",       # 独立（S1-follow: 1~30）
     "专员工号",       # 独立
     "查账时间",       # 依赖 当前时间
     "还款日",         # 依赖 今天日期, 逾期天数
@@ -177,6 +172,19 @@ ALWAYS_NONZERO_FIELDS = ["应还金额"]
 
 # 需要 2 位小数格式化的字段
 NUMERIC_FIELDS = ["总欠款", "应还金额", "本金", "利息", "罚息"]
+
+# 跟催结果类型：system prompt 中「跟催-{follow-info}」从以下 9 类中等概率抽取
+FOLLOW_INFO_OPTIONS = [
+    "未接通",
+    "无有效沟通",
+    "承诺还款",
+    "要时间",
+    "资金困难",
+    "对欠款有异议",
+    "协商诉求",
+    "投诉风险",
+    "其他",
+]
 
 
 # ============== 工具函数 ==============
@@ -248,10 +256,18 @@ def generate_data(mask_dict):
     return {**STATIC_FIELDS, **values}
 
 
-def load_and_format_prompt_system(prompt_path, data):
-    """加载 prompt template，替换 case 标签。"""
+def load_and_format_prompt_system(prompt_path, data, follow_info=None):
+    """加载 prompt template，替换 case 标签。
+
+    follow_info：跟催结果类型（如「承诺还款」），用于替换模板中的
+    「跟催-{follow-info}」占位符。该占位符含连字符，不能作为 format
+    关键字参数，因此在交给 PromptTemplate 之前先做字面量替换。
+    """
     with open(prompt_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
+
+    if follow_info is not None:
+        prompt_template = prompt_template.replace("{follow-info}", follow_info)
 
     prompt_template_load = PromptTemplate.from_template(prompt_template)
     return prompt_template_load.format(
@@ -296,17 +312,17 @@ def load_and_format_prompt_replace(prompt_path, data):
     )
 
 
-# ============== 主流程：S1（首催）=============
+# ============== 主流程：S1-follow（跟催）=============
 
-if __name__ == "__main__":
-    import os
 
-    COMBINATIONS_PATH = "combinations-S1-6w.json"
-    # TOTAL_CASES = 60000
-    # START_INDEX = 0
-    # 验证集
-    TOTAL_CASES = 100
-    START_INDEX = 200 
+def generate(config):
+    # 从配置中读取参数
+    random.seed(config["seed"])
+    COMBINATIONS_PATH = config["combinations_path"]
+    TOTAL_CASES = config["total_cases"]
+    SYSTEM_DIR = config["system_dir"]
+    REPLACE_DIR = config["replace_dir"]
+    START_INDEX = 0
 
     # ---- 每次重新生成，直接覆盖 ----
     combos = generate_mask_combinations(COMBINATION_FIELDS)
@@ -319,12 +335,6 @@ if __name__ == "__main__":
     print(f"每种组合 {cases_per_combo} 条，余 {remainder} 条分配给前 {remainder} 种 → 总计 {TOTAL_CASES}")
 
     # ---- 输出目录（自动创建）----
-    # SYSTEM_DIR = "case_generate/S1/systemS1-6w"
-    # REPLACE_DIR = "case_generate/S1/replaceS1-6w"
-
-    # 验证集
-    SYSTEM_DIR = "case_generate/testify/system400"
-    REPLACE_DIR = "case_generate/testify/replace400"
     os.makedirs(SYSTEM_DIR, exist_ok=True)
     os.makedirs(REPLACE_DIR, exist_ok=True)
 
@@ -337,7 +347,7 @@ if __name__ == "__main__":
 
             # === system prompt ===
             prompt_system = load_and_format_prompt_system(
-                "scripts_general/case_generator/prompt/S1_due/prompt_template_for_system-S1-new.txt", data
+                config["prompt_system_path"], data
             )
             with open(f"{SYSTEM_DIR}/case_{START_INDEX +case_idx+1}.txt",
                       "w", encoding="utf-8") as f:
@@ -350,7 +360,7 @@ if __name__ == "__main__":
             data_copy["还款日"] = datetime.strptime(
                 data_copy["还款日"], "%Y-%m-%d").strftime("%m月%d日")
             prompt_replace = load_and_format_prompt_replace(
-                "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt", data_copy
+                config["prompt_replace_path"], data_copy
             )
             with open(f"{REPLACE_DIR}/case_{START_INDEX +case_idx+1}.txt",
                       "w", encoding="utf-8") as f:
@@ -358,4 +368,4 @@ if __name__ == "__main__":
 
             case_idx += 1
 
-    print(f"完成，共生成 {case_idx} 条 case（S1: 首催）")
+    print(f"完成，共生成 {case_idx} 条 case（S1-follow: 跟催）")

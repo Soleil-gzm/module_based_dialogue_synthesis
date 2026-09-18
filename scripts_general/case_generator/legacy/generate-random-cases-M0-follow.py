@@ -9,7 +9,7 @@ from soleil.data.combination import (
     load_mask_combinations,
 )
 
-random.seed(35)
+random.seed(45)
 
 from soleil import random_name
 from soleil import generate_time
@@ -38,12 +38,7 @@ def _sample_today_date(**ctx):
     return generate_time.generate_random_date()
 
 def _sample_days_past_due(**ctx):
-    """S1-follow: 跟催，逾期天数 30% 概率为 1，否则 2~30。"""
-    tmp = random.random()
-    if tmp < 0.3:
-        return 1
-    else:
-        return random.randint(2, 30)
+    return 0  # M0-follow: 未逾期，固定为 0
 
 def _sample_jobnumber(**ctx):
     return generate_jobnumber()
@@ -62,6 +57,14 @@ def _sample_payment_date(**ctx):
 def _sample_num_tranc(**ctx):
     """逾期笔数。"""
     return 0 if random.random() < 0.4 else random.randint(1, 5)
+
+# 代扣失败原因选项：等概率随机抽取
+REASON_OPTIONS = ["无代扣协议", "银行卡异常", "无"]
+
+def _sample_reason(**ctx):
+    """代扣失败原因映射：随机映射到 3 个原因之一。"""
+    return random.choice(REASON_OPTIONS)
+
 
 # ---- 金额字段 ----
 
@@ -140,6 +143,7 @@ SAMPLERS = {
     "利息":   _sample_interest,
     "罚息":   _sample_penalty,
     "逾期笔数":   _sample_num_tranc,
+    "代扣失败原因": _sample_reason,
 }
 
 # ============== 字段分类 ==============
@@ -157,7 +161,7 @@ GENERATED_FIELDS = [
     "姓名",          # → dict: {姓, 名, 姓名, 性别}
     "当前时间",       # 独立
     "今天日期",       # 独立
-    "逾期天数",       # 独立（S1-follow: 1~30）
+    "逾期天数",       # 独立（M0-follow: 固定 0）
     "专员工号",       # 独立
     "查账时间",       # 依赖 当前时间
     "还款日",         # 依赖 今天日期, 逾期天数
@@ -167,6 +171,7 @@ GENERATED_FIELDS = [
     "利息",           # mask 驱动，依赖 应还金额
     "罚息",           # mask 驱动，依赖 应还金额
     "逾期笔数",       # mask 驱动，独立
+    "代扣失败原因",       # mask 驱动，独立
 ]
 
 # 参与 mask 组合枚举的字段（可以为 0 或非 0）
@@ -289,6 +294,7 @@ def load_and_format_prompt_system(prompt_path, data, follow_info=None):
         principal=data["本金"],
         interest=data["利息"],
         penalty=data["罚息"],
+        reason=data["代扣失败原因"],
     )
 
 
@@ -317,17 +323,17 @@ def load_and_format_prompt_replace(prompt_path, data):
     )
 
 
-# ============== 主流程：S1-follow（跟催）=============
+# ============== 主流程：M0-follow（未逾期·跟催）=============
 
 if __name__ == "__main__":
     import os
 
-    COMBINATIONS_PATH = "combinations-S1-follow-2w.json"
-    # TOTAL_CASES = 20000
-    # START_INDEX = 0          # ← 新增：输出文件起始序号（默认 1）
+    COMBINATIONS_PATH = "combinations-M0-follow-1w.json"
+    TOTAL_CASES = 10000
+    START_INDEX = 0 
     # 验证集
-    TOTAL_CASES = 100
-    START_INDEX = 300 
+    # TOTAL_CASES = 100
+    # START_INDEX = 100 
 
     # ---- 每次重新生成，直接覆盖 ----
     combos = generate_mask_combinations(COMBINATION_FIELDS)
@@ -340,12 +346,12 @@ if __name__ == "__main__":
     print(f"每种组合 {cases_per_combo} 条，余 {remainder} 条分配给前 {remainder} 种 → 总计 {TOTAL_CASES}")
 
     # ---- 输出目录（自动创建）----
-    # SYSTEM_DIR = "case_generate/M0/systemS1-follow-2w"
-    # REPLACE_DIR = "case_generate/M0/replaceS1-follow-2w"
+    SYSTEM_DIR = "datas/suning-notdueM0-0917/M0/M0-1w/systemM0-follow-1w"
+    REPLACE_DIR = "datas/suning-notdueM0-0917/M0/M0-1w/replaceM0-follow-1w"
 
     # 验证集
-    SYSTEM_DIR = "case_generate/testify/system400"
-    REPLACE_DIR = "case_generate/testify/replace400"
+    # SYSTEM_DIR = "datas/suning-notdueM0-0917/M0/testify/system400"
+    # REPLACE_DIR = "datas/suning-notdueM0-0917/M0/testify/replace400"
 
     os.makedirs(SYSTEM_DIR, exist_ok=True)
     os.makedirs(REPLACE_DIR, exist_ok=True)
@@ -360,7 +366,7 @@ if __name__ == "__main__":
             # === system prompt（跟催结果等概率抽取）===
             follow_info = random.choice(FOLLOW_INFO_OPTIONS)
             prompt_system = load_and_format_prompt_system(
-                "scripts_general/case_generator/prompt/S1_due/prompt_template_for_system-S1-new-follow.txt",
+                "scripts_general/case_generator/prompt/M0_notdue/prompt_template_for_system-M0-new-follow-0918.txt",
                 data, follow_info=follow_info,
             )
             with open(f"{SYSTEM_DIR}/case_{START_INDEX +case_idx+1}.txt",
@@ -382,4 +388,4 @@ if __name__ == "__main__":
 
             case_idx += 1
 
-    print(f"完成，共生成 {case_idx} 条 case（S1-follow: 跟催）")
+    print(f"完成，共生成 {case_idx} 条 case（M0-follow: 未逾期·跟催）")
