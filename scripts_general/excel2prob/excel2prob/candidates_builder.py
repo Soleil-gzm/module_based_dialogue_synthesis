@@ -36,11 +36,11 @@ def count_rows_from_excel(excel_path: str) -> Dict[str, int]:
 # 2. 展开列表模式
 # ============================================================
 def expand_manual_list(
-    raw_list: List[str],       # YAML 里写的原始列表，如 ["信息核实", "A", "B", "C"]
-    a_set: set,                # 所有 A 类模块的集合，如 {"没钱", "失业", ...}
-    b_set: set,                # 所有 B 类模块的集合
-    c_set: set,                # 所有 C 类模块的集合
-    all_modules: set           # 话术表里所有模块（用来过滤不存在的模块）
+    raw_list: List[str],
+    a_set: set,
+    b_set: set,
+    c_set: set,
+    all_modules: set
 ) -> List[str]:
     category_map = {"A": a_set, "B": b_set, "C": c_set}
     result, seen = [], set()
@@ -57,12 +57,12 @@ def expand_manual_list(
 # 3. 展开字典模式（权重）
 # ============================================================
 def expand_manual_weights(
-    raw_dict: dict,          # YAML 里的原始字典，如 {"特殊模块": 20, "A": 30, "B": 50}
-    a_set: set,              # A 类所有模块
-    b_set: set,              # B 类所有模块
-    c_set: set,              # C 类所有模块
-    all_modules: set,        # 话术表里所有模块（过滤不存在的）
-    variant_counts: Dict[str, int]   # 每个模块的 row 数（用于按比例分摊）
+    raw_dict: dict,
+    a_set: set,
+    b_set: set,
+    c_set: set,
+    all_modules: set,
+    variant_counts: Dict[str, int]
 ) -> Dict[str, float]:
     category_map = {"A": a_set, "B": b_set, "C": c_set}
     weights = {}
@@ -165,10 +165,16 @@ def build_candidates_from_yaml(
 # ============================================================
 def build_candidates(excel_path: str, yaml_path: str) -> dict:
     """
-    读 excel + yaml，返回完整 payload（含 variant_counts、candidates、unused_modules）
+    读 excel + yaml，返回完整 payload
+    （含 variant_counts、candidates、fixed_prob、unused_modules）
     """
     variant_counts = count_rows_from_excel(excel_path)
     candidates = build_candidates_from_yaml(yaml_path, variant_counts)
+
+    # 读取 fixed_prob
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+    fixed_prob = config.get("fixed_prob", {}) or {}
 
     used_modules = set(candidates.keys())
     all_modules = set(variant_counts.keys())
@@ -180,6 +186,7 @@ def build_candidates(excel_path: str, yaml_path: str) -> dict:
         "yaml_path": yaml_path,
         "variant_counts": variant_counts,
         "candidates": candidates,
+        "fixed_prob": fixed_prob,
         "unused_modules": unused_modules,
     }
 

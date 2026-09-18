@@ -31,10 +31,10 @@ from prob_builder import build_prob_matrix, save_prob_matrix, validate_matrix
 # ============================================================
 # 硬编码配置（改这里即可）
 # ============================================================
-EXCEL_DIR = "datas/suning-notdueM0-0917/excel"                       # 输入：话术 Excel 文件夹
-YAML_PATH = "datas/suning-notdueM0-0917/categories_notdue-0917.yaml"                 # 输入：类别定义 YAML
-CANDIDATES_DIR = "datas/suning-notdueM0-0917/prob_generator/candidates"                      # 中间产物目录
-PROB_DIR = "datas/suning-notdueM0-0917/prob_generator/prob"                                  # 最终产物目录
+EXCEL_DIR = "datas/suning-notdueS1-0918"                       # 输入：话术 Excel 文件夹
+YAML_PATH = "datas/suning-notdueS1-0918/categories_S1-0918.yaml"                 # 输入：类别定义 YAML
+CANDIDATES_DIR = "datas/suning-notdueS1-0918/prob_generator/candidates"                      # 中间产物目录
+PROB_DIR = "datas/suning-notdueS1-0918/prob_generator/prob"                                  # 最终产物目录
 COMPRESS_MODE = "log"                                           # "none" / "sqrt" / "log"
 SAVE_CANDIDATES = True                                          # 是否保存中间 JSON
 
