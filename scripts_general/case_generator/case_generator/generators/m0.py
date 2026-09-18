@@ -302,81 +302,76 @@ def load_and_format_prompt_replace(prompt_path, data):
 
 # ============== 主流程：M0（未逾期）=============
 def generate(config):
-    # 从配置中读取参数
-    random.seed(config["seed"])
-    COMBINATIONS_PATH = config["combinations_path"]
-    TOTAL_CASES = config["total_cases"]
-    SYSTEM_DIR = config["system_dir"]
-    REPLACE_DIR = config["replace_dir"]
-    START_INDEX = 0
-
-    # ---- testify 配置 ----
-    testify_cfg = config.get("testify")
-    if testify_cfg:
-        TESTIFY_SYSTEM_DIR = testify_cfg["system_dir"]
-        TESTIFY_REPLACE_DIR = testify_cfg["replace_dir"]
-        TESTIFY_START = testify_cfg["start"]
-        TESTIFY_END = testify_cfg["end"]
-        TESTIFY_QUOTA = TESTIFY_END - TESTIFY_START + 1
-        os.makedirs(TESTIFY_SYSTEM_DIR, exist_ok=True)
-        os.makedirs(TESTIFY_REPLACE_DIR, exist_ok=True)
-
-    # ---- 每次重新生成，直接覆盖 ----
+    # ========== 1. 准备组合（共用枚举，两份都基于同一组合集） ==========
     combos = generate_mask_combinations(COMBINATION_FIELDS)
-    save_mask_combinations(combos, COMBINATIONS_PATH)
-    print(f"生成并保存 {len(combos)} 种组合到 {COMBINATIONS_PATH}")
+    save_mask_combinations(combos, config["combinations_path"])
+    print(f"生成并保存 {len(combos)} 种组合到 {config['combinations_path']}")
 
-    # ---- 均衡分配：每种组合生成相同数量 ----
-    cases_per_combo = TOTAL_CASES // len(combos)
-    remainder = TOTAL_CASES % len(combos)
-    print(f"每种组合 {cases_per_combo} 条，余 {remainder} 条分配给前 {remainder} 种 → 总计 {TOTAL_CASES}")
+    # ========== 2. 组织两份任务 ==========
+    tasks = [{
+        "label":       "主 case",
+        "seed":        config["seed"],
+        "total":       config["total_cases"],
+        "system_dir":  config["system_dir"],
+        "replace_dir": config["replace_dir"],
+        "start":       0,                       # 主输出从 case_1 开始
+    }]
+    tcfg = config.get("testify")
+    if tcfg:
+        tasks.append({
+            "label":       "testify",
+            "seed":        tcfg["seed"],        # ← 独立 seed，保证内容不同
+            "total":       tcfg["end"] - tcfg["start"] + 1,
+            "system_dir":  tcfg["system_dir"],
+            "replace_dir": tcfg["replace_dir"],
+            "start":       tcfg["start"],       # 从 case_{start} 开始编号
+        })
 
-    # ---- 输出目录（自动创建）----
-    os.makedirs(SYSTEM_DIR, exist_ok=True)
-    os.makedirs(REPLACE_DIR, exist_ok=True)
+    # ========== 3. 依次执行两轮 ==========
+    for task in tasks:
+        random.seed(task["seed"])               # ← 关键：每轮独立重置种子
+        SYSTEM_DIR  = task["system_dir"]
+        REPLACE_DIR = task["replace_dir"]
+        TOTAL       = task["total"]
+        START       = task["start"]
+        os.makedirs(SYSTEM_DIR, exist_ok=True)
+        os.makedirs(REPLACE_DIR, exist_ok=True)
 
-    # ---- 生成 ----
-    case_idx = 0
-    for combo in combos:
-        n = cases_per_combo + (1 if combo["id"] < remainder else 0)
-        for _ in range(n):
-            data = generate_data(combo["mask"])
+        cases_per_combo = TOTAL // len(combos)
+        remainder = TOTAL % len(combos)
+        print(f"[{task['label']}] 每种组合 {cases_per_combo} 条，余 {remainder} 条 → 总计 {TOTAL}")
 
-            # === system prompt ===
-            prompt_system = load_and_format_prompt_system(
-                config["prompt_system_path"], data,
-                # s1_follow.py / m0_follow.py 需要加上下面这行参数：
-                # follow_info=follow_info,
-            )
-            with open(f"{SYSTEM_DIR}/case_{START_INDEX + case_idx + 1}.txt",
-                      "w", encoding="utf-8") as f:
-                f.write(prompt_system)
+        case_idx = 0
+        for combo in combos:
+            n = cases_per_combo + (1 if combo["id"] < remainder else 0)
+            for _ in range(n):
+                data = generate_data(combo["mask"])
 
-            # ----- 同步写入 testify/system -----
-            if testify_cfg and case_idx < TESTIFY_QUOTA:
-                with open(f"{TESTIFY_SYSTEM_DIR}/case_{TESTIFY_START + case_idx}.txt",
+                # ---- 跟催业务线专用（仅 s1_follow.py / m0_follow.py 保留此行）----
+                # follow_info = random.choice(FOLLOW_INFO_OPTIONS)
+
+                # === system prompt ===
+                prompt_system = load_and_format_prompt_system(
+                    config["prompt_system_path"], data,
+                    # follow_info=follow_info,   # 仅 s1_follow.py / m0_follow.py 保留此行
+                )
+                with open(f"{SYSTEM_DIR}/case_{START + case_idx + 1}.txt",
                           "w", encoding="utf-8") as f:
                     f.write(prompt_system)
 
-            # === replace prompt（日期转月日格式）===
-            data_copy = dict(data)
-            data_copy["今天日期"] = datetime.strptime(
-                data_copy["今天日期"], "%Y-%m-%d").strftime("%m月%d日")
-            data_copy["还款日"] = datetime.strptime(
-                data_copy["还款日"], "%Y-%m-%d").strftime("%m月%d日")
-            prompt_replace = load_and_format_prompt_replace(
-                config["prompt_replace_path"], data_copy
-            )
-            with open(f"{REPLACE_DIR}/case_{START_INDEX + case_idx + 1}.txt",
-                      "w", encoding="utf-8") as f:
-                f.write(prompt_replace)
-
-            # ----- 同步写入 testify/replace -----
-            if testify_cfg and case_idx < TESTIFY_QUOTA:
-                with open(f"{TESTIFY_REPLACE_DIR}/case_{TESTIFY_START + case_idx}.txt",
+                # === replace prompt（日期转月日格式）===
+                data_copy = dict(data)
+                data_copy["今天日期"] = datetime.strptime(
+                    data_copy["今天日期"], "%Y-%m-%d").strftime("%m月%d日")
+                data_copy["还款日"] = datetime.strptime(
+                    data_copy["还款日"], "%Y-%m-%d").strftime("%m月%d日")
+                prompt_replace = load_and_format_prompt_replace(
+                    config["prompt_replace_path"], data_copy
+                )
+                with open(f"{REPLACE_DIR}/case_{START + case_idx + 1}.txt",
                           "w", encoding="utf-8") as f:
                     f.write(prompt_replace)
 
-            case_idx += 1
+                case_idx += 1
 
-    print(f"完成，共生成 {case_idx} 条 case（M0: 未逾期）")
+        print(f"[{task['label']}] 完成，共生成 {case_idx} 条")

@@ -16,6 +16,7 @@ CONFIG = {
             "replace_dir": "new_case/testify/system",
             "start": 121,
             "end": 140,
+            "seed": 10040,  
         },
     },
     "s1": {
@@ -33,6 +34,7 @@ CONFIG = {
             "replace_dir": "new_case/testify/system",
             "start": 201,
             "end": 300,
+            "seed": 10041,  
         },
     },
     "s1_follow": {
@@ -50,6 +52,7 @@ CONFIG = {
             "replace_dir": "new_case/testify/system",
             "start": 301,
             "end": 400,
+            "seed": 10042,  
         },
     },
     "m0": {
@@ -67,6 +70,7 @@ CONFIG = {
             "replace_dir": "new_case/testify/system",
             "start": 1,
             "end": 100,
+            "seed": 10043,  
         },
     },
     "m0_follow": {
@@ -84,6 +88,7 @@ CONFIG = {
             "replace_dir": "new_case/testify/system",
             "start": 101,
             "end": 200,
+            "seed": 10044,  
         },
     }
 }
