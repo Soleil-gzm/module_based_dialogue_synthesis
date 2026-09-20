@@ -18,16 +18,13 @@ class AtomicCondition(ABC):
     """
 
     @abstractmethod
-    def match(self, s: str) -> bool:
-        ...
+    def match(self, s: str) -> bool: ...
 
     @abstractmethod
-    def evaluate(self, s: str, case: Dict[str, Any]) -> bool:
-        ...
+    def evaluate(self, s: str, case: Dict[str, Any]) -> bool: ...
 
     @abstractmethod
-    def describe(self, s: str) -> str:
-        ...
+    def describe(self, s: str) -> str: ...
 
 
 def safe_float(value, default: float = 0.0) -> float:

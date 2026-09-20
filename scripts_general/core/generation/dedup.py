@@ -13,6 +13,7 @@ from typing import Dict, Optional
 
 try:
     from soleil import deduplicator as _soleil_dedup
+
     _HAS_SOLEIL = True
 except ImportError:
     _HAS_SOLEIL = False

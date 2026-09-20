@@ -23,7 +23,9 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 
 # 让脚本能从 scripts_general/ 目录运行时找到 core 包
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 
 def load_modules(prob_path: str) -> List[str]:
@@ -43,7 +45,9 @@ def normalize_condition(value: Any) -> str:
     return s if s else "<空/NaN>"
 
 
-def scan_excel(excel_path: str, modules: List[str]) -> Tuple[Dict[str, Dict], Dict[str, int]]:
+def scan_excel(
+    excel_path: str, modules: List[str]
+) -> Tuple[Dict[str, Dict], Dict[str, int]]:
     """
     返回：
         inventory: {条件字符串: {"count": int, "sheets": [模块名]}}
@@ -57,7 +61,9 @@ def scan_excel(excel_path: str, modules: List[str]) -> Tuple[Dict[str, Dict], Di
         xls.close()
         raise ValueError(f"Excel 缺少 prob 表要求的模块 sheet: {missing}")
 
-    inventory: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "sheets": set()})
+    inventory: Dict[str, Dict[str, Any]] = defaultdict(
+        lambda: {"count": 0, "sheets": set()}
+    )
     sheet_stats: Dict[str, int] = {}
 
     for sheet in modules:
@@ -96,7 +102,9 @@ def print_summary(inventory: Dict[str, Dict], sheet_stats: Dict[str, int]) -> No
         sheets_str = ", ".join(info["sheets"][:3])
         more = f" +{len(info['sheets'])-3}" if len(info["sheets"]) > 3 else ""
         display = cond if len(cond) <= 50 else cond[:47] + "..."
-        print(f"  [{info['count']:>4}次 | {len(info['sheets'])}个sheet] {display}  ({sheets_str}{more})")
+        print(
+            f"  [{info['count']:>4}次 | {len(info['sheets'])}个sheet] {display}  ({sheets_str}{more})"
+        )
 
     print(f"\n----- 按条件结构归类（启发式）-----")
     categories = {
@@ -131,10 +139,20 @@ def print_summary(inventory: Dict[str, Dict], sheet_stats: Dict[str, int]) -> No
     # 按长度降序替换，避免 "逾期" 误吃 "逾期笔数" 里的子串
     known_tokens = sorted(
         [
-            "未逾期", "逾期笔数", "逾期", "{逾期天数}",
-            "小于", "等于", "大于",
-            "总欠款", "本金", "利息", "罚息",
-            "不为空", "为空", "&",
+            "未逾期",
+            "逾期笔数",
+            "逾期",
+            "{逾期天数}",
+            "小于",
+            "等于",
+            "大于",
+            "总欠款",
+            "本金",
+            "利息",
+            "罚息",
+            "不为空",
+            "为空",
+            "&",
         ],
         key=len,
         reverse=True,
@@ -160,7 +178,9 @@ def print_summary(inventory: Dict[str, Dict], sheet_stats: Dict[str, int]) -> No
 def main():
     parser = argparse.ArgumentParser(description="扫描话术 Excel 条件列全集")
     parser.add_argument("--excel", required=True, help="话术模板 Excel 路径")
-    parser.add_argument("--prob", required=True, help="prob 表 Excel 路径（用于确定模块名）")
+    parser.add_argument(
+        "--prob", required=True, help="prob 表 Excel 路径（用于确定模块名）"
+    )
     parser.add_argument("--output", default=None, help="输出 JSON 路径（默认不写文件）")
     args = parser.parse_args()
 

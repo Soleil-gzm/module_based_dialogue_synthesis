@@ -1,18 +1,13 @@
-import random
-from datetime import datetime, timedelta
 import json
 import os
+import random
+from datetime import datetime, timedelta
 
 from langchain_core.prompts import PromptTemplate
-from soleil.data.combination import (
-    generate_mask_combinations,
-    save_mask_combinations,
-    load_mask_combinations,
-)
-
-from soleil import random_name
-from soleil import generate_time
-
+from soleil import generate_time, random_name
+from soleil.data.combination import (generate_mask_combinations,
+                                     load_mask_combinations,
+                                     save_mask_combinations)
 
 # ============== SAMPLERS: 所有动态字段的生成规则 ==============
 # 每个 sampler 接收 **ctx，ctx 里是前面已生成的字段值。

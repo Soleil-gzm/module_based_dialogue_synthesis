@@ -4,16 +4,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 from core.conditions import ConditionParser
 from core.generation.config import Config
-from core.generation.factory import create_pressure_strategy,create_probability_calculator
+from core.generation.factory import (create_pressure_strategy,
+                                     create_probability_calculator)
+from core.generation.utterance import (fill_placeholders, get_ancestors,
+                                       get_random_descendant_chain,
+                                       sample_utterance)
 from core.pressure.pressure_manager import PressureManager
 from core.utils.random_service import RandomService
 from core.utils.trace import TraceCollector
-from core.generation.utterance import (
-    fill_placeholders,
-    get_ancestors,
-    get_random_descendant_chain,
-    sample_utterance,
-)
 
 
 class DialogueBuilder:
@@ -53,8 +51,10 @@ class DialogueBuilder:
             self.goodbye_prob_calc = create_probability_calculator(config, "goodbye")
         else:
             self.goodbye_prob_calc = None
-        self.goodbye_min_idx = config.get("goodbye_min_idx", 0)      # 强制忽略前 N 个模块
-        self.goodbye_fixed_prob = config.get("goodbye_termination_prob", 0.7)  # 固定概率
+        self.goodbye_min_idx = config.get("goodbye_min_idx", 0)  # 强制忽略前 N 个模块
+        self.goodbye_fixed_prob = config.get(
+            "goodbye_termination_prob", 0.7
+        )  # 固定概率
 
         # 辅助变量（每次 build 时重置）
         self.pressure_count = 0
@@ -95,7 +95,7 @@ class DialogueBuilder:
             if module_trace:
                 self.trace_collector.set_module_goodbye(module_trace, triggered=False)
             return False
-        
+
     def _append_segment(
         self,
         messages: List[Dict],
@@ -133,8 +133,8 @@ class DialogueBuilder:
         case: Dict[str, Any],
         messages: List[Dict],
         node_counts: Dict[str, int],
-        module_idx: int,          # 新增：当前模块在路径中的索引
-        total_modules: int,       # 新增：路径总模块数
+        module_idx: int,  # 新增：当前模块在路径中的索引
+        total_modules: int,  # 新增：路径总模块数
     ) -> Tuple[bool, str]:
         df_node = self.df_dict.get(node)
         if df_node is None or df_node.empty:
@@ -160,7 +160,9 @@ class DialogueBuilder:
         valid_rows = []
         for _, row in candidates.iterrows():
             cond_str = row.get("conditions(条件)", "")
-            eval_result = self.condition_evaluator.evaluate_with_metadata(cond_str, case)
+            eval_result = self.condition_evaluator.evaluate_with_metadata(
+                cond_str, case
+            )
             if eval_result["matched"]:
                 row_with_meta = row.copy()
                 row_with_meta["_condition_meta"] = eval_result
@@ -203,9 +205,11 @@ class DialogueBuilder:
 
         # 获得前后继承链（传递条件评估器以过滤不满足条件的行）
         ancestors = get_ancestors(
-            row["uid"], df_node, self.rng,
+            row["uid"],
+            df_node,
+            self.rng,
             condition_evaluator=self.condition_evaluator,
-            case=case
+            case=case,
         )
         descendant_chain, flexible_stopped = get_random_descendant_chain(
             row["uid"],
@@ -213,7 +217,7 @@ class DialogueBuilder:
             self.rng,
             flexible_stop_prob=self.config.get("flexible_stop_prob", 0.3),
             condition_evaluator=self.condition_evaluator,
-            case=case
+            case=case,
         )
         if flexible_stopped:
             self.trace_collector.set_module_flexible_stop(
@@ -275,7 +279,12 @@ class DialogueBuilder:
             if user_txt or assistant_txt:
                 turn_list.append((user_txt, assistant_txt))
             if self._should_terminate(
-                desc, repeat, node, self._current_module_trace, module_idx, total_modules
+                desc,
+                repeat,
+                node,
+                self._current_module_trace,
+                module_idx,
+                total_modules,
             ):
                 flush_turn_list()
                 stop_reason = f"goodbye_in_descendant_{desc['uid']}"
@@ -306,7 +315,7 @@ class DialogueBuilder:
         )
 
         return False, ""
-    
+
     def _apply_pressure(
         self,
         node: str,

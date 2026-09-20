@@ -19,7 +19,9 @@ import os
 import sys
 from typing import Any, Dict, List, Tuple
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from core.conditions import ConditionParser
 
@@ -56,15 +58,17 @@ def verify(golden_path: str) -> Tuple[int, int, List[Dict]]:
         # 核心比对：matched 必须一致
         if bool(actual["matched"]) != bool(expected["matched"]):
             failed += 1
-            diffs.append({
-                "index": i,
-                "condition": cond,
-                "case_values": s["case_values"],
-                "expected_matched": expected["matched"],
-                "actual_matched": actual["matched"],
-                "expected_parsed": expected.get("parsed_condition"),
-                "actual_parsed": actual.get("parsed_condition"),
-            })
+            diffs.append(
+                {
+                    "index": i,
+                    "condition": cond,
+                    "case_values": s["case_values"],
+                    "expected_matched": expected["matched"],
+                    "actual_matched": actual["matched"],
+                    "expected_parsed": expected.get("parsed_condition"),
+                    "actual_parsed": actual.get("parsed_condition"),
+                }
+            )
         else:
             passed += 1
 

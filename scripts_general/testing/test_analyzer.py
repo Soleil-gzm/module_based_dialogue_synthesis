@@ -12,7 +12,8 @@ import numpy as np
 import pytest
 # 导入被测模块（需要将 scripts_general 加入 sys.path，参见 conftest.py 或使用相对导入）
 from core.analysis.analyzer import (DefaultAnalyzer, analyze_traces_data,
-                           extract_timestamp_from_filename, simplify_reason)
+                                    extract_timestamp_from_filename,
+                                    simplify_reason)
 from core.generation.config import Config
 
 

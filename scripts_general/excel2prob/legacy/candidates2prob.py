@@ -24,14 +24,13 @@ from typing import Dict, List, Set, Union
 import pandas as pd
 import yaml
 
-
 # ============================================================
 # 硬编码配置（改这里即可）
 # ============================================================
 CANDIDATES_PATH = "intermediate/candidates_20260916_112112.json"
 YAML_PATH = "excel2prob/config/categories.yaml"
 OUTPUT_DIR = "intermediate/prob"
-COMPRESS_MODE = "log"   # "none" / "sqrt" / "log"
+COMPRESS_MODE = "log"  # "none" / "sqrt" / "log"
 
 
 # ============================================================
@@ -110,7 +109,7 @@ def build_prob_matrix(
     candidates: Dict,
     module_order: List[str],
     a_set: Set[str],
-    compress_mode: str = "sqrt"
+    compress_mode: str = "sqrt",
 ) -> pd.DataFrame:
     """
     对每一行：
@@ -230,8 +229,7 @@ def main():
     module_order = get_module_order(config, candidates)
     # 3. 输出
     matrix = build_prob_matrix(
-        variant_counts, candidates, module_order, a_set,
-        compress_mode=COMPRESS_MODE
+        variant_counts, candidates, module_order, a_set, compress_mode=COMPRESS_MODE
     )
     output_path = export_prob_matrix(matrix, OUTPUT_DIR, COMPRESS_MODE)
     print(f"prob 文件: {output_path}  (压缩方式: {COMPRESS_MODE})")

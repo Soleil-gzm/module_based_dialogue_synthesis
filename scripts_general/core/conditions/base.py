@@ -10,5 +10,7 @@ class ConditionEvaluator(ABC):
         pass
 
     @abstractmethod
-    def evaluate_with_metadata(self, condition_str: str, case: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate_with_metadata(
+        self, condition_str: str, case: Dict[str, Any]
+    ) -> Dict[str, Any]:
         pass

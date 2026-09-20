@@ -25,11 +25,13 @@ from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
+from core.conditions import ConditionParser
 from core.data.data_loader import parse_case_info
 from core.utils.random_service import RandomService
-from core.conditions import ConditionParser
 
 # 条件评估依赖的数值字段
 NUMERIC_FIELDS = [
@@ -75,7 +77,9 @@ def signature_label(sig: Tuple) -> str:
     return " | ".join(parts)
 
 
-def collect_representative_cases(cases_dir: str, max_scan: int = 0) -> List[Dict[str, Any]]:
+def collect_representative_cases(
+    cases_dir: str, max_scan: int = 0
+) -> List[Dict[str, Any]]:
     """
     扫描 case 目录，按签名去重，每个签名保留第一个遇到的 case。
     max_scan=0 表示全扫。
@@ -139,7 +143,13 @@ def synth_missing_signatures(existing: List[Dict[str, Any]]) -> List[Dict[str, A
 
     # 逾期符号：-3(<0) / 0(=0) / 5(>0)
     # 字段非空时的取值（>0 即可）
-    nonzero = {"总欠款": 1000.0, "本金": 800.0, "利息": 100.0, "罚息": 50.0, "逾期笔数": 2}
+    nonzero = {
+        "总欠款": 1000.0,
+        "本金": 800.0,
+        "利息": 100.0,
+        "罚息": 50.0,
+        "逾期笔数": 2,
+    }
 
     for od in (-3, 0, 5):
         # 枚举五字段的 2^5 种空/非空组合
@@ -183,11 +193,17 @@ def minimal_case_for_eval(case: Dict[str, Any]) -> Dict[str, Any]:
 
 def main():
     parser = argparse.ArgumentParser(description="生成条件评估黄金样本")
-    parser.add_argument("--inventory", required=True, help="scan_conditions 输出的 JSON")
-    parser.add_argument("--cases-dir", required=True, help="case 数据目录（replace_dir）")
+    parser.add_argument(
+        "--inventory", required=True, help="scan_conditions 输出的 JSON"
+    )
+    parser.add_argument(
+        "--cases-dir", required=True, help="case 数据目录（replace_dir）"
+    )
     parser.add_argument("--output", required=True, help="黄金样本输出 JSON")
     parser.add_argument("--report", default=None, help="覆盖报告输出 txt")
-    parser.add_argument("--max-scan", type=int, default=0, help="最多扫描的 case 数（0=全扫）")
+    parser.add_argument(
+        "--max-scan", type=int, default=0, help="最多扫描的 case 数（0=全扫）"
+    )
     args = parser.parse_args()
 
     with open(args.inventory, "r", encoding="utf-8") as f:
@@ -218,14 +234,16 @@ def main():
                 true_count += 1
             else:
                 false_count += 1
-            samples.append({
-                "condition": cond,
-                "case_signature": list(case["_signature"]),
-                "case_signature_label": signature_label(case["_signature"]),
-                "case_source": case["_filename"],
-                "case_values": minimal_case_for_eval(case),
-                "result": result,
-            })
+            samples.append(
+                {
+                    "condition": cond,
+                    "case_signature": list(case["_signature"]),
+                    "case_signature_label": signature_label(case["_signature"]),
+                    "case_source": case["_filename"],
+                    "case_values": minimal_case_for_eval(case),
+                    "result": result,
+                }
+            )
 
     payload = {
         "generated_by": "generate_golden_samples.py",
@@ -249,14 +267,19 @@ def main():
         lines = []
         lines.append("===== 黄金样本签名覆盖报告 =====\n")
         lines.append(f"条件字符串数: {len(conditions)}")
-        lines.append(f"代表 case 数: {len(all_cases)}（真实 {len(real_cases)} + 合成 {len(synth)}）\n")
+        lines.append(
+            f"代表 case 数: {len(all_cases)}（真实 {len(real_cases)} + 合成 {len(synth)}）\n"
+        )
         lines.append("----- 代表 case 签名清单 -----")
         for c in all_cases:
             tag = "合成" if str(c["_filename"]).startswith("<synthetic") else "真实"
-            lines.append(f"  [{tag}] {signature_label(c['_signature'])}  <- {c['_filename']}")
+            lines.append(
+                f"  [{tag}] {signature_label(c['_signature'])}  <- {c['_filename']}"
+            )
         lines.append("")
         lines.append("----- 每个条件的 matched=True/False 分布 -----")
         from collections import defaultdict
+
         cond_stats = defaultdict(lambda: {"t": 0, "f": 0})
         for s in samples:
             k = cond_stats[s["condition"]]

@@ -30,28 +30,28 @@ def _parse_repeat_value(value) -> int:
     """
     if pd.isna(value):
         return 1
-    
+
     # 转换为字符串
     value_str = str(value).strip()
-    
+
     # 尝试按分隔符（/ 或 - 或 ; 或 ,）拆分
     # 支持多个分隔符，如 1/2/3 或 ;1/2/3 或 1,2,3
     # 注意：- 放在字符类末尾或转义
-    parts = re.split(r'[\s/;,\\-]+', value_str)
-    
+    parts = re.split(r"[\s/;,\\-]+", value_str)
+
     # 提取所有数字
     numbers = []
     for part in parts:
         part = part.strip()
         if not part:
             continue
-        match = re.search(r'(\d+)', part)
+        match = re.search(r"(\d+)", part)
         if match:
             numbers.append(int(match.group(1)))
-    
+
     if numbers:
         return max(numbers)
-    
+
     # 无法解析，返回默认值
     logger.warning(f"无法解析 repeat 值: '{value_str}'，使用默认值 1")
     return 1
@@ -122,9 +122,7 @@ def extract_max_repeat_from_excel(
                     )
             else:
                 max_repeat[module] = 1
-                logger.warning(
-                    f"模块 '{module}' 缺少 'repeat(次数)' 列，使用默认值 1"
-                )
+                logger.warning(f"模块 '{module}' 缺少 'repeat(次数)' 列，使用默认值 1")
         except Exception as e:
             logger.warning(f"读取模块 '{module}' 的 repeat(次数) 失败: {e}")
             max_repeat[module] = 1

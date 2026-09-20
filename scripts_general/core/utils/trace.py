@@ -4,8 +4,9 @@ Trace 模块：记录对话生成过程中的路径、模块处理结果、停�
 """
 
 import json
-import numpy as np
 from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 
 def _convert_to_native(obj: Any) -> Any:

@@ -10,9 +10,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 # 导入被测试模块
-from core.data.case_loader import CaseLoader, DefaultCaseLoader, XiaoyingCaseLoader
-from core.generation.config import Config
+from core.data.case_loader import (CaseLoader, DefaultCaseLoader,
+                                   XiaoyingCaseLoader)
 from core.data.data_loader import load_cases, parse_case_info
+from core.generation.config import Config
 from core.generation.factory import create_case_loader, create_time_generator
 from core.utils.random_service import RandomService
 from core.utils.time_generator import SimpleNaturalTimeGenerator

@@ -208,9 +208,9 @@ def parse_case_info(
 
     # 生成随机字段
     if rng is not None:
-        random_ratio = rng.uniform(0.3, 0.6)          # 30%~60%
-        random_digits = rng.randint(1, 10)            # 1-10 整数
-        random_repay_day = rng.randint(1, 28)         # 1-28 整数
+        random_ratio = rng.uniform(0.3, 0.6)  # 30%~60%
+        random_digits = rng.randint(1, 10)  # 1-10 整数
+        random_repay_day = rng.randint(1, 28)  # 1-28 整数
     else:
         random_ratio = random.uniform(0.3, 0.6)
         random_digits = random.randint(1, 10)
@@ -218,7 +218,7 @@ def parse_case_info(
 
     data["随机金额"] = str(round(overdue_amount * random_ratio))
     data["随机数字"] = str(random_digits)
-    data["随机还款日"] = f"{random_repay_day}号"      # 新增字段
+    data["随机还款日"] = f"{random_repay_day}号"  # 新增字段
 
     # 生成自然口语化时间
     if rng is not None:
@@ -232,6 +232,7 @@ def parse_case_info(
         data["随机时间"] = f"今天{period}{hour}点"
 
     return data
+
 
 def load_cases(
     cases_dir: str,

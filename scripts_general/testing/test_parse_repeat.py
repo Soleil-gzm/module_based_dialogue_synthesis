@@ -4,6 +4,7 @@
 """
 
 import sys
+
 sys.path.insert(0, "scripts_general")
 
 from core.generation.config import _parse_repeat_value
@@ -38,7 +39,9 @@ for value, expected, desc in test_cases:
     status = "✓" if result == expected else "✗"
     if result != expected:
         all_passed = False
-    print(f"{status} {desc:25} | 输入: {str(value):15} | 期望: {expected} | 实际: {result}")
+    print(
+        f"{status} {desc:25} | 输入: {str(value):15} | 期望: {expected} | 实际: {result}"
+    )
 
 print("=" * 60)
 if all_passed:

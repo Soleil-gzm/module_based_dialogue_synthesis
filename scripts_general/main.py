@@ -20,21 +20,18 @@ python scripts_general/main.py -f
 python scripts_general/main.py -h
 """
 
-import os
-import logging
 import argparse
+import logging
+import os
 from datetime import datetime
 
 import pandas as pd
-from core.generation.config import load_config, sync_config_from_prob
 from core.data.data_loader import load_prob_matrix, load_sheets
-from core.generation.factory import (
-    create_case_loader,
-    create_time_generator,
-)
+from core.generation.config import load_config, sync_config_from_prob
+from core.generation.factory import create_case_loader, create_time_generator
+from core.generation.parallel_generator import generate_dialogues
 from core.utils.logger import get_logger, init_logger
 from core.utils.path_generator import PathGenerator
-from core.generation.parallel_generator import generate_dialogues
 from core.utils.random_service import RandomService
 
 
@@ -42,15 +39,17 @@ from core.utils.random_service import RandomService
 def main():
     parser = argparse.ArgumentParser(description="多轮对话生成脚本")
     parser.add_argument(
-        "-c", "--config",
+        "-c",
+        "--config",
         type=str,
         default="configs/xiaoying_v2/general_Xiaoying_0703_4w.yaml",
-        help="配置文件路径（默认: configs/xiaoying_v2/general_Xiaoying_0703_4w.yaml）"
+        help="配置文件路径（默认: configs/xiaoying_v2/general_Xiaoying_0703_4w.yaml）",
     )
     parser.add_argument(
-        "-f", "--force",
+        "-f",
+        "--force",
         action="store_true",
-        help="强制重新生成，忽略已完成的分片（删除旧分片文件）"
+        help="强制重新生成，忽略已完成的分片（删除旧分片文件）",
     )
     args = parser.parse_args()
 
@@ -205,7 +204,12 @@ def main():
         and trace_file
         and os.path.exists(trace_file)
     ):
-        analysis_output = os.path.join(task_dir, "intermediate", "analysis", f"{task_name}_generate_analysis_{timestamp}")
+        analysis_output = os.path.join(
+            task_dir,
+            "intermediate",
+            "analysis",
+            f"{task_name}_generate_analysis_{timestamp}",
+        )
         plot_format = config.get("analysis.format", "html")
         try:
             from core.analysis.analyzer import DefaultAnalyzer
@@ -235,6 +239,7 @@ def main():
             diversity_modules = config.get("analysis.diversity_modules", [])
             if diversity_modules:
                 from core.analysis.analyzer import ModuleDiversityAnalyzer
+
                 div_analyzer = ModuleDiversityAnalyzer(modules=diversity_modules)
                 div_analyzer.analyze(trace_file, analysis_output)
                 logger.info(f"模块多样性分析完成，报告保存在 {analysis_output}")

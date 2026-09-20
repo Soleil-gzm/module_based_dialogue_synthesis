@@ -6,9 +6,9 @@ import pytest
 from core.generation.config import Config
 from core.generation.factory import create_pressure_strategy
 from core.pressure.pressure_prob_strategy import (AbsolutePressureStrategy,
-                                         LinearDecayPressureStrategy,
-                                         NormalizedPressureStrategy,
-                                         SigmoidPressureStrategy)
+                                                  LinearDecayPressureStrategy,
+                                                  NormalizedPressureStrategy,
+                                                  SigmoidPressureStrategy)
 
 
 class TestPressureStrategies:

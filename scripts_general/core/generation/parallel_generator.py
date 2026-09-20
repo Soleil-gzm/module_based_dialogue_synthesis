@@ -6,16 +6,15 @@
 """
 
 import json
-import os
 import multiprocessing as mp
+import os
 from typing import List, Optional, Tuple
-
-from tqdm import tqdm
 
 from core.generation.config import Config
 from core.generation.dialogue_builder import DialogueBuilder
 from core.pressure.pressure_manager import PressureManager
 from core.utils.random_service import RandomService
+from tqdm import tqdm
 
 # ==================== JSON 序列化（支持 orjson 加速） ====================
 try:
@@ -72,9 +71,7 @@ def worker_generate(
     config = Config(config_dict)
     rng = RandomService(seed + process_id)  # 独立种子
     pressure_manager = PressureManager(pressure_df, rng, config)
-    builder = DialogueBuilder(
-        config, df_dict, rng, pressure_manager, None
-    )
+    builder = DialogueBuilder(config, df_dict, rng, pressure_manager, None)
 
     total_paths = len(all_paths)
     total_cases = len(cases)
@@ -116,7 +113,7 @@ def worker_generate(
                 line = dumps_json({"messages": messages})
                 f_out.write(line + "\n")
                 if (i - start_idx + 1) % checkpoint_interval == 0:
-                    f_out.flush()       # flush() 强制把 Python 缓冲区里的数据写入磁盘。
+                    f_out.flush()  # flush() 强制把 Python 缓冲区里的数据写入磁盘。
                 if trace_enabled:
                     all_traces.append(builder.get_trace_data())
             except Exception as e:
@@ -197,7 +194,7 @@ def generate_dialogues(
         (final_output_file, trace_file)
     """
     # 分片切分
-    chunk_size = (num_dialogues + num_processes - 1) // num_processes       # 向上取整
+    chunk_size = (num_dialogues + num_processes - 1) // num_processes  # 向上取整
     ranges = []
     for p in range(num_processes):
         start = p * chunk_size
@@ -237,7 +234,7 @@ def generate_dialogues(
                     task_dir, f"trace_shard_{p:03d}_{start}_{end}.json"
                 )
                 trace_shard_files.append(trace_shard)
-            continue        # 不加入 tasks
+            continue  # 不加入 tasks
 
         if already_done > 0:
             resumed_count += 1

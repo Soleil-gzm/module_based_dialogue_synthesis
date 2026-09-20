@@ -28,6 +28,7 @@ def extract_timestamp_from_filename(filepath: str) -> str:
     if match:
         return match.group(1)
     import time
+
     return time.strftime("%Y%m%d_%H%M%S", time.localtime(os.path.getmtime(filepath)))
 
 
@@ -65,18 +66,24 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
             stop_reason_counter[simplified] += 1
 
         # 计算总轮数
-        total_turns = trace.get("total_turns", sum(mod.get("turn_count", 0) for mod in modules))
+        total_turns = trace.get(
+            "total_turns", sum(mod.get("turn_count", 0) for mod in modules)
+        )
         dialogue_lengths.append(total_turns)
 
         # 统计再见处理结果
-        has_triggered = False          # 是否有模块实际触发了再见（goodbye_triggered=True）
-        has_goodbye_value_1_ignored = False  # 是否有模块 goodbye_value=1 但未触发（忽略）
+        has_triggered = False  # 是否有模块实际触发了再见（goodbye_triggered=True）
+        has_goodbye_value_1_ignored = (
+            False  # 是否有模块 goodbye_value=1 但未触发（忽略）
+        )
 
         for mod in modules:
             goodbye = mod.get("goodbye", {})
             if goodbye.get("goodbye_triggered", False):
                 has_triggered = True
-            if goodbye.get("goodbye_value") == 1 and not goodbye.get("goodbye_triggered", False):
+            if goodbye.get("goodbye_value") == 1 and not goodbye.get(
+                "goodbye_triggered", False
+            ):
                 has_goodbye_value_1_ignored = True
 
         is_stopped = final_reason and final_reason.startswith("goodbye")
@@ -142,6 +149,7 @@ def analyze_traces_data(traces: List[Dict]) -> Dict:
         "dialogue_without_pressure": dialogue_without_pressure,
     }
 
+
 class Analyzer(ABC):
     @abstractmethod
     def analyze(self, trace_path: str, output_dir: str, **kwargs) -> None:
@@ -159,8 +167,12 @@ class DefaultAnalyzer(Analyzer):
             f.write(f"Total conversations: {stats['total_conversations']}\n")
             # 新增施压对话统计
             f.write(f"Conversations with pressure: {stats['dialogue_with_pressure']}\n")
-            f.write(f"Conversations without pressure: {stats['dialogue_without_pressure']}\n")
-            f.write(f"Pressure coverage rate: {stats['dialogue_with_pressure'] / stats['total_conversations']:.2%}\n")
+            f.write(
+                f"Conversations without pressure: {stats['dialogue_without_pressure']}\n"
+            )
+            f.write(
+                f"Pressure coverage rate: {stats['dialogue_with_pressure'] / stats['total_conversations']:.2%}\n"
+            )
 
             f.write("\nStop reason distribution:\n")
             for reason, cnt in sorted(
@@ -196,7 +208,9 @@ class DefaultAnalyzer(Analyzer):
                 )
         print(f"Report saved: {output_file}")
 
-    def _create_histogram(self, data, title, xlabel, ylabel, output_html, nbins=20, bin_size=None):
+    def _create_histogram(
+        self, data, title, xlabel, ylabel, output_html, nbins=20, bin_size=None
+    ):
         if not data:
             print(f"警告: 没有数据可绘制 {title}")
             return
@@ -382,7 +396,7 @@ class ModuleDiversityAnalyzer(Analyzer):
         self, traces: List[Dict], module_name: str, output_dir: str
     ):
         """分析单个模块，输出 txt 报告。"""
-        from collections import defaultdict, Counter
+        from collections import Counter, defaultdict
 
         condition_uid_counter = defaultdict(Counter)
         condition_total_counter = Counter()
@@ -400,9 +414,7 @@ class ModuleDiversityAnalyzer(Analyzer):
                 condition_uid_counter[cond_text][uid] += 1
                 condition_total_counter[cond_text] += 1
 
-        report_file = os.path.join(
-            output_dir, f"diversity_report_{module_name}.txt"
-        )
+        report_file = os.path.join(output_dir, f"diversity_report_{module_name}.txt")
 
         with open(report_file, "w", encoding="utf-8") as f:
             if not condition_uid_counter:
@@ -447,6 +459,10 @@ class ModuleDiversityAnalyzer(Analyzer):
 
             f.write("\n" + "=" * 80 + "\n")
             f.write("解读指南:\n")
-            f.write("- '最大UID占比' 越接近 100%，说明该条件只命中固定的1-2句话术，多样性差。\n")
+            f.write(
+                "- '最大UID占比' 越接近 100%，说明该条件只命中固定的1-2句话术，多样性差。\n"
+            )
             f.write("- '多样性评分' 越接近 1.0，说明该条件下各 UID 分布越均匀。\n")
-            f.write("- 建议关注 '最大UID占比 > 50%' 的条件，检查 Excel 里的 'parent(继承)' 或 'flexible_stop' 是否限制了随机性。\n")
+            f.write(
+                "- 建议关注 '最大UID占比 > 50%' 的条件，检查 Excel 里的 'parent(继承)' 或 'flexible_stop' 是否限制了随机性。\n"
+            )

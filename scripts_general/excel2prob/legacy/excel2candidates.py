@@ -39,13 +39,12 @@ from typing import Dict, List, Union
 import pandas as pd
 import yaml
 
-
 # ============================================================
 # 硬编码配置（改这里即可）
 # ============================================================
-EXCEL_PATH = "datas/suning_0909/due-0909/【生成式通用前端逾期】电催话术通用模板-首催-20260826.xlsx"              # 输入：话术 Excel
-YAML_PATH = "excel2prob/config/categories.yaml"    # 输入：类别定义 YAML
-OUTPUT_DIR = "intermediate"             # 输出目录
+EXCEL_PATH = "datas/suning_0909/due-0909/【生成式通用前端逾期】电催话术通用模板-首催-20260826.xlsx"  # 输入：话术 Excel
+YAML_PATH = "excel2prob/config/categories.yaml"  # 输入：类别定义 YAML
+OUTPUT_DIR = "intermediate"  # 输出目录
 
 
 # ============================================================
@@ -74,11 +73,7 @@ def count_rows_from_excel(excel_path: str) -> Dict[str, int]:
 # 2. 展开列表模式的 manual 候选
 # ============================================================
 def expand_manual_list(
-    raw_list: List[str],
-    a_set: set,
-    b_set: set,
-    c_set: set,
-    all_modules: set
+    raw_list: List[str], a_set: set, b_set: set, c_set: set, all_modules: set
 ) -> List[str]:
     category_map = {"A": a_set, "B": b_set, "C": c_set}
     result, seen = [], set()
@@ -100,7 +95,7 @@ def expand_manual_weights(
     b_set: set,
     c_set: set,
     all_modules: set,
-    variant_counts: Dict[str, int]
+    variant_counts: Dict[str, int],
 ) -> Dict[str, float]:
     """
     字典模式：手动指定权重。
@@ -138,8 +133,7 @@ def expand_manual_weights(
 # 4. 根据 YAML 生成候选集
 # ============================================================
 def build_candidates_from_yaml(
-    yaml_path: str,
-    variant_counts: Dict[str, int]
+    yaml_path: str, variant_counts: Dict[str, int]
 ) -> Dict[str, Union[Dict[str, List[str]], List[str]]]:
     """
     只对 YAML 中定义的模块生成候选集。
@@ -174,9 +168,7 @@ def build_candidates_from_yaml(
             )
             candidates[module] = {"weights": weights}
         else:
-            expanded = expand_manual_list(
-                raw_entry, a_set, b_set, c_set, all_modules
-            )
+            expanded = expand_manual_list(raw_entry, a_set, b_set, c_set, all_modules)
             candidates[module] = expanded
 
     # 2. A 类模块
@@ -216,9 +208,7 @@ def build_candidates_from_yaml(
 # 5. 输出 JSON
 # ============================================================
 def export_candidates(
-    variant_counts: Dict[str, int],
-    candidates: Dict,
-    output_dir: str
+    variant_counts: Dict[str, int], candidates: Dict, output_dir: str
 ) -> str:
     """自动建目录，自动命名（带时间戳），输出 JSON。"""
     os.makedirs(output_dir, exist_ok=True)

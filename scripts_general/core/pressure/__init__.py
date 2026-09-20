@@ -3,9 +3,12 @@
 """
 
 from .pressure_manager import PressureManager
-from .pressure_prob_strategy import PressureStrategy,NormalizedPressureStrategy,AbsolutePressureStrategy,SigmoidPressureStrategy,LinearDecayPressureStrategy
+from .pressure_prob_strategy import (AbsolutePressureStrategy,
+                                     LinearDecayPressureStrategy,
+                                     NormalizedPressureStrategy,
+                                     PressureStrategy, SigmoidPressureStrategy)
 
-__all__ =[
+__all__ = [
     "PressureManager",
     "PressureStrategy",
     "NormalizedPressureStrategy",

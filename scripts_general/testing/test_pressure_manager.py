@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-
 from core.generation.config import Config
 from core.pressure.pressure_manager import PressureManager
 from core.utils.random_service import RandomService

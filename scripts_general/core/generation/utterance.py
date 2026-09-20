@@ -38,11 +38,7 @@ def should_stop_by_flexible(
 
 
 def get_ancestors(
-    uid: int, 
-    df: pd.DataFrame, 
-    rng: RandomService,
-    condition_evaluator=None,
-    case=None
+    uid: int, df: pd.DataFrame, rng: RandomService, condition_evaluator=None, case=None
 ) -> List[pd.Series]:
     """
     递归获取所有祖先行（从远祖到父的顺序）。
@@ -74,15 +70,15 @@ def get_ancestors(
         parent_row = df[df["uid"] == parent_uid]
         if parent_row.empty:
             break
-        
+
         parent_series = parent_row.iloc[0]
-        
+
         # 如果提供了条件评估器，检查祖先行是否满足条件
         if condition_evaluator is not None and case is not None:
             cond_str = parent_series.get("conditions(条件)", "")
             if not condition_evaluator.evaluate(cond_str, case):
                 break
-        
+
         ancestors.append(parent_series)
         uid = parent_uid
     return list(reversed(ancestors))
@@ -113,7 +109,7 @@ def get_random_descendant_chain(
         return str(uid) in [p.strip() for p in parts]
 
     children = df[df.apply(contains_parent, axis=1)]
-    
+
     # 如果提供了条件评估器，只保留满足条件的子节点
     if condition_evaluator is not None and case is not None:
         children = children[
@@ -124,7 +120,7 @@ def get_random_descendant_chain(
                 axis=1,
             )
         ]
-    
+
     if children.empty or max_depth <= 0:
         return [], False
 
@@ -135,8 +131,13 @@ def get_random_descendant_chain(
         return chain, True
 
     deeper, deeper_stop = get_random_descendant_chain(
-        child_row["uid"], df, rng, flexible_stop_prob, max_depth - 1,
-        condition_evaluator, case
+        child_row["uid"],
+        df,
+        rng,
+        flexible_stop_prob,
+        max_depth - 1,
+        condition_evaluator,
+        case,
     )
     chain.extend(deeper)
     return chain, deeper_stop

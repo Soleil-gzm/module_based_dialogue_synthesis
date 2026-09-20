@@ -3,8 +3,10 @@ from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 from core.generation.config import Config
+from core.generation.utterance import (get_ancestors,
+                                       get_random_descendant_chain,
+                                       sample_utterance)
 from core.utils.random_service import RandomService
-from core.generation.utterance import get_ancestors, get_random_descendant_chain, sample_utterance
 
 logger = logging.getLogger("DialogueBuilder")
 
@@ -24,7 +26,9 @@ class PressureManager:
                 for r in str(val).split("/"):
                     if r.strip().isdigit():
                         self._available_repeats.add(int(r.strip()))
-            self.max_repeat = max(self._available_repeats) if self._available_repeats else 3
+            self.max_repeat = (
+                max(self._available_repeats) if self._available_repeats else 3
+            )
         self.flexible_stop_prob = config.get("flexible_stop_prob", 0.3)
 
     def get_pressure_segment(

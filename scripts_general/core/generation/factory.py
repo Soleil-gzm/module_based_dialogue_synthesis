@@ -1,13 +1,17 @@
 from core.analysis.analyzer import DefaultAnalyzer
-from core.data.case_loader import CaseLoader, DefaultCaseLoader, XiaoyingCaseLoader
+from core.data.case_loader import (CaseLoader, DefaultCaseLoader,
+                                   XiaoyingCaseLoader)
 from core.generation.config import Config
+from core.generation.probability import (ExponentialProbabilityCalculator,
+                                         LinearProbabilityCalculator,
+                                         ProbabilityCalculator,
+                                         SigmoidProbabilityCalculator)
 from core.pressure.pressure_prob_strategy import (AbsolutePressureStrategy,
-                                         LinearDecayPressureStrategy,
-                                         NormalizedPressureStrategy,
-                                         PressureStrategy,
-                                         SigmoidPressureStrategy)
+                                                  LinearDecayPressureStrategy,
+                                                  NormalizedPressureStrategy,
+                                                  PressureStrategy,
+                                                  SigmoidPressureStrategy)
 from core.utils.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
-from core.generation.probability import ProbabilityCalculator,ExponentialProbabilityCalculator,SigmoidProbabilityCalculator,LinearProbabilityCalculator
 
 
 def create_case_loader(config: Config) -> CaseLoader:
@@ -42,7 +46,6 @@ def create_time_generator(config: Config) -> TimeGenerator:
         raise ValueError(f"Unknown time_generator type: {gen_type}")
 
 
-
 def create_pressure_strategy(config) -> PressureStrategy:
     """根据配置创建压力策略实例"""
     strategy_type = config.get("pressure_strategy", {}).get("type", "normalized")
@@ -58,6 +61,7 @@ def create_pressure_strategy(config) -> PressureStrategy:
         return LinearDecayPressureStrategy()
     else:
         raise ValueError(f"Unknown pressure strategy type: {strategy_type}")
+
 
 def create_probability_calculator(config: Config, prefix: str) -> ProbabilityCalculator:
     """

@@ -3,19 +3,16 @@
 测试自动从 Excel 话术模板同步 modules 和 max_repeat 配置的功能
 """
 
-import sys
 import logging
+import sys
 
 sys.path.insert(0, "scripts_general")
 
-from core.generation.config import load_config, sync_config_from_prob
 from core.data.data_loader import load_prob_matrix
+from core.generation.config import load_config, sync_config_from_prob
 
 # 配置日志以查看警告信息
-logging.basicConfig(
-    level=logging.WARNING,
-    format="%(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.WARNING, format="%(levelname)s - %(message)s")
 
 
 def test_auto_sync():
@@ -50,13 +47,13 @@ def test_auto_sync():
     print("=" * 60)
     print(f"modules 数量: {len(config.get('modules', []))}")
     print(f"max_repeat 配置数量: {len(config.get('max_repeat', {}))}")
-    
+
     # 显示部分 max_repeat 值
-    max_repeat = config.get('max_repeat', {})
+    max_repeat = config.get("max_repeat", {})
     print("\n部分模块的 max_repeat 值：")
     for module in list(max_repeat.keys())[:5]:
         print(f"  {module}: {max_repeat[module]}")
-    
+
     print("\n测试完成！")
 
 

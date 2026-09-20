@@ -212,8 +212,7 @@ def _build_row_with_fixed(
         cand_list = []
 
     remaining_pool = [
-        m for m in cand_list
-        if m not in fixed_weights and m in valid_columns
+        m for m in cand_list if m not in fixed_weights and m in valid_columns
     ]
 
     row_probs = dict(fixed_weights)
@@ -288,9 +287,7 @@ def _build_matrix(
         if target in self_loop_override:
             w *= float(self_loop_override[target])
         else:
-            w *= get_self_loop_multiplier(
-                target, a_set, b_set, c_set, self_loop_boost
-            )
+            w *= get_self_loop_multiplier(target, a_set, b_set, c_set, self_loop_boost)
         return w
 
     # A 类总权重：所有 A 的"自循环权重"之和
@@ -372,8 +369,12 @@ def build_prob_matrix(
     self_loop_override = config.get("self_loop_boost_override", {}) or {}
 
     return _build_matrix(
-        variant_counts, candidates, module_order,
-        a_set, b_set, c_set,
+        variant_counts,
+        candidates,
+        module_order,
+        a_set,
+        b_set,
+        c_set,
         compress_mode=compress_mode,
         boost=boost,
         self_loop_boost=self_loop_boost,

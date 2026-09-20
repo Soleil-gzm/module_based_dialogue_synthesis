@@ -21,9 +21,9 @@ class PathGenerator:
         self.prob_df = prob_df
         self.rng = rng
         self.logger = logger or logging.getLogger("PathGenerator")
-        self.modules = config.get("modules")            # 所有模块列表
-        self.max_repeat = config.get("max_repeat")      # 每个模块最大重复次数
-        self.terminal_nodes = set(config.get("terminal_modules", []))       # 终止模块
+        self.modules = config.get("modules")  # 所有模块列表
+        self.max_repeat = config.get("max_repeat")  # 每个模块最大重复次数
+        self.terminal_nodes = set(config.get("terminal_modules", []))  # 终止模块
         self.a_set = set(config.get("a_set", []))
         self.b_set = set(config.get("b_set", []))
         self.start_module = config.get("start_module", self.modules[0])
@@ -61,7 +61,9 @@ class PathGenerator:
             row = self.prob_df.loc[module]
             has_any_outgoing = any(row > 0)
             if not has_any_outgoing:
-                issues.append(f"模块 '{module}' 的概率表全为 0（无出边），路径会立即终止")
+                issues.append(
+                    f"模块 '{module}' 的概率表全为 0（无出边），路径会立即终止"
+                )
 
         # 2. 检查起始模块是否有出边
         if self.start_module in self.modules:
@@ -115,7 +117,7 @@ class PathGenerator:
 
         while True:
             candidates = self._get_candidates_from_prob(current)
-            
+
             if current in self.b_set and selected_a is not None:
                 candidates.append(selected_a)
 
@@ -166,10 +168,10 @@ class PathGenerator:
             max_repeat_val = self.max_repeat.get(next_node, 100)
             if counts[next_node] >= max_repeat_val:
                 banned.add(next_node)
-                
+
                 if self.force_stop_on_max_repeat:
                     break
-            
+
             if next_node in self.terminal_nodes:
                 break
             current = next_node
@@ -179,7 +181,7 @@ class PathGenerator:
         self, num_paths: int, seed: int, cache_path: Optional[str] = None
     ) -> List[List[str]]:
         """生成多条路径，支持缓存（缓存文件名默认包含参数，避免覆盖）
-        
+
         注意：路径可以重复生成，直接按 num_paths 数量生成，不去重。
         """
         if cache_path is None and self.cache_path_template:

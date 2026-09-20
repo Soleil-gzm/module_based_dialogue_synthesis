@@ -36,11 +36,7 @@ def count_rows_from_excel(excel_path: str) -> Dict[str, int]:
 # 2. 展开列表模式
 # ============================================================
 def expand_manual_list(
-    raw_list: List[str],
-    a_set: set,
-    b_set: set,
-    c_set: set,
-    all_modules: set
+    raw_list: List[str], a_set: set, b_set: set, c_set: set, all_modules: set
 ) -> List[str]:
     category_map = {"A": a_set, "B": b_set, "C": c_set}
     result, seen = [], set()
@@ -62,7 +58,7 @@ def expand_manual_weights(
     b_set: set,
     c_set: set,
     all_modules: set,
-    variant_counts: Dict[str, int]
+    variant_counts: Dict[str, int],
 ) -> Dict[str, float]:
     category_map = {"A": a_set, "B": b_set, "C": c_set}
     weights = {}
@@ -94,8 +90,7 @@ def expand_manual_weights(
 # 4. 从 YAML 生成候选集
 # ============================================================
 def build_candidates_from_yaml(
-    yaml_path: str,
-    variant_counts: Dict[str, int]
+    yaml_path: str, variant_counts: Dict[str, int]
 ) -> Dict[str, Union[Dict[str, List[str]], List[str]]]:
     with open(yaml_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
@@ -122,9 +117,7 @@ def build_candidates_from_yaml(
             )
             candidates[module] = {"weights": weights}
         else:
-            expanded = expand_manual_list(
-                raw_entry, a_set, b_set, c_set, all_modules
-            )
+            expanded = expand_manual_list(raw_entry, a_set, b_set, c_set, all_modules)
             candidates[module] = expanded
 
     # A 类

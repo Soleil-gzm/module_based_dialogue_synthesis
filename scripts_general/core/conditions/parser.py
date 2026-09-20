@@ -12,15 +12,14 @@ from functools import partial
 from typing import Any, Callable, Dict, List, Tuple
 
 import pandas as pd
-
-from core.conditions.base import ConditionEvaluator
 from core.conditions.atomic import AtomicCondition, parse_overdue_value
-from core.conditions.overdue_flag import OverdueFlagCondition
-from core.conditions.overdue_days import OverdueDaysCondition
+from core.conditions.base import ConditionEvaluator
+from core.conditions.deduct_failure_reason import DeductFailureReasonCondition
 from core.conditions.field_nullability import FieldNullabilityCondition
 from core.conditions.follow_info import FollowInfoCondition
+from core.conditions.overdue_days import OverdueDaysCondition
+from core.conditions.overdue_flag import OverdueFlagCondition
 from core.conditions.unknown import UnknownTokenCondition
-from core.conditions.deduct_failure_reason import DeductFailureReasonCondition
 
 
 class ConditionParser(ConditionEvaluator):
@@ -34,17 +33,24 @@ class ConditionParser(ConditionEvaluator):
         self.register_token(OverdueDaysCondition())
         self.register_token(FieldNullabilityCondition())
         self.register_token(FollowInfoCondition())
-        self.register_token(DeductFailureReasonCondition()) 
+        self.register_token(DeductFailureReasonCondition())
 
     def register_token(self, cond: AtomicCondition) -> None:
         self._token.append(cond)
 
-    def parse(self, condition_str) -> Tuple[Callable[[Dict[str, Any]], bool], List[AtomicCondition], List[str], List[Callable[[Dict[str, Any]], bool]]]:
+    def parse(self, condition_str) -> Tuple[
+        Callable[[Dict[str, Any]], bool],
+        List[AtomicCondition],
+        List[str],
+        List[Callable[[Dict[str, Any]], bool]],
+    ]:
         """
         返回 (predicate, matched_conditions, descriptions, sub_predicates)。
         predicate(case) -> bool；sub_predicates 供 evaluate_with_metadata 逐个求值。
         """
-        if condition_str is None or (isinstance(condition_str, float) and pd.isna(condition_str)):
+        if condition_str is None or (
+            isinstance(condition_str, float) and pd.isna(condition_str)
+        ):
             return _always_true, [], ["无条件"], []
         s = str(condition_str).strip()
         if not s:
@@ -76,7 +82,9 @@ class ConditionParser(ConditionEvaluator):
         pred, _, _, _ = self.parse(condition_str)
         return pred(case)
 
-    def evaluate_with_metadata(self, condition_str, case: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate_with_metadata(
+        self, condition_str, case: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         返回结构：
         {matched, parsed_condition, overdue_value, atomic_results}

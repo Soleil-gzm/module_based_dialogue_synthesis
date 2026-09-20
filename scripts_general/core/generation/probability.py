@@ -22,6 +22,7 @@ class ProbabilityCalculator(ABC):
 
 class ExponentialProbabilityCalculator(ProbabilityCalculator):
     """指数曲线：prob = start + (end - start) * t^exponent"""
+
     def __init__(self, start_prob: float, end_prob: float, exponent: float):
         self.start_prob = max(0.0, min(1.0, start_prob))
         self.end_prob = max(0.0, min(1.0, end_prob))
@@ -29,12 +30,13 @@ class ExponentialProbabilityCalculator(ProbabilityCalculator):
 
     def calculate(self, t: float) -> float:
         t = max(0.0, min(1.0, t))
-        prob = self.start_prob + (self.end_prob - self.start_prob) * (t ** self.exponent)
+        prob = self.start_prob + (self.end_prob - self.start_prob) * (t**self.exponent)
         return max(0.0, min(1.0, prob))
 
 
 class SigmoidProbabilityCalculator(ProbabilityCalculator):
     """Sigmoid 曲线：prob = 1 / (1 + exp(-slope * (t - 0.5)))"""
+
     def __init__(self, slope: float = 10.0):
         self.slope = slope
 
@@ -46,6 +48,7 @@ class SigmoidProbabilityCalculator(ProbabilityCalculator):
 
 class LinearProbabilityCalculator(ProbabilityCalculator):
     """线性曲线：prob = start + (end - start) * t"""
+
     def __init__(self, start_prob: float, end_prob: float):
         self.start_prob = max(0.0, min(1.0, start_prob))
         self.end_prob = max(0.0, min(1.0, end_prob))
@@ -54,5 +57,3 @@ class LinearProbabilityCalculator(ProbabilityCalculator):
         t = max(0.0, min(1.0, t))
         prob = self.start_prob + (self.end_prob - self.start_prob) * t
         return max(0.0, min(1.0, prob))
-
-
