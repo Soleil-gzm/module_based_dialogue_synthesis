@@ -13,7 +13,7 @@ CONFIG = {
         "prompt_replace_path": "generate_task/prompt/case_gr_Suning-backend/prompt_template_for_backbone_replace.txt",
         "testify": {
             "system_dir": "new_case/testify/system",
-            "replace_dir": "new_case/testify/system",
+            "replace_dir": "new_case/testify/replace",
             "start": 121,
             "end": 140,
             "seed": 10040,  
@@ -31,8 +31,8 @@ CONFIG = {
         "prompt_replace_path": "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt",
         "testify": {
             "system_dir": "new_case/testify/system",
-            "replace_dir": "new_case/testify/system",
-            "start": 201,
+            "replace_dir": "new_case/testify/replace",
+            "start": 200,
             "end": 300,
             "seed": 10041,  
         },
@@ -49,8 +49,8 @@ CONFIG = {
         "prompt_replace_path": "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt",
         "testify": {
             "system_dir": "new_case/testify/system",
-            "replace_dir": "new_case/testify/system",
-            "start": 301,
+            "replace_dir": "new_case/testify/replace",
+            "start": 300,
             "end": 400,
             "seed": 10042,  
         },
@@ -67,8 +67,8 @@ CONFIG = {
         "prompt_replace_path": "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt",
         "testify": {
             "system_dir": "new_case/testify/system",
-            "replace_dir": "new_case/testify/system",
-            "start": 1,
+            "replace_dir": "new_case/testify/replace",
+            "start": 0,
             "end": 100,
             "seed": 10043,  
         },
@@ -85,9 +85,9 @@ CONFIG = {
         "prompt_replace_path": "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt",
         "testify": {
             "system_dir": "new_case/testify/system",
-            "replace_dir": "new_case/testify/system",
-            "start": 101,
-            "end": 200,
+            "replace_dir": "new_case/testify/replace",
+            "start": 100,
+            "end": 199,
             "seed": 10044,  
         },
     }
