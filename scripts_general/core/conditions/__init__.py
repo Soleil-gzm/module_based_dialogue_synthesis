@@ -5,16 +5,16 @@
 新增条件类型只需写一个 AtomicCondition 子类并 register。
 """
 
-from core.conditions.base import ConditionEvaluator
-from core.conditions.atomic import AtomicCondition, safe_float, safe_int, parse_overdue_value
-from core.conditions.parser import ConditionParser
-from core.conditions.passthrough import PassthroughCondition
-from core.conditions.overdue_flag import OverdueFlagCondition
-from core.conditions.overdue_days import OverdueDaysCondition
-from core.conditions.field_nullability import FieldNullabilityCondition
-from core.conditions.follow_info import FollowInfoCondition
-from core.conditions.unknown import UnknownTokenCondition
-from core.conditions.deduct_failure_reason import DeductFailureReasonCondition
+from .base import ConditionEvaluator
+from .atomic import AtomicCondition, safe_float, safe_int, parse_overdue_value
+from .parser import ConditionParser
+from .passthrough import PassthroughCondition
+from .overdue_flag import OverdueFlagCondition
+from .overdue_days import OverdueDaysCondition
+from .field_nullability import FieldNullabilityCondition
+from .follow_info import FollowInfoCondition
+from .unknown import UnknownTokenCondition
+from .deduct_failure_reason import DeductFailureReasonCondition
 
 __all__ = [
     "ConditionEvaluator",
