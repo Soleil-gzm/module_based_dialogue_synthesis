@@ -6,7 +6,7 @@
 import sys
 sys.path.insert(0, "scripts_general")
 
-from core.config import _parse_repeat_value
+from core.generation.config import _parse_repeat_value
 
 # 测试用例
 test_cases = [

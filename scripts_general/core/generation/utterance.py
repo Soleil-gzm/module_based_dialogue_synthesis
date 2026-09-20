@@ -2,7 +2,7 @@ import random
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
-from core.random_service import RandomService
+from core.utils.random_service import RandomService
 
 
 def sample_utterance(row: pd.Series, is_human: bool, rng: RandomService) -> str:

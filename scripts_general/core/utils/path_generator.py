@@ -5,8 +5,8 @@ from typing import List, Optional, Set
 
 import numpy as np
 import pandas as pd
-from core.config import Config
-from core.random_service import RandomService
+from core.generation.config import Config
+from core.utils.random_service import RandomService
 
 
 class PathGenerator:

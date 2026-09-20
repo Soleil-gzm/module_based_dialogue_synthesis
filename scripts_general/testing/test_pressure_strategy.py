@@ -3,9 +3,9 @@
 """
 
 import pytest
-from core.config import Config
-from core.factory import create_pressure_strategy
-from core.pressure_prob_strategy import (AbsolutePressureStrategy,
+from core.generation.config import Config
+from core.generation.factory import create_pressure_strategy
+from core.pressure.pressure_prob_strategy import (AbsolutePressureStrategy,
                                          LinearDecayPressureStrategy,
                                          NormalizedPressureStrategy,
                                          SigmoidPressureStrategy)

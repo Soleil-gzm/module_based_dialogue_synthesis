@@ -2,9 +2,9 @@ import logging
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
-from core.config import Config
-from core.random_service import RandomService
-from core.utterance import get_ancestors, get_random_descendant_chain, sample_utterance
+from core.generation.config import Config
+from core.utils.random_service import RandomService
+from core.generation.utterance import get_ancestors, get_random_descendant_chain, sample_utterance
 
 logger = logging.getLogger("DialogueBuilder")
 

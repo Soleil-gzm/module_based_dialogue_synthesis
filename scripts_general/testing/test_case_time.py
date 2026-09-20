@@ -10,12 +10,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 # 导入被测试模块
-from core.case_loader import CaseLoader, DefaultCaseLoader, XiaoyingCaseLoader
-from core.config import Config
-from core.data_loader import load_cases, parse_case_info
-from core.factory import create_case_loader, create_time_generator
-from core.random_service import RandomService
-from core.time_generator import SimpleNaturalTimeGenerator
+from core.data.case_loader import CaseLoader, DefaultCaseLoader, XiaoyingCaseLoader
+from core.generation.config import Config
+from core.data.data_loader import load_cases, parse_case_info
+from core.generation.factory import create_case_loader, create_time_generator
+from core.utils.random_service import RandomService
+from core.utils.time_generator import SimpleNaturalTimeGenerator
 
 
 # ========== 辅助函数 ==========
@@ -239,7 +239,7 @@ class TestFactory:
         config_data = {"cases_dir": "dummy_path"}
         config = Config(config_data)
         loader = create_case_loader(config)
-        from core.case_loader import DefaultCaseLoader
+        from core.data.case_loader import DefaultCaseLoader
 
         assert isinstance(loader, DefaultCaseLoader)
         assert loader.cases_dir == "dummy_path"
@@ -255,7 +255,7 @@ class TestFactory:
         }
         config = Config(config_data)
         loader = create_case_loader(config)
-        from core.case_loader import XiaoyingCaseLoader
+        from core.data.case_loader import XiaoyingCaseLoader
 
         assert isinstance(loader, XiaoyingCaseLoader)
         assert loader.replace_dir == "path/to/replace"

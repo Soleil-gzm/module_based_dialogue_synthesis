@@ -27,8 +27,8 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.data_loader import parse_case_info
-from core.random_service import RandomService
+from core.data.data_loader import parse_case_info
+from core.utils.random_service import RandomService
 from core.conditions import ConditionParser
 
 # 条件评估依赖的数值字段

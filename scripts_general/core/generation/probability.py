@@ -6,7 +6,7 @@
 import math
 from abc import ABC, abstractmethod
 
-from core.config import Config
+from core.generation.config import Config
 
 
 class ProbabilityCalculator(ABC):

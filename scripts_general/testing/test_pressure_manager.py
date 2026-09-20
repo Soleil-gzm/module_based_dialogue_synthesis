@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from core.config import Config
-from core.pressure_manager import PressureManager
-from core.random_service import RandomService
+from core.generation.config import Config
+from core.pressure.pressure_manager import PressureManager
+from core.utils.random_service import RandomService
 
 
 # ========== 辅助：生成模拟施压话术 DataFrame ==========

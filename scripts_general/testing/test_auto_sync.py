@@ -8,8 +8,8 @@ import logging
 
 sys.path.insert(0, "scripts_general")
 
-from core.config import load_config, sync_config_from_prob
-from core.data_loader import load_prob_matrix
+from core.generation.config import load_config, sync_config_from_prob
+from core.data.data_loader import load_prob_matrix
 
 # 配置日志以查看警告信息
 logging.basicConfig(

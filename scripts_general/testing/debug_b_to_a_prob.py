@@ -5,8 +5,8 @@
 import sys
 sys.path.insert(0, "scripts_general")
 
-from core.config import load_config
-from core.data_loader import load_prob_matrix
+from core.generation.config import load_config
+from core.data.data_loader import load_prob_matrix
 
 
 def debug_b_to_a_prob():

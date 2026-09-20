@@ -13,8 +13,8 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
-from core.random_service import RandomService
-from core.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
+from core.utils.random_service import RandomService
+from core.utils.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
 
 logger = logging.getLogger("DialogueBuilder")
 

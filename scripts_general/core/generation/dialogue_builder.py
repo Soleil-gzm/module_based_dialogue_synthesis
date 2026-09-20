@@ -3,12 +3,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from core.conditions import ConditionParser
-from core.config import Config
-from core.factory import create_pressure_strategy,create_probability_calculator
-from core.pressure_manager import PressureManager
-from core.random_service import RandomService
-from core.trace import TraceCollector
-from core.utterance import (
+from core.generation.config import Config
+from core.generation.factory import create_pressure_strategy,create_probability_calculator
+from core.pressure.pressure_manager import PressureManager
+from core.utils.random_service import RandomService
+from core.utils.trace import TraceCollector
+from core.generation.utterance import (
     fill_placeholders,
     get_ancestors,
     get_random_descendant_chain,

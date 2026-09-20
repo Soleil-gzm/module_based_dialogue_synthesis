@@ -6,10 +6,10 @@
 import sys
 sys.path.insert(0, "scripts_general")
 
-from core.config import load_config
-from core.data_loader import load_prob_matrix
-from core.random_service import RandomService
-from core.path_generator import PathGenerator
+from core.generation.config import load_config
+from core.data.data_loader import load_prob_matrix
+from core.utils.random_service import RandomService
+from core.utils.path_generator import PathGenerator
 
 
 def verify_a_set_self_jump():

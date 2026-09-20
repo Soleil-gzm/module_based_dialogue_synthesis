@@ -12,10 +12,10 @@ from typing import List, Optional, Tuple
 
 from tqdm import tqdm
 
-from core.config import Config
-from core.dialogue_builder import DialogueBuilder
-from core.pressure_manager import PressureManager
-from core.random_service import RandomService
+from core.generation.config import Config
+from core.generation.dialogue_builder import DialogueBuilder
+from core.pressure.pressure_manager import PressureManager
+from core.utils.random_service import RandomService
 
 # ==================== JSON 序列化（支持 orjson 加速） ====================
 try:

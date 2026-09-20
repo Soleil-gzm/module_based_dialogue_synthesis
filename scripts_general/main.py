@@ -26,16 +26,16 @@ import argparse
 from datetime import datetime
 
 import pandas as pd
-from core.config import load_config, sync_config_from_prob
-from core.data_loader import load_prob_matrix, load_sheets
-from core.factory import (
+from core.generation.config import load_config, sync_config_from_prob
+from core.data.data_loader import load_prob_matrix, load_sheets
+from core.generation.factory import (
     create_case_loader,
     create_time_generator,
 )
-from core.logger import get_logger, init_logger
-from core.path_generator import PathGenerator
-from core.parallel_generator import generate_dialogues
-from core.random_service import RandomService
+from core.utils.logger import get_logger, init_logger
+from core.utils.path_generator import PathGenerator
+from core.generation.parallel_generator import generate_dialogues
+from core.utils.random_service import RandomService
 
 
 # ==================== 主函数 ====================
@@ -174,7 +174,7 @@ def main():
     # 10. 对话相邻去重（默认开启）
     if config.get("dedup.enabled", True):
         try:
-            from core.dedup import DialogueDeduplicator
+            from core.generation.dedup import DialogueDeduplicator
 
             dedup_threshold = config.get("dedup.threshold", 0.85)
             dedup_ignore_numbers = config.get("dedup.ignore_numbers", True)
@@ -208,7 +208,7 @@ def main():
         analysis_output = os.path.join(task_dir, "intermediate", "analysis", f"{task_name}_generate_analysis_{timestamp}")
         plot_format = config.get("analysis.format", "html")
         try:
-            from core.analyzer import DefaultAnalyzer
+            from core.analysis.analyzer import DefaultAnalyzer
 
             pressure_config = {
                 "start_prob": config.get("pressure_start_prob"),
@@ -234,7 +234,7 @@ def main():
             # 模块多样性分析
             diversity_modules = config.get("analysis.diversity_modules", [])
             if diversity_modules:
-                from core.analyzer import ModuleDiversityAnalyzer
+                from core.analysis.analyzer import ModuleDiversityAnalyzer
                 div_analyzer = ModuleDiversityAnalyzer(modules=diversity_modules)
                 div_analyzer.analyze(trace_file, analysis_output)
                 logger.info(f"模块多样性分析完成，报告保存在 {analysis_output}")

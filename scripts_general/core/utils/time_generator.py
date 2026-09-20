@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from core.random_service import RandomService
+from core.utils.random_service import RandomService
 
 
 class TimeGenerator(ABC):
