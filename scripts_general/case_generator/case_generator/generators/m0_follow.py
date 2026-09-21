@@ -270,9 +270,6 @@ def load_and_format_prompt_system(prompt_path, data, follow_info=None):
     with open(prompt_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
 
-    if follow_info is not None:
-        prompt_template = prompt_template.replace("{follow-info}", follow_info)
-
     prompt_template_load = PromptTemplate.from_template(prompt_template)
     return prompt_template_load.format(
         jobnumber=data["专员工号"],
@@ -289,6 +286,7 @@ def load_and_format_prompt_system(prompt_path, data, follow_info=None):
         interest=data["利息"],
         penalty=data["罚息"],
         reason=data["代扣失败原因"],
+        follow_info=follow_info, 
     )
 
 
@@ -372,7 +370,7 @@ def generate(config):
                 # === system prompt ===
                 prompt_system = load_and_format_prompt_system(
                     config["prompt_system_path"], data,
-                    follow_info=follow_info,   # 仅 s1_follow.py / m0_follow.py 保留此行
+                    follow_info=follow_info,   
                 )
                 with open(f"{SYSTEM_DIR}/case_{START + case_idx + 1}.txt",
                           "w", encoding="utf-8") as f:
