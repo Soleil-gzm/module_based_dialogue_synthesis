@@ -10,7 +10,7 @@ CONFIG = {
         "system_dir": "new_case/suning-backend/system",
         "replace_dir": "new_case/suning-backend/replace",
         "prompt_system_path": "scripts_general/case_generator/prompt/backend(M3+)/prompt_template_for_system.txt",
-        "prompt_replace_path": "generate_task/prompt/case_gr_Suning-backend/prompt_template_for_backbone_replace.txt",
+        "prompt_replace_path": "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt",
         "testify": {
             "system_dir": "new_case/testify/system",
             "replace_dir": "new_case/testify/replace",
@@ -63,7 +63,7 @@ CONFIG = {
         "combinations_path": "combinations-M0-4w.json",
         "system_dir": "new_case/M0/systemM0_4w",
         "replace_dir": "new_case/M0/replaceM0_4w",
-        "prompt_system_path": "scripts_general/case_generator/prompt/M0_notdue/prompt_template_for_system-M0-new-0918.txt",
+        "prompt_system_path": "scripts_general/case_generator/prompt/M0_notdue/prompt_template_for_system_M0_new_0918.txt",
         "prompt_replace_path": "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt",
         "testify": {
             "system_dir": "new_case/testify/system",
@@ -81,7 +81,7 @@ CONFIG = {
         "combinations_path": "combinations-M0-follow-1w.json",
         "system_dir": "new_case/M0/systemM0-follow-1w",
         "replace_dir": "new_case/M0/replaceM0-follow-1w",
-        "prompt_system_path": "scripts_general/case_generator/prompt/M0_notdue/prompt_template_for_system-M0-new-follow-0918.txt",
+        "prompt_system_path": "scripts_general/case_generator/prompt/M0_notdue/prompt_template_for_system_M0_new_follow_0918.txt",
         "prompt_replace_path": "scripts_general/case_generator/prompt/prompt_template_for_backbone_replace.txt",
         "testify": {
             "system_dir": "new_case/testify/system",
