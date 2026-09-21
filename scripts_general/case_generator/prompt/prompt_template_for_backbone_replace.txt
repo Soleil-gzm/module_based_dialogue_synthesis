@@ -1,0 +1,18 @@
+- APP名称：星图金融
+- 专员工号：{jobnumber}
+
+
+- 客户姓名：{info_name}
+- 客户性别：{info_gender}
+- 客户姓氏：{info_last_name}
+
+- 逾期天数：{days_past_due}
+- 逾期笔数: {num_tranc}
+- 今天日期：{today_date}
+- 还款日：{payment_date}
+
+- 总欠款：{total_amount}
+- 本金：{principal}
+- 应还金额：{amount}
+- 利息：{interest}
+- 罚息：{penalty}

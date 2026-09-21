@@ -13,7 +13,6 @@ tool_analysis/
 config_task/
 pytest.ini
 prob_generator*
-scripts_general/case_generator/prompt*
 case_generate*
 combinations*.json
 
