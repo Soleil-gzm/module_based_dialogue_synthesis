@@ -32,7 +32,8 @@ def _sample_today_date(**ctx):
     return generate_time.generate_random_date()
 
 def _sample_days_past_due(**ctx):
-    return 0  # M0-follow: 未逾期，固定为 0
+    """M2: 首催，逾期天数29~62。"""
+    return random.randint(29, 62)
 
 def _sample_jobnumber(**ctx):
     return generate_jobnumber()
@@ -51,14 +52,6 @@ def _sample_payment_date(**ctx):
 def _sample_num_tranc(**ctx):
     """逾期笔数。"""
     return 0 if random.random() < 0.4 else random.randint(1, 5)
-
-# 代扣失败原因选项：等概率随机抽取
-REASON_OPTIONS = ["无代扣协议", "银行卡异常", "无"]
-
-def _sample_reason(**ctx):
-    """代扣失败原因映射：随机映射到 3 个原因之一。"""
-    return random.choice(REASON_OPTIONS)
-
 
 # ---- 金额字段 ----
 
@@ -137,7 +130,6 @@ SAMPLERS = {
     "利息":   _sample_interest,
     "罚息":   _sample_penalty,
     "逾期笔数":   _sample_num_tranc,
-    "代扣失败原因": _sample_reason,
 }
 
 # ============== 字段分类 ==============
@@ -155,7 +147,7 @@ GENERATED_FIELDS = [
     "姓名",          # → dict: {姓, 名, 姓名, 性别}
     "当前时间",       # 独立
     "今天日期",       # 独立
-    "逾期天数",       # 独立（M0-follow: 固定 0）
+    "逾期天数",       # 独立（M2: 29~62）
     "专员工号",       # 独立
     "查账时间",       # 依赖 当前时间
     "还款日",         # 依赖 今天日期, 逾期天数
@@ -165,7 +157,6 @@ GENERATED_FIELDS = [
     "利息",           # mask 驱动，依赖 应还金额
     "罚息",           # mask 驱动，依赖 应还金额
     "逾期笔数",       # mask 驱动，独立
-    "代扣失败原因",       # mask 驱动，独立
 ]
 
 # 参与 mask 组合枚举的字段（可以为 0 或非 0）
@@ -176,19 +167,6 @@ ALWAYS_NONZERO_FIELDS = ["应还金额"]
 
 # 需要 2 位小数格式化的字段
 NUMERIC_FIELDS = ["总欠款", "应还金额", "本金", "利息", "罚息"]
-
-# 跟催结果类型：system prompt 中「跟催-{follow-info}」从以下 9 类中等概率抽取
-FOLLOW_INFO_OPTIONS = [
-    "未接通",
-    "无有效沟通",
-    "承诺还款",
-    "要时间",
-    "资金困难",
-    "对欠款有异议",
-    "协商诉求",
-    "投诉风险",
-    "其他",
-]
 
 
 # ============== 工具函数 ==============
@@ -260,13 +238,8 @@ def generate_data(mask_dict):
     return {**STATIC_FIELDS, **values}
 
 
-def load_and_format_prompt_system(prompt_path, data, follow_info=None):
-    """加载 prompt template，替换 case 标签。
-
-    follow_info：跟催结果类型（如「承诺还款」），用于替换模板中的
-    「跟催-{follow-info}」占位符。该占位符含连字符，不能作为 format
-    关键字参数，因此在交给 PromptTemplate 之前先做字面量替换。
-    """
+def load_and_format_prompt_system(prompt_path, data):
+    """加载 prompt template，替换 case 标签。"""
     with open(prompt_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
 
@@ -285,8 +258,6 @@ def load_and_format_prompt_system(prompt_path, data, follow_info=None):
         principal=data["本金"],
         interest=data["利息"],
         penalty=data["罚息"],
-        reason=data["代扣失败原因"],
-        follow_info=follow_info, 
     )
 
 
@@ -315,9 +286,8 @@ def load_and_format_prompt_replace(prompt_path, data):
     )
 
 
-# ============== 主流程：M0-follow（未逾期·跟催）=============
+# ============== 主流程：M2（首催）=============
 
-# ============== 主流程：M0-follow（未逾期·跟催）=============
 def generate(config):
     # ========== 1. 准备组合（共用枚举，两份都基于同一组合集） ==========
     combos = generate_mask_combinations(COMBINATION_FIELDS)
@@ -364,13 +334,13 @@ def generate(config):
             for _ in range(n):
                 data = generate_data(combo["mask"])
 
-                # ---- 跟催业务线专用（仅 s1_follow.py / m0_follow.py 保留此行）----
-                follow_info = random.choice(FOLLOW_INFO_OPTIONS)
+                # ---- 跟催业务线专用（仅 M2_follow.py / m0_follow.py 保留此行）----
+                # follow_info = random.choice(FOLLOW_INFO_OPTIONS)
 
                 # === system prompt ===
                 prompt_system = load_and_format_prompt_system(
                     config["prompt_system_path"], data,
-                    follow_info=follow_info,   
+                    # follow_info=follow_info,   # 仅 M2_follow.py / m0_follow.py 保留此行
                 )
                 with open(f"{SYSTEM_DIR}/case_{START + case_idx + 1}.txt",
                           "w", encoding="utf-8") as f:

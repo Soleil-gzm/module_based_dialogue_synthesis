@@ -17,3 +17,4 @@ case_generate*
 combinations*.json
 
 new_case*
+packages/

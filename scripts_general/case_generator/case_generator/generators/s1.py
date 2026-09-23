@@ -193,7 +193,7 @@ def get_check_time(current_time):
 
     if not available_times:
         return "今天晚上8点"
-    return available_times[0]
+    return random.choice(available_times)
 
 def generate_jobnumber():
     """
