@@ -261,12 +261,7 @@ def generate_data(mask_dict):
 
 
 def load_and_format_prompt_system(prompt_path, data, follow_info=None):
-    """加载 prompt template，替换 case 标签。
-
-    follow_info：跟催结果类型（如「承诺还款」），用于替换模板中的
-    「跟催-{follow-info}」占位符。该占位符含连字符，不能作为 format
-    关键字参数，因此在交给 PromptTemplate 之前先做字面量替换。
-    """
+    """加载 prompt template，替换 case 标签。"""
     with open(prompt_path, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
 
@@ -275,14 +270,14 @@ def load_and_format_prompt_system(prompt_path, data, follow_info=None):
         jobnumber=data["专员工号"],
         info_name=data["姓名"],
         info_gender=data["性别"],
+        payment_date=data["还款日"],
+        today_date=data["今天日期"],
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
-        today_date=data["今天日期"],
         time_check=data["查账时间"],
-        payment_date=data["还款日"],
-        amount=data["应还金额"],
         total_amount=data["总欠款"],
         principal=data["本金"],
+        amount=data["应还金额"],
         interest=data["利息"],
         penalty=data["罚息"],
         reason=data["代扣失败原因"],
@@ -304,12 +299,12 @@ def load_and_format_prompt_replace(prompt_path, data):
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
         today_date=data["今天日期"],
+        payment_date=data["还款日"],
         time_check=data["查账时间"],
         current_time=data["当前时间"],
-        payment_date=data["还款日"],
-        amount=data["应还金额"] + '元',
         total_amount=data["总欠款"] + '元',
         principal=data["本金"] + '元',
+        amount=data["应还金额"] + '元',
         interest=data["利息"] + '元',
         penalty=data["罚息"] + '元',
     )
@@ -364,7 +359,7 @@ def generate(config):
             for _ in range(n):
                 data = generate_data(combo["mask"])
 
-                # ---- 跟催业务线专用（仅 s1_follow.py / m0_follow.py 保留此行）----
+                # ---- 跟催业务线专用（仅 _follow.py / _follow.py 保留此行）----
                 follow_info = random.choice(FOLLOW_INFO_OPTIONS)
 
                 # === system prompt ===

@@ -234,14 +234,14 @@ def load_and_format_prompt_system(prompt_path, data):
         jobnumber=data["专员工号"],
         info_name=data["姓名"],
         info_gender=data["性别"],
+        payment_date=data["还款日"],
+        today_date=data["今天日期"],
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
-        today_date=data["今天日期"],
         time_check=data["查账时间"],
-        payment_date=data["还款日"],
-        amount=data["应还金额"],
         total_amount=data["总欠款"],
         principal=data["本金"],
+        amount=data["应还金额"],
         interest=data["利息"],
         penalty=data["罚息"],
     )
@@ -261,12 +261,12 @@ def load_and_format_prompt_replace(prompt_path, data):
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
         today_date=data["今天日期"],
+        payment_date=data["还款日"],
         time_check=data["查账时间"],
         current_time=data["当前时间"],
-        payment_date=data["还款日"],
-        amount=data["应还金额"] + '元',
         total_amount=data["总欠款"] + '元',
         principal=data["本金"] + '元',
+        amount=data["应还金额"] + '元',
         interest=data["利息"] + '元',
         penalty=data["罚息"] + '元',
     )
@@ -319,13 +319,13 @@ def generate(config):
             for _ in range(n):
                 data = generate_data(combo["mask"])
 
-                # ---- 跟催业务线专用（仅 s1_follow.py / m0_follow.py 保留此行）----
+                # ---- 跟催业务线专用（仅 _follow.py / _follow.py 保留此行）----
                 # follow_info = random.choice(FOLLOW_INFO_OPTIONS)
 
                 # === system prompt ===
                 prompt_system = load_and_format_prompt_system(
                     config["prompt_system_path"], data,
-                    # follow_info=follow_info,   # 仅 s1_follow.py / m0_follow.py 保留此行
+                    # follow_info=follow_info,   # 仅 _follow.py / _follow.py 保留此行
                 )
                 with open(f"{SYSTEM_DIR}/case_{START + case_idx + 1}.txt",
                           "w", encoding="utf-8") as f:

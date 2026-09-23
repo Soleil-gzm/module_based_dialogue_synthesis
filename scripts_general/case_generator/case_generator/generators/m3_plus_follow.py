@@ -32,8 +32,12 @@ def _sample_today_date(**ctx):
     return generate_time.generate_random_date()
 
 def _sample_days_past_due(**ctx):
-    """S1: 首催，逾期天数1~31。"""
-    return random.randint(1, 31)
+    """M3+: 逾期天数 30% 概率为 361～1500，否则 90~360。"""
+    tmp = random.random()
+    if tmp < 0.3:
+        return random.randint(361, 1500)
+    else:
+        return random.randint(90, 360)
 
 def _sample_jobnumber(**ctx):
     return generate_jobnumber()
@@ -71,23 +75,7 @@ def _sample_total_amount(**ctx):
 def _sample_amount(**ctx):
     """应还金额：依赖总欠款。fallback：总欠款为 0 时独立随机。"""
     total = ctx.get("总欠款", 0.0)
-    if total > 0:
-        tmp = random.random()
-        if tmp < 0.5:       # 50% → 总欠款的 5%~30%
-            return round(total * random.uniform(0.05, 0.30), 2)
-        elif tmp < 0.8:     # 30% → 总欠款的 30%~95%
-            return round(total * random.uniform(0.30, 0.95), 2)
-        else:               # 20% → = 总欠款
-            return round(total, 2)
-    else:
-        tmp = random.random()
-        if tmp < 0.3:
-            return round(random.uniform(10, 1000), 2)
-        elif tmp < 0.8:
-            return round(random.uniform(1000, 10000), 2)
-        else:
-            return round(random.uniform(1000, 100000), 2)
-
+    return total
 
 def _sample_principal(**ctx):
     """本金：依赖应还金额 × (0.20~1.20)。fallback：应还金额为 0 时独立随机。"""
@@ -147,7 +135,7 @@ GENERATED_FIELDS = [
     "姓名",          # → dict: {姓, 名, 姓名, 性别}
     "当前时间",       # 独立
     "今天日期",       # 独立
-    "逾期天数",       # 独立（S1-follow: 1~30）
+    "逾期天数",       # 独立（M3+）
     "专员工号",       # 独立
     "查账时间",       # 依赖 当前时间
     "还款日",         # 依赖 今天日期, 逾期天数
@@ -160,7 +148,7 @@ GENERATED_FIELDS = [
 ]
 
 # 参与 mask 组合枚举的字段（可以为 0 或非 0）
-COMBINATION_FIELDS = ["总欠款", "本金", "利息", "罚息", "逾期笔数"]
+COMBINATION_FIELDS = ["本金", "利息", "罚息", "逾期笔数"]
 
 # 始终非 0 的字段（不参与 mask，由依赖关系计算）
 ALWAYS_NONZERO_FIELDS = ["应还金额"]
@@ -200,9 +188,7 @@ def get_check_time(current_time):
         "今天下午6点": 18,
         "今天晚上8点": 20,
     }
-    for time_str, time_hour in time_mapping.items():
-        if time_hour >= min_check_hour:
-            available_times.append(time_str)
+    available_times = [t for t, h in time_mapping.items() if h >= min_check_hour]
 
     if not available_times:
         return "今天晚上8点"
@@ -261,18 +247,19 @@ def load_and_format_prompt_system(prompt_path, data, follow_info=None):
         jobnumber=data["专员工号"],
         info_name=data["姓名"],
         info_gender=data["性别"],
+        payment_date=data["还款日"],
+        today_date=data["今天日期"],
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
-        today_date=data["今天日期"],
         time_check=data["查账时间"],
-        payment_date=data["还款日"],
-        amount=data["应还金额"],
         total_amount=data["总欠款"],
         principal=data["本金"],
+        amount=data["应还金额"],
         interest=data["利息"],
         penalty=data["罚息"],
         follow_info=follow_info, 
     )
+
 
 def load_and_format_prompt_replace(prompt_path, data):
     """加载 prompt template（带查账时间 + 元后缀）。"""
@@ -288,18 +275,18 @@ def load_and_format_prompt_replace(prompt_path, data):
         days_past_due=data['逾期天数'],
         num_tranc=data['逾期笔数'],
         today_date=data["今天日期"],
+        payment_date=data["还款日"],
         time_check=data["查账时间"],
         current_time=data["当前时间"],
-        payment_date=data["还款日"],
-        amount=data["应还金额"] + '元',
         total_amount=data["总欠款"] + '元',
         principal=data["本金"] + '元',
+        amount=data["应还金额"] + '元',
         interest=data["利息"] + '元',
         penalty=data["罚息"] + '元',
     )
 
 
-# ============== 主流程：S1-follow（跟催）=============
+# ============== 主流程：M3+-follow（跟催）=============
 def generate(config):
     # ========== 1. 准备组合（共用枚举，两份都基于同一组合集） ==========
     combos = generate_mask_combinations(COMBINATION_FIELDS)
@@ -346,7 +333,7 @@ def generate(config):
             for _ in range(n):
                 data = generate_data(combo["mask"])
 
-                # ---- 跟催业务线专用（仅 s1_follow.py / m0_follow.py 保留此行）----
+                # ---- 跟催业务线专用（仅 _follow.py / _follow.py 保留此行）----
                 follow_info = random.choice(FOLLOW_INFO_OPTIONS)
 
                 # === system prompt ===
