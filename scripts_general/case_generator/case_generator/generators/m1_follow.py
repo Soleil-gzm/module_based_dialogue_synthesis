@@ -32,7 +32,7 @@ def _sample_today_date(**ctx):
     return generate_time.generate_random_date()
 
 def _sample_days_past_due(**ctx):
-    """S1: 首催，逾期天数1~31。"""
+    """M1: 跟催，逾期天数1~31。"""
     return random.randint(1, 31)
 
 def _sample_jobnumber(**ctx):
@@ -81,12 +81,14 @@ def _sample_amount(**ctx):
             return round(total, 2)
     else:
         tmp = random.random()
-        if tmp < 0.3:
-            return round(random.uniform(10, 1000), 2)
-        elif tmp < 0.8:
+        if tmp < 0.3:       # 30%
+            return round(random.uniform(50, 1000), 2)
+        elif tmp < 0.7:     # 40%
             return round(random.uniform(1000, 10000), 2)
-        else:
-            return round(random.uniform(1000, 100000), 2)
+        elif tmp < 0.9:    # 20%
+            return round(random.uniform(10000, 100000), 2)
+        else:               # 10%
+            return round(random.uniform(100000, 1000000), 2)
 
 
 def _sample_principal(**ctx):

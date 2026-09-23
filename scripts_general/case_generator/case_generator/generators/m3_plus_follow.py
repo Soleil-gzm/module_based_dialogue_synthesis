@@ -32,12 +32,14 @@ def _sample_today_date(**ctx):
     return generate_time.generate_random_date()
 
 def _sample_days_past_due(**ctx):
-    """M3+: 逾期天数 30% 概率为 361～1500，否则 90~360。"""
+    """M3+: 逾期天数 40% 90-180  30% 181-360 30% 361-1500"""
     tmp = random.random()
-    if tmp < 0.3:
-        return random.randint(361, 1500)
+    if tmp < 0.4:
+        return random.randint(90, 180)
+    elif tmp<0.7:
+        return random.randint(181, 300)
     else:
-        return random.randint(90, 360)
+        return random.randint(361, 1500)
 
 def _sample_jobnumber(**ctx):
     return generate_jobnumber()
@@ -75,7 +77,18 @@ def _sample_total_amount(**ctx):
 def _sample_amount(**ctx):
     """应还金额：依赖总欠款。fallback：总欠款为 0 时独立随机。"""
     total = ctx.get("总欠款", 0.0)
-    return total
+    if total<=0:
+        tmp = random.random()
+        if tmp < 0.3:       # 30%
+            return round(random.uniform(50, 1000), 2)
+        elif tmp < 0.7:     # 40%
+            return round(random.uniform(1000, 10000), 2)
+        elif tmp < 0.9:    # 20%
+            return round(random.uniform(10000, 100000), 2)
+        else:               # 10%
+            return round(random.uniform(100000, 1000000), 2)
+    else:
+        return total
 
 def _sample_principal(**ctx):
     """本金：依赖应还金额 × (0.20~1.20)。fallback：应还金额为 0 时独立随机。"""

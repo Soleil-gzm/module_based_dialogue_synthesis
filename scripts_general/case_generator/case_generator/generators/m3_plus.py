@@ -75,7 +75,18 @@ def _sample_total_amount(**ctx):
 def _sample_amount(**ctx):
     """应还金额：依赖总欠款。fallback：总欠款为 0 时独立随机。"""
     total = ctx.get("总欠款", 0.0)
-    return total
+    if total<=0:
+        tmp = random.random()
+        if tmp < 0.3:       # 30%
+            return round(random.uniform(50, 1000), 2)
+        elif tmp < 0.7:     # 40%
+            return round(random.uniform(1000, 10000), 2)
+        elif tmp < 0.9:    # 20%
+            return round(random.uniform(10000, 100000), 2)
+        else:               # 10%
+            return round(random.uniform(100000, 1000000), 2)
+    else:
+        return total
 
 def _sample_principal(**ctx):
     """本金：依赖应还金额 × (0.20~1.20)。fallback：应还金额为 0 时独立随机。"""
