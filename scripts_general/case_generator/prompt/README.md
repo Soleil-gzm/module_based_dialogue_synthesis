@@ -43,3 +43,28 @@ M0: 4w
 M0-follow: 1w
 S1: 6w
 S1-follow: 2w
+
+# 2026.9.23 更新业务数据
+
+逾期天数：
+M0： 0
+M1：1-31
+M2/M3： 29-91
+M3+：40% 90-180  30% 181-360 30% 361-1500
+
+应换金额！= 0, M3+ 应换金额=总欠款（防御性不为0）
+
+首催4w,跟催 2w
+
+mapping:
+
+推荐英文缩写方案
+采用 意愿（Willingness）+ 能力（Ability） 的组合，用 Y/N 表示有/无，简洁易记：
+
+中文标签        推荐缩写         含义
+有意愿有能力     WY_AY         Willing Yes, Ability Yes
+有意愿无能力     WY_AN         Willing Yes, Ability No
+无意愿有能力     WN_AY         Willing No, Ability Yes
+无意愿无能力     WN_AN         Willing No, Ability No
+有投诉风险         CR             Complaint Risk
+易跳票客户         BP              Break Promise

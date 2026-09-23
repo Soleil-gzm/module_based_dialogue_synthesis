@@ -1,17 +1,23 @@
 # run.py
 import argparse
 
-from config import CONFIG
+# from config import CONFIG
+from config_test import CONFIG
+# from config_agent import CONFIG
 # 导入各业务线模块
-from generators import m0, m0_follow, s1, s1_follow, suning_backend
+from generators import m0, m0_follow, m1, m1_follow, suning_backend,m2,m2_follow,m3_plus,m3_plus_follow
 
 # 业务线模块映射
 GENERATORS = {
     "suning_backend": suning_backend,
-    "s1": s1,
-    "s1_follow": s1_follow,
     "m0": m0,
     "m0_follow": m0_follow,
+    "m1": m1,
+    "m1_follow": m1_follow,
+    "m2": m2,
+    "m2_follow": m2_follow,
+    "m3_plus": m3_plus,
+    "m3_plus_follow": m3_plus_follow,
 }
 
 def main():
