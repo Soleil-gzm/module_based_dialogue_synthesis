@@ -2,8 +2,8 @@
 import argparse
 
 # from config import CONFIG
-from config_test import CONFIG
-# from config_agent import CONFIG
+# from config_test import CONFIG
+from config_agent import CONFIG
 # 导入各业务线模块
 from generators import m0, m0_follow, m1, m1_follow, suning_backend,m2,m2_follow,m3_plus,m3_plus_follow
 
