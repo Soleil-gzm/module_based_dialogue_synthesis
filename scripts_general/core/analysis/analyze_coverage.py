@@ -31,9 +31,11 @@ _NEED_COLS = ["uid", "conditions(条件)"]
 
 def _detect_engine():
     """优先 calamine（与 data_loader 一致，免疫损坏的 AutoFilter）；
-    缺失时回退到 pandas 默认引擎（openpyxl），保证脚本可用。"""
+    缺失时回退到 pandas 默认引擎（openpyxl），保证脚本可用。
+    注意：pip 包名 python-calamine 的导入名是 python_calamine（不是 calamine），
+    传给 pandas 的引擎字符串才是 "calamine"。"""
     try:
-        import calamine  # noqa: F401
+        import python_calamine  # noqa: F401
         return "calamine"
     except ImportError:
         return None

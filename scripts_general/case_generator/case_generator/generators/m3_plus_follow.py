@@ -161,7 +161,7 @@ GENERATED_FIELDS = [
 ]
 
 # 参与 mask 组合枚举的字段（可以为 0 或非 0）
-COMBINATION_FIELDS = ["本金", "利息", "罚息", "逾期笔数"]
+COMBINATION_FIELDS = ["总欠款", "本金", "利息", "罚息", "逾期笔数"]
 
 # 始终非 0 的字段（不参与 mask，由依赖关系计算）
 ALWAYS_NONZERO_FIELDS = ["应还金额"]
