@@ -1,5 +1,5 @@
 """
-配置加载与同步模块。
+配置加载与同步模块（calamine 引擎版）。
 
 数据来源优先级：
   1. prob 表（模块转移概率矩阵）→ modules 的唯一来源
@@ -12,7 +12,7 @@
 import logging
 import os
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import pandas as pd
 import yaml
@@ -31,15 +31,9 @@ def _parse_repeat_value(value) -> int:
     if pd.isna(value):
         return 1
 
-    # 转换为字符串
     value_str = str(value).strip()
-
-    # 尝试按分隔符（/ 或 - 或 ; 或 ,）拆分
-    # 支持多个分隔符，如 1/2/3 或 ;1/2/3 或 1,2,3
-    # 注意：- 放在字符类末尾或转义
     parts = re.split(r"[\s/;,\\-]+", value_str)
 
-    # 提取所有数字
     numbers = []
     for part in parts:
         part = part.strip()
@@ -52,7 +46,6 @@ def _parse_repeat_value(value) -> int:
     if numbers:
         return max(numbers)
 
-    # 无法解析，返回默认值
     logger.warning(f"无法解析 repeat 值: '{value_str}'，使用默认值 1")
     return 1
 
@@ -86,7 +79,7 @@ class Config:
 
 
 def load_config(config_path: str) -> Config:
-    """加载YAML配置文件并返回Config对象"""
+    """加载 YAML 配置文件并返回 Config 对象"""
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"配置文件不存在: {config_path}")
     with open(config_path, "r", encoding="utf-8") as f:
@@ -102,45 +95,34 @@ def extract_max_repeat_from_excel(
     从 Excel 话术模板提取指定模块的 max_repeat（取 repeat(次数) 列最大值）。
     modules 由 prob 表提供，本函数只负责读取 max_repeat。
 
-    说明：读取前会先清理 AutoFilter（zipfile 方案），避免 openpyxl 解析
-    损坏的 autoFilter.ref 时报错。清理只做一次，供所有模块复用。
+    使用 calamine 引擎，天然免疫损坏的 AutoFilter。
     """
     if not os.path.exists(excel_path):
         logger.warning(f"话术模板文件不存在: {excel_path}，跳过 max_repeat 提取")
         return {}
 
-    # 延迟导入，避免顶层循环依赖
-    from core.data.data_loader import _clean_autofilter
-
-    cleaned_path = _clean_autofilter(excel_path)
-    is_temp = cleaned_path != excel_path
-
     max_repeat = {}
-    try:
-        for module in modules:
-            try:
-                df = pd.read_excel(cleaned_path, sheet_name=module)
-                if "repeat(次数)" in df.columns:
-                    parsed_values = df["repeat(次数)"].apply(_parse_repeat_value)
-                    max_val = int(parsed_values.max())
-                    if max_val > 0:
-                        max_repeat[module] = max_val
-                    else:
-                        max_repeat[module] = 1
-                        logger.warning(
-                            f"模块 '{module}' 的 repeat(次数) 列最大值为0，使用默认值 1"
-                        )
+    for module in modules:
+        try:
+            df = pd.read_excel(excel_path, sheet_name=module, engine="calamine")
+            if "repeat(次数)" in df.columns:
+                parsed_values = df["repeat(次数)"].apply(_parse_repeat_value)
+                max_val = int(parsed_values.max())
+                if max_val > 0:
+                    max_repeat[module] = max_val
                 else:
                     max_repeat[module] = 1
-                    logger.warning(f"模块 '{module}' 缺少 'repeat(次数)' 列，使用默认值 1")
-            except Exception as e:
-                logger.warning(f"读取模块 '{module}' 的 repeat(次数) 失败: {e}")
+                    logger.warning(
+                        f"模块 '{module}' 的 repeat(次数) 列最大值为0，使用默认值 1"
+                    )
+            else:
                 max_repeat[module] = 1
-    finally:
-        if is_temp and os.path.exists(cleaned_path):
-            os.remove(cleaned_path)
-
+                logger.warning(f"模块 '{module}' 缺少 'repeat(次数)' 列，使用默认值 1")
+        except Exception as e:
+            logger.warning(f"读取模块 '{module}' 的 repeat(次数) 失败: {e}")
+            max_repeat[module] = 1
     return max_repeat
+
 
 def sync_config_from_prob(config: Config, prob_modules: List[str]) -> Config:
     """
