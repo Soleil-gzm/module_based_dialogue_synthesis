@@ -11,6 +11,7 @@ import os
 import random
 import re
 import tempfile
+import zipfile
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -19,51 +20,48 @@ from core.utils.time_generator import SimpleNaturalTimeGenerator, TimeGenerator
 
 logger = logging.getLogger("DialogueBuilder")
 
-
 def _clean_autofilter(excel_path: str) -> str:
     """
-    使用 openpyxl 清理 Excel 文件中的所有自动筛选，返回清理后的临时文件路径。
-    若文件不含 AutoFilter 或无法处理，则直接返回原路径（不生成临时文件）。
-    调用方负责在用完后删除返回的临时文件（如果与原路径不同）。
+    用 zipfile 直接在 XML 层移除 xlsx 中所有工作表的 <autoFilter> 节点，
+    避免 openpyxl 解析损坏的 autoFilter.ref 时抛 ValueError。
+    返回清理后的临时文件路径（调用方负责删除）。
+    若处理失败，返回原路径。
 
     注意：
-    - 仅适用于结构规整（无合并单元格）的表格（如话术表）。
-    - 对于含合并单元格的表格（如概率矩阵），请不要使用本函数，
-      因为 openpyxl 重新保存可能破坏合并结构。
+    - 适用于任意 xlsx/xlsm 文件，不依赖 openpyxl 解析。
+    - 对含合并单元格的表格也安全（只删除 autoFilter 节点，其他内容原样复制）。
+    - 对于超大的文件，该操作只复制一次，无额外内存开销。
     """
-    try:
-        import openpyxl
-    except ImportError:
-        logger.warning("openpyxl 未安装，跳过 AutoFilter 清理，直接读取原文件")
-        return excel_path
-
-    # 仅处理 xlsx / xlsm 格式（xls 需 xlrd，暂不处理）
     if not excel_path.lower().endswith((".xlsx", ".xlsm")):
         return excel_path
 
+    tmp_path = excel_path + ".no_filter.xlsx"
     try:
-        wb = openpyxl.load_workbook(excel_path)
-        has_filter = False
-        for ws in wb.worksheets:
-            if ws.auto_filter is not None and ws.auto_filter.ref is not None:
-                ws.auto_filter.ref = None
-                has_filter = True
-
-        if not has_filter:
-            wb.close()
-            return excel_path  # 无筛选，直接用原文件
-
-        # 有筛选，保存到临时文件
-        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx", prefix="cleaned_")
-        os.close(tmp_fd)
-        wb.save(tmp_path)
-        wb.close()
+        with zipfile.ZipFile(excel_path, "r") as zin, \
+             zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                # 只处理工作表 XML
+                if item.filename.startswith("xl/worksheets/sheet") and item.filename.endswith(".xml"):
+                    text = data.decode("utf-8")
+                    # 移除自闭合 <autoFilter .../>
+                    text = re.sub(r"<autoFilter\b[^>]*/>", "", text)
+                    # 移除成对 <autoFilter ...>...</autoFilter>
+                    text = re.sub(
+                        r"<autoFilter\b[^>]*>.*?</autoFilter>",
+                        "",
+                        text,
+                        flags=re.DOTALL,
+                    )
+                    data = text.encode("utf-8")
+                zout.writestr(item, data)
         logger.info(f"检测到 AutoFilter，已生成临时清理文件: {tmp_path}")
         return tmp_path
     except Exception as e:
         logger.warning(f"清理 AutoFilter 失败，回退使用原文件: {e}")
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
         return excel_path
-
 
 def load_sheets(
     excel_path: str, modules: List[str], keep_cols: List[str] = None
@@ -130,49 +128,64 @@ def load_prob_matrix(prob_path: str) -> Tuple[pd.DataFrame, List[str]]:
     加载概率矩阵，模块名从 index/columns 提取（唯一来源）。
     校验行列模块名一致后返回 (prob_df, modules)。
 
-    注意：prob 表通常包含合并单元格（模块名纵向合并），
-    不能使用 openpyxl 重新保存（会破坏合并结构导致索引变 NaN），
-    因此此处直接读取原文件，并过滤掉因合并单元格产生的 NaN 行/列。
+    说明：
+    - 使用 _clean_autofilter（zipfile 方案）清理 AutoFilter，
+      该方案只删除 XML 中的 <autoFilter> 节点，不重新序列化文件，
+      因此不会破坏合并单元格结构。
+    - 读取后过滤因合并单元格产生的 NaN 行/列。
     """
-    # 直接读取原文件，不做 AutoFilter 清理
-    prob_df = pd.read_excel(prob_path, header=0, index_col=0)
+    # 清理 AutoFilter，得到干净文件路径
+    cleaned_path = _clean_autofilter(prob_path)
+    is_temp = cleaned_path != prob_path
 
-    # 标准化模块名（strip 空白）
-    # 过滤掉索引为 NaN 或空字符串的行（合并单元格导致的空行）
-    prob_df.index = [str(m).strip() if pd.notna(m) else "" for m in prob_df.index]
-    valid_rows = [i for i, m in enumerate(prob_df.index) if m and m.lower() != "nan"]
-    prob_df = prob_df.iloc[valid_rows]
+    try:
+        # 直接读取清理后的文件
+        prob_df = pd.read_excel(cleaned_path, header=0, index_col=0)
 
-    # 过滤掉列名为 NaN 或空字符串的列（合并单元格导致的空列）
-    valid_cols = []
-    for c in prob_df.columns:
-        c_str = str(c).strip() if pd.notna(c) else ""
-        if c_str and c_str.lower() != "nan":
-            valid_cols.append(c)
-    prob_df = prob_df[valid_cols]
-    prob_df.columns = [str(c).strip() for c in prob_df.columns]
+        # 标准化模块名（strip 空白）
+        # 过滤掉索引为 NaN 或空字符串的行（合并单元格导致的空行）
+        prob_df.index = [str(m).strip() if pd.notna(m) else "" for m in prob_df.index]
+        valid_rows = [
+            i for i, m in enumerate(prob_df.index)
+            if m and m.lower() != "nan"
+        ]
+        prob_df = prob_df.iloc[valid_rows]
 
-    modules = list(prob_df.index)
+        # 过滤掉列名为 NaN 或空字符串的列（合并单元格导致的空列）
+        valid_cols = []
+        for c in prob_df.columns:
+            c_str = str(c).strip() if pd.notna(c) else ""
+            if c_str and c_str.lower() != "nan":
+                valid_cols.append(c)
+        prob_df = prob_df[valid_cols]
+        prob_df.columns = [str(c).strip() for c in prob_df.columns]
 
-    # 校验行列一致（以行模块名为基准）
-    row_modules = set(prob_df.index)
-    col_modules = set(prob_df.columns)
-    missing_cols = row_modules - col_modules
-    extra_cols = col_modules - row_modules
+        modules = list(prob_df.index)
 
-    if missing_cols:
-        raise ValueError(
-            f"prob 表列缺少行中定义的模块:\n"
-            f"  缺失列模块: {sorted(missing_cols)}\n"
-            f"  行模块名: {list(prob_df.index)}"
-        )
-    if extra_cols:
-        logger.warning(f"prob 表有多余的列（行中未定义，已忽略）: {sorted(extra_cols)}")
-        prob_df = prob_df.drop(columns=list(extra_cols))
+        # 校验行列一致（以行模块名为基准）
+        row_modules = set(prob_df.index)
+        col_modules = set(prob_df.columns)
+        missing_cols = row_modules - col_modules
+        extra_cols = col_modules - row_modules
 
-    prob_df = prob_df / 100.0
-    return prob_df, modules
+        if missing_cols:
+            raise ValueError(
+                f"prob 表列缺少行中定义的模块:\n"
+                f"  缺失列模块: {sorted(missing_cols)}\n"
+                f"  行模块名: {list(prob_df.index)}"
+            )
+        if extra_cols:
+            logger.warning(
+                f"prob 表有多余的列（行中未定义，已忽略）: {sorted(extra_cols)}"
+            )
+            prob_df = prob_df.drop(columns=list(extra_cols))
 
+        prob_df = prob_df / 100.0
+        return prob_df, modules
+    finally:
+        # 删除临时文件
+        if is_temp and os.path.exists(cleaned_path):
+            os.remove(cleaned_path)
 
 def parse_case_info(
     txt_path: str,
