@@ -253,6 +253,18 @@ def main():
                 div_analyzer = ModuleDiversityAnalyzer(modules=diversity_modules)
                 div_analyzer.analyze(trace_file, analysis_output)
                 logger.info(f"模块多样性分析完成，报告保存在 {analysis_output}")
+
+            # 数据检测报告（对照 Excel 模板全集 vs trace 实际使用）
+            if config.get("analysis.coverage_enabled", False):
+                from core.analysis.analyze_coverage import analyze_coverage
+
+                cov_report = analyze_coverage(
+                    trace_path=trace_file,
+                    excel_path=excel_path,
+                    prob_path=prob_path,
+                    output_dir=analysis_output,
+                )
+                logger.info(f"数据检测报告已生成: {cov_report}")
         except Exception as e:
             logger.error(f"自动分析失败: {e}", exc_info=True)
     elif config.get("analysis.enabled", False):
