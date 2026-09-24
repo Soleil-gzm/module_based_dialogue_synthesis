@@ -30,10 +30,10 @@ from prob_builder import build_prob_matrix, save_prob_matrix, validate_matrix
 # ============================================================
 # 硬编码配置（改这里即可）
 # ============================================================
-EXCEL_DIR = "datas/suning_0921/M0_0920"  # 输入：话术 Excel 文件夹
-YAML_PATH = "datas/suning_0921/M0_0920/categories_notdue-0917.yaml"  # 输入：类别定义 YAML
-CANDIDATES_DIR = "datas/suning_0921/M0_0920/prob_generator/candidates"  # 中间产物目录
-PROB_DIR = "datas/suning_0921/M0_0920/prob_generator/prob"  # 最终产物目录
+EXCEL_DIR = "datas/backbone_data_suning_agent/M0"  # 输入：话术 Excel 文件夹
+YAML_PATH = "scripts_general/excel2prob/config/categories_M0-0917.yaml"  # 输入：类别定义 YAML
+CANDIDATES_DIR = "datas/backbone_data_suning_agent/M0/prob_generator/candidates"  # 中间产物目录
+PROB_DIR = "datas/backbone_data_suning_agent/M0/prob_generator/prob"  # 最终产物目录
 COMPRESS_MODE = "log"  # "none" / "sqrt" / "log"
 SAVE_CANDIDATES = True  # 是否保存中间 JSON
 

@@ -8,6 +8,8 @@
 
 import json
 import os
+import re
+import zipfile
 from datetime import datetime
 from typing import Dict, List, Union
 
@@ -16,20 +18,66 @@ import yaml
 
 
 # ============================================================
+# 0. 辅助：清理 Excel 中的 AutoFilter（绕过 openpyxl 解析错误）
+# ============================================================
+def _strip_autofilter_from_xlsx(xlsx_path: str) -> str:
+    """
+    用 zipfile 直接在 XML 层移除 xlsx 中所有工作表的 <autoFilter> 节点，
+    避免 openpyxl 解析损坏的 autoFilter.ref 时抛 ValueError。
+    返回清理后的临时文件路径（调用方负责删除）。
+    若处理失败，返回原路径。
+    """
+    if not xlsx_path.lower().endswith((".xlsx", ".xlsm")):
+        return xlsx_path
+
+    tmp_path = xlsx_path + ".no_filter.xlsx"
+    try:
+        with zipfile.ZipFile(xlsx_path, "r") as zin, \
+             zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                # 只处理工作表 XML
+                if item.filename.startswith("xl/worksheets/sheet") and item.filename.endswith(".xml"):
+                    text = data.decode("utf-8")
+                    # 移除自闭合 <autoFilter .../>
+                    text = re.sub(r"<autoFilter\b[^>]*/>", "", text)
+                    # 移除成对 <autoFilter ...>...</autoFilter>
+                    text = re.sub(r"<autoFilter\b[^>]*>.*?</autoFilter>", "", text, flags=re.DOTALL)
+                    data = text.encode("utf-8")
+                zout.writestr(item, data)
+        return tmp_path
+    except Exception as e:
+        print(f"  ⚠️ 清理 AutoFilter 失败，回退使用原文件: {e}")
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        return xlsx_path
+
+
+# ============================================================
 # 1. 统计 uid 行数
 # ============================================================
 def count_rows_from_excel(excel_path: str) -> Dict[str, int]:
-    xls = pd.ExcelFile(excel_path)
-    counts = {}
+    # 先清理 AutoFilter，避免 openpyxl 解析损坏的 autoFilter 报错
+    cleaned_path = _strip_autofilter_from_xlsx(excel_path)
+    is_temp = cleaned_path != excel_path
 
-    for sheet_name in xls.sheet_names:
-        df = xls.parse(sheet_name)
-        if "uid" in df.columns:
-            df = df[df["uid"].astype(str) != "uid"]
-        df = df.dropna(how="all")
-        counts[sheet_name] = len(df)
+    try:
+        xls = pd.ExcelFile(cleaned_path)
+        counts = {}
 
-    return counts
+        for sheet_name in xls.sheet_names:
+            df = xls.parse(sheet_name)
+            if "uid" in df.columns:
+                df = df[df["uid"].astype(str) != "uid"]
+            df = df.dropna(how="all")
+            counts[sheet_name] = len(df)
+
+        xls.close()
+        return counts
+    finally:
+        # 删除临时文件
+        if is_temp and os.path.exists(cleaned_path):
+            os.remove(cleaned_path)
 
 
 # ============================================================
