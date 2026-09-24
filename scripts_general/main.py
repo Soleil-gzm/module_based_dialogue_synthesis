@@ -26,7 +26,11 @@ import os
 from datetime import datetime
 
 import pandas as pd
-from core.data.data_loader import load_prob_matrix, load_sheets
+from core.data.data_loader import (
+    load_pressure_sheet,
+    load_prob_matrix,
+    load_sheets,
+)
 from core.generation.config import load_config, sync_config_from_prob
 from core.generation.factory import create_case_loader, create_time_generator
 from core.generation.parallel_generator import generate_dialogues
@@ -117,13 +121,19 @@ def main():
     df_dict = load_sheets(excel_path, modules)
 
     # 8. 加载施压话术表（所有进程共用）
+    #    改用 load_pressure_sheet：自动清理 AutoFilter，且支持 sheet 名回退
     pressure_sheet_name = config.get("pressure_sheet_name", "链接话术")
     try:
-        pressure_df = pd.read_excel(excel_path, sheet_name=pressure_sheet_name)
-        logger.info(f"加载施压话术表: {pressure_sheet_name}")
-    except ValueError:
+        pressure_df = load_pressure_sheet(excel_path, sheet_name=pressure_sheet_name)
+        if pressure_df.empty:
+            logger.warning(f"施压话术表 '{pressure_sheet_name}' 为空，将跳过施压话术")
+        else:
+            logger.info(
+                f"加载施压话术表: {pressure_sheet_name}（{len(pressure_df)} 行）"
+            )
+    except ValueError as e:
         pressure_df = pd.DataFrame()
-        logger.warning(f"施压话术表 '{pressure_sheet_name}' 不存在，将跳过施压话术")
+        logger.warning(f"施压话术表加载失败: {e}，将跳过施压话术")
 
     # 9. 时间生成器与案例加载
     time_gen = create_time_generator(config)
@@ -146,7 +156,7 @@ def main():
     all_paths = path_gen.generate(num_paths_to_generate, seed, cache_path=cache_path)
     logger.info(f"路径生成完成，共 {len(all_paths)} 条")
 
-    # 9. 对话生成（委托给 parallel_generator，统一单/多进程 + 断点续传）
+    # 11. 对话生成（委托给 parallel_generator，统一单/多进程 + 断点续传）
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     trace_enabled = config.get("trace_enabled", False)
 
@@ -170,7 +180,7 @@ def main():
         force_regenerate=args.force,
     )
 
-    # 10. 对话相邻去重（默认开启）
+    # 12. 对话相邻去重（默认开启）
     if config.get("dedup.enabled", True):
         try:
             from core.generation.dedup import DialogueDeduplicator
@@ -198,7 +208,7 @@ def main():
         except Exception as e:
             logger.error(f"对话去重失败: {e}", exc_info=True)
 
-    # 11. 自动分析（如果配置启用且 trace 存在）
+    # 13. 自动分析（如果配置启用且 trace 存在）
     if (
         config.get("analysis.enabled", False)
         and trace_file

@@ -334,3 +334,37 @@ def load_cases(
         with open(path, "r", encoding="utf-8") as f:
             prompts.append(f.read())
     return cases, prompts
+
+def load_pressure_sheet(
+    excel_path: str, sheet_name: str = "链接施压话术"
+) -> pd.DataFrame:
+    """
+    加载施压话术 sheet，自动清理 AutoFilter。
+    若 sheet_name 不存在，会尝试备选名称（链接话术）。
+    """
+    cleaned_path = _clean_autofilter(excel_path)
+    is_temp = cleaned_path != excel_path
+
+    try:
+        xls = pd.ExcelFile(cleaned_path)
+        actual_sheet = sheet_name
+        if sheet_name not in xls.sheet_names:
+            # 备选名称（苏宁新模板使用"链接话术"）
+            for alt in ["链接话术", "链接施压话术"]:
+                if alt in xls.sheet_names:
+                    actual_sheet = alt
+                    logger.info(f"施压话术 sheet 名回退: {sheet_name} → {actual_sheet}")
+                    break
+            else:
+                xls.close()
+                raise ValueError(
+                    f"Excel 中未找到施压话术 sheet: {sheet_name}，"
+                    f"所有 sheet: {xls.sheet_names}"
+                )
+
+        df = pd.read_excel(cleaned_path, sheet_name=actual_sheet)
+        xls.close()
+        return df
+    finally:
+        if is_temp and os.path.exists(cleaned_path):
+            os.remove(cleaned_path)
