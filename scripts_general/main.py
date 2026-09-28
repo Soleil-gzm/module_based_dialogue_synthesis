@@ -155,6 +155,32 @@ def main():
         logger.warning(f"施压话术表加载失败: {e}，将跳过施压话术")
 
     # 9. 时间生成器与案例加载
+    #    若启用 case_auto_generate，则先按配置生成 case 文件到 case_loader.replace_dir/system_dir；
+    #    若目录已有足够 case 文件（>= num_cases），则跳过生成直接复用。
+    case_auto_cfg = config.get("case_auto_generate") or {}
+    if case_auto_cfg.get("enabled", False):
+        from core.data.case_generator import generate_cases_if_needed
+
+        replace_dir_for_gen = config.get("case_loader.replace_dir")
+        system_dir_for_gen = config.get("case_loader.system_dir")
+        if not replace_dir_for_gen or not system_dir_for_gen:
+            raise ValueError(
+                "启用 case_auto_generate 时必须配置 case_loader.replace_dir 和 case_loader.system_dir"
+            )
+        logger.info("启用 case 自动生成，开始生成 case 文件...")
+        generate_cases_if_needed(
+            generator_type=case_auto_cfg.get("generator_type"),
+            seed=seed,
+            total_cases=case_auto_cfg.get("num_cases"),
+            system_dir=system_dir_for_gen,
+            replace_dir=replace_dir_for_gen,
+            prompt_system_path=case_auto_cfg.get("prompt_system_path"),
+            prompt_replace_path=case_auto_cfg.get("prompt_replace_path"),
+            combinations_path=case_auto_cfg.get("combinations_path"),
+            testify=case_auto_cfg.get("testify"),
+            force_regenerate=case_auto_cfg.get("force_regenerate", False),
+        )
+
     time_gen = create_time_generator(config)
     case_loader = create_case_loader(config)
     cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)

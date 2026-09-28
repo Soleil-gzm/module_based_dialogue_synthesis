@@ -54,6 +54,26 @@ case_loader:
   replace_dir: "datas/suning/not_overdue/cases1_replace"   # 占位数据目录
   system_dir: "datas/suning/not_overdue/cases1_system"     # 系统提示目录
 
+# ---- case 自动生成（可选） ----
+# enabled=true：根据下方配置自动生成 case 文件到 case_loader.replace_dir 和 case_loader.system_dir
+#               生成结果会被缓存——若目录已有 case 文件数 >= num_cases，则跳过生成
+# enabled=false：直接使用 case_loader.replace_dir / system_dir 中已有的 case 文件（默认行为，向后兼容）
+# 注意：seed 来自全局 random_seed（位于第 2 节"生成规模与随机性"）
+case_auto_generate:
+  enabled: false                                  # 是否开启自动生成（默认 false）
+  generator_type: "m0"                            # 生成器类型：m0/m0_follow/m1/m1_follow/m2/m2_follow/m3_plus/m3_plus_follow/suning_backend
+  num_cases: 40000                                # 要生成的 case 数量
+  prompt_system_path: "datas/prompt_agent/M0/M0_0918_无意愿无能力.txt"      # system prompt 模板路径（输入）
+  prompt_replace_path: "datas/prompt_agent/prompt_template_for_backbone_replace.txt"  # replace prompt 模板路径（输入）
+  # combinations_path: "packages/combinations/combinations-auto.json"       # mask 组合文件路径（可选，不填则由生成器内部处理）
+  # testify:                                                                  # 作证 case 配置（可选，含独立 seed）
+  #   system_dir: "packages/testify_case/system"
+  #   replace_dir: "packages/testify_case/replace"
+  #   start: 0
+  #   end: 99
+  #   seed: 10040
+  force_regenerate: false                         # 强制重新生成（忽略缓存）
+
 # ============================================
 # 4. 模块定义与业务规则
 # ============================================
