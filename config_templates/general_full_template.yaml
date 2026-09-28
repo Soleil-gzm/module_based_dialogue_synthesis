@@ -33,6 +33,18 @@ checkpoint_interval: 50000           # 断点续传保存间隔（每生成 N �
 prob_path: "datas/example/prob.xlsx"        # 模块转移概率矩阵 Excel 文件（模块名来源）
 excel_path: "datas/example/话术模板.xlsx"   # 话术模板 Excel 文件（每个模块一个 sheet + 链接施压话术 sheet）
 
+# ---- prob 表自动生成（可选） ----
+# enabled=true：根据 excel_path 的话术表 + categories_yaml 自动生成 prob，
+#               生成结果覆盖 prob_path（输出路径默认在 excel_path 同级目录，
+#               文件名为 {excel_stem}_auto_prob.xlsx）。
+# enabled=false：使用上方 prob_path 手动指定的 prob 文件（默认行为，向后兼容）。
+prob_auto_generate:
+  enabled: false                                      # 是否开启自动生成（默认 false）
+  categories_yaml: "scripts_general/excel2prob/config/categories_M1-0918.yaml"  # 类别定义 YAML（A/B/C/manual/fixed_prob/boost 等）
+  compress_mode: "log"                                # 压缩方式：none / sqrt / log
+  # output_path: "自定义/输出/路径.xlsx"              # 可选：自定义输出路径（默认 excel_path 同级 {stem}_auto_prob.xlsx）
+  save_candidates: false                              # 是否保存中间 candidates JSON（调试用）
+
 # 案例加载器配置（支持多种类型）
 case_loader:
   type: "xiaoying"                   # 加载器类型：default（单目录） 或 xiaoying（双目录）

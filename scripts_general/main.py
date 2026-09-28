@@ -102,7 +102,26 @@ def main():
     logger.info(f"任务目录: {task_dir}")
 
     # 4. 加载 prob 表 → 提取 modules（唯一来源）
+    #    若启用 prob_auto_generate，则先根据 excel_path 自动生成 prob 文件并覆盖 prob_path；
+    #    否则使用 yaml 中手动指定的 prob_path。
     prob_path = config.get("prob_path")
+    auto_cfg = config.get("prob_auto_generate") or {}
+    if auto_cfg.get("enabled", False):
+        from core.data.prob_generator import generate_prob_from_excel
+
+        excel_path_for_gen = config.get("excel_path")
+        logger.info("启用 prob 自动生成，开始根据话术 Excel 生成 prob 表...")
+        prob_path = generate_prob_from_excel(
+            excel_path=excel_path_for_gen,
+            categories_yaml_path=auto_cfg.get("categories_yaml"),
+            output_path=auto_cfg.get("output_path"),
+            compress_mode=auto_cfg.get("compress_mode", "log"),
+            save_candidates=auto_cfg.get("save_candidates", False),
+        )
+        logger.info(f"prob 表已自动生成，将使用: {prob_path}")
+    else:
+        logger.info(f"使用手动指定的 prob 表: {prob_path}")
+
     logger.info(f"加载概率矩阵: {prob_path}")
     prob_df, modules = load_prob_matrix(prob_path)
     logger.info(f"概率矩阵加载完成，共 {len(modules)} 个模块: {modules}")
