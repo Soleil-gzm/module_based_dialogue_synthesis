@@ -10,12 +10,12 @@
 # ============================================
 # 1. 项目基础配置
 # ============================================
-company: "suning_not_overdue"                  # 公司/业务标识（仅用于日志和命名）
+company: "name"                  # 公司/业务标识（仅用于日志和命名）
 start_module: "身份确认"             # 对话起始模块名（必须存在于 modules 列表中）
-task_name: "suning_not_overdue"             # 任务名称（输出子目录为 {task_name}_{num_paths}_{seed}）
+task_name: "tesk"             # 任务名称（输出子目录为 {task_name}_{num_paths}_{seed}）
 output_dir: "output"                 # 根输出目录（所有任务输出到该目录下）
-paths_cache_dir: "paths_suning_not_overdue"             # 路径缓存的子目录（相对于 output_dir）
-paths_cache: "output/paths_suning_not_overdue/all_paths_{num_paths}_{seed}.json"  # 路径缓存文件模板（保持原有命名以兼容缓存复用）
+paths_cache_dir: "paths"             # 路径缓存的子目录（相对于 output_dir）
+paths_cache: "output/paths/all_paths_{num_paths}_{seed}.json"  # 路径缓存文件模板（保持原有命名以兼容缓存复用）
 
 
 # ============================================
@@ -39,7 +39,7 @@ excel_path: "datas/example/话术模板.xlsx"   # 话术模板 Excel 文件（�
 #               文件名为 {excel_stem}_auto_prob.xlsx）。
 # enabled=false：使用上方 prob_path 手动指定的 prob 文件（默认行为，向后兼容）。
 prob_auto_generate:
-  enabled: false                                      # 是否开启自动生成（默认 false）
+  enabled: true                                      # 是否开启自动生成（默认 false）
   categories_yaml: "config_templates/prob_config/categories_M1-0918.yaml"  # 类别定义 YAML（A/B/C/manual/fixed_prob/boost 等）
   compress_mode: "log"                                # 压缩方式：none / sqrt / log
   # output_path: "自定义/输出/路径.xlsx"              # 可选：自定义输出路径（默认 excel_path 同级 {stem}_auto_prob.xlsx）
@@ -66,12 +66,12 @@ case_auto_generate:
   prompt_system_path: "datas/prompt_agent/M0/M0_0918_无意愿无能力.txt"      # system prompt 模板路径（输入）
   prompt_replace_path: "datas/prompt_agent/prompt_template_for_backbone_replace.txt"  # replace prompt 模板路径（输入）
   # combinations_path: "packages/combinations/combinations-auto.json"       # mask 组合文件路径（可选，不填则由生成器内部处理）
-  # testify:                                                                  # 作证 case 配置（可选，含独立 seed）
-  #   system_dir: "packages/testify_case/system"
-  #   replace_dir: "packages/testify_case/replace"
-  #   start: 0
-  #   end: 99
-  #   seed: 10040
+  testify:                                                                  # 作证 case 配置（可选，含独立 seed）
+    system_dir: "packages/testify_case/system"
+    replace_dir: "packages/testify_case/replace"
+    start: 0
+    end: 99
+    seed: 10040
   force_regenerate: false                         # 强制重新生成（忽略缓存）
 
 # ============================================
@@ -234,12 +234,18 @@ dedup:
 analysis:
   enabled: true                     # 是否启用自动分析
   format: "html"                    # 图表格式：html（需要 plotly）或 png（需要 matplotlib）
-  diversity_modules: ["信息问题"]             # 模块多样性分析（生成 txt 报告，无需图表）；填入模块名列表，如 ["告知", "信息问题"]
-  coverage_enabled: false                # 数据检测报告：对照 Excel 模板全集(模块/条件) vs trace 实际使用情况，输出 coverage_report_*.txt；用于新业务数据变动检查
+  diversity_modules:                # 模块多样性分析（生成 txt 报告，无需图表）
+    - "告知"
+    - "已还款"
+    - "信息问题"
+    - "无法沟通"
+    - "诉求"
+    - "未发工资"
+  coverage_enabled: true 
 
 # ============================================
 # 11. 多进程配置
 # ============================================
 multiprocessing:
-  num_processes: 1               # 进程数：1=单进程串行，>1=多进程并行（默认 CPU 核心数）
+  num_processes: 10               # 进程数：1=单进程串行，>1=多进程并行（默认 CPU 核心数）
 
