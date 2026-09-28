@@ -40,7 +40,7 @@ excel_path: "datas/example/话术模板.xlsx"   # 话术模板 Excel 文件（�
 # enabled=false：使用上方 prob_path 手动指定的 prob 文件（默认行为，向后兼容）。
 prob_auto_generate:
   enabled: false                                      # 是否开启自动生成（默认 false）
-  categories_yaml: "scripts_general/excel2prob/config/categories_M1-0918.yaml"  # 类别定义 YAML（A/B/C/manual/fixed_prob/boost 等）
+  categories_yaml: "config_templates/prob_config/categories_M1-0918.yaml"  # 类别定义 YAML（A/B/C/manual/fixed_prob/boost 等）
   compress_mode: "log"                                # 压缩方式：none / sqrt / log
   # output_path: "自定义/输出/路径.xlsx"              # 可选：自定义输出路径（默认 excel_path 同级 {stem}_auto_prob.xlsx）
   save_candidates: false                              # 是否保存中间 candidates JSON（调试用）
