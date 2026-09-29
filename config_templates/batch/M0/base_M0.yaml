@@ -4,7 +4,9 @@
 # ============================================
 
 company: "suning"
-start_module: "身份确认"
+start_module:
+  身份确认: 0.99
+  语音留言: 0.01
 output_dir: "output/yamls"
 paths_cache_dir: "paths"
 paths_cache: "output/yamls/paths/all_paths_{num_paths}_{seed}.json"
@@ -39,7 +41,7 @@ terminal_modules:
   - "已还款"
 
 self_loop_modules:
-  语音留言: 0.01
+  # 语音留言: 0.01
 
 insert_nodes:
   - "失业"
