@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,16 @@ class PathGenerator:
         self.terminal_nodes = set(config.get("terminal_modules", []))  # 终止模块
         self.a_set = set(config.get("a_set", []))
         self.b_set = set(config.get("b_set", []))
-        self.start_module = config.get("start_module", self.modules[0])
+        # 解析起始模块：支持字符串（单一起始模块）或 dict（加权多起始模块）
+        # - 字符串：向后兼容，视为 {模块名: 1.0}
+        # - dict：键为模块名，值为起始概率（权重），例如 {"身份确认": 0.99, "语音留言": 0.01}
+        start_module_cfg = config.get("start_module", self.modules[0])
+        if isinstance(start_module_cfg, dict):
+            self.start_modules: Dict[str, float] = dict(start_module_cfg)
+        else:
+            self.start_modules = {start_module_cfg: 1.0}
+        # 向后兼容：保留 start_module 属性（取权重最高的模块，仅用于日志/外部引用）
+        self.start_module = max(self.start_modules, key=self.start_modules.get)
         self.cache_path_template = config.get("paths_cache")
         self.self_loop_modules = config.get("self_loop_modules", {})
         self.force_stop_on_max_repeat = config.get("force_stop_on_max_repeat", False)
@@ -65,12 +74,13 @@ class PathGenerator:
                     f"模块 '{module}' 的概率表全为 0（无出边），路径会立即终止"
                 )
 
-        # 2. 检查起始模块是否有出边
-        if self.start_module in self.modules:
-            start_row = self.prob_df.loc[self.start_module]
-            has_outgoing = any(start_row > 0)
-            if not has_outgoing:
-                issues.append(f"起始模块 '{self.start_module}' 无出边概率")
+        # 2. 检查起始模块是否有出边（支持加权多起始模块）
+        for start_mod in self.start_modules:
+            if start_mod in self.modules:
+                start_row = self.prob_df.loc[start_mod]
+                has_outgoing = any(start_row > 0)
+                if not has_outgoing:
+                    issues.append(f"起始模块 '{start_mod}' 无出边概率")
 
         # 3. 检查模块是否在概率表中存在
         for module in self.modules:
@@ -98,6 +108,23 @@ class PathGenerator:
         candidates = [m for m in probs.index if probs[m] > 0]
         return candidates
 
+    def _select_start_module(self) -> str:
+        """
+        根据权重从起始模块中随机选择一个。
+        - 单一起始模块（权重为 1.0）时直接返回，避免额外随机消耗。
+        - 多起始模块时按概率累积抽样。
+        """
+        if len(self.start_modules) == 1:
+            return next(iter(self.start_modules))
+        rand_val = self.rng.uniform(0, 1)
+        cum_prob = 0.0
+        for module, prob in self.start_modules.items():
+            cum_prob += prob
+            if rand_val < cum_prob:
+                return module
+        # 浮点累加误差兜底：返回最后一个起始模块
+        return list(self.start_modules.keys())[-1]
+
     def generate_one(self) -> List[str]:
         if self.self_loop_modules:
             rand_val = self.rng.uniform(0, 1)
@@ -108,12 +135,13 @@ class PathGenerator:
                     max_repeat_val = self.max_repeat.get(module, 1)
                     return [module] * max_repeat_val
 
-        path = [self.start_module]
+        start_module = self._select_start_module()
+        path = [start_module]
         counts = {mod: 0 for mod in self.modules}
-        counts[self.start_module] = 1
+        counts[start_module] = 1
         banned = set()
         selected_a = None
-        current = self.start_module
+        current = start_module
 
         while True:
             candidates = self._get_candidates_from_prob(current)
