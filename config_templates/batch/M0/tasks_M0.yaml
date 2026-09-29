@@ -1,0 +1,143 @@
+# ============================================
+# M0 业务线 - 任务列表（6 个任务）
+# 每个任务仅需写差异化配置，其余继承 base_M0.yaml
+# ============================================
+
+base: "base_M0.yaml"
+
+tasks:
+  # ---------- 1. 无意愿无能力 ----------
+  - name: "M0_WN_AN"
+    enabled: true
+    task_name: "M0_WN_AN"
+    num_paths: 4000
+    random_seed: 21
+    excel_path: "datas/backbone_data_suning_agent/M0/【M0】无意愿无能力-首催 - 20260922.xlsx"
+    prob_path: "output/M0/M0_WN_AN/【M0】无意愿无能力-首催 - 20260922_prob_log_20260924_014643.xlsx"
+    prob_auto_generate:
+      enabled: true
+      categories_yaml: "config_templates/prob_config/categories_M0-0917.yaml"   # ← 补这一行
+      compress_mode: "log"
+    case_loader:
+      type: "xiaoying"
+      replace_dir: "output/M0/M0_WN_AN/case/replaceM0_WN_AN_4w"
+      system_dir: "output/M0/M0_WN_AN/case/systemM0_WN_AN_4w"
+    case_auto_generate:
+      enabled: true
+      generator_type: "m0"
+      num_cases: 4000
+      prompt_system_path: "datas/prompt_agent/M0/M0_0918_无意愿无能力.txt"
+      prompt_replace_path: "datas/prompt_agent/prompt_template_for_backbone_replace.txt"
+      force_regenerate: false
+
+  # ---------- 2. 有意愿无能力 ----------
+  - name: "M0_WY_AN"
+    enabled: true
+    task_name: "M0_WY_AN"
+    num_paths: 4000
+    random_seed: 22
+    excel_path: "datas/backbone_data_suning_agent/M0/【M0】有意愿有能力-首催 - 20260922.xlsx"
+    prob_path: "output/M0/M0_WY_AN/【M0】有意愿无能力-首催 - 20260922_prob_log.xlsx"
+    prob_auto_generate:
+      enabled: true
+      categories_yaml: "config_templates/prob_config/categories_M0-0917.yaml"   # ← 补这一行
+      compress_mode: "log"
+    case_loader:
+      type: "xiaoying"
+      replace_dir: "output/M0/M0_WY_AY/case/replaceM0_WY_AY_4w"
+      system_dir: "output/M0/M0_WY_AY/case/systemM0_WY_AY_4w"
+    case_auto_generate:
+      enabled: true
+      generator_type: "m0"
+      num_cases: 4000
+      prompt_system_path: "datas/prompt_agent/M0/M0_0918_有意愿有能力.txt"
+      prompt_replace_path: "datas/prompt_agent/prompt_template_for_backbone_replace.txt"
+      force_regenerate: false
+
+  # ---------- 3. 无意愿有能力 ----------
+  # - name: "M0_WN_AY"
+  #   enabled: true
+  #   task_name: "M0_WN_AY"
+  #   num_paths: 40000
+  #   random_seed: 23
+  #   excel_path: "output/M0/M0_WN_AY/【M0】无意愿有能力-首催 - 20260922.xlsx"
+  #   prob_path: "output/M0/M0_WN_AY/【M0】无意愿有能力-首催 - 20260922_prob_log.xlsx"
+  #   prob_auto_generate:
+  #     enabled: true
+  #   case_loader:
+  #     type: "xiaoying"
+  #     replace_dir: "datas/suning/not_overdue/cases_replace_M0_WN_AY"
+  #     system_dir: "datas/suning/not_overdue/cases_system_M0_WN_AY"
+  #   case_auto_generate:
+  #     enabled: true
+  #     generator_type: "m0"
+  #     num_cases: 40000
+  #     prompt_system_path: "datas/prompt_agent/M0/M0_0918_无意愿有能力.txt"
+  #     prompt_replace_path: "datas/prompt_agent/prompt_template_for_backbone_replace.txt"
+  #     force_regenerate: false
+
+  # # ---------- 4. 有意愿有能力 ----------
+  # - name: "M0_WY_AY"
+  #   enabled: true
+  #   task_name: "M0_WY_AY"
+  #   num_paths: 40000
+  #   random_seed: 24
+  #   excel_path: "output/M0/M0_WY_AY/【M0】有意愿有能力-首催 - 20260922.xlsx"
+  #   prob_path: "output/M0/M0_WY_AY/【M0】有意愿有能力-首催 - 20260922_prob_log.xlsx"
+  #   prob_auto_generate:
+  #     enabled: true
+  #   case_loader:
+  #     type: "xiaoying"
+  #     replace_dir: "datas/suning/not_overdue/cases_replace_M0_WY_AY"
+  #     system_dir: "datas/suning/not_overdue/cases_system_M0_WY_AY"
+  #   case_auto_generate:
+  #     enabled: true
+  #     generator_type: "m0"
+  #     num_cases: 40000
+  #     prompt_system_path: "datas/prompt_agent/M0/M0_0918_有意愿有能力.txt"
+  #     prompt_replace_path: "datas/prompt_agent/prompt_template_for_backbone_replace.txt"
+  #     force_regenerate: false
+
+  # # ---------- 5. 有投诉风险（示例，暂时关闭） ----------
+  # - name: "M0_CR"
+  #   enabled: false                # 关闭开关，不参与生成
+  #   task_name: "M0_CR"
+  #   num_paths: 40000
+  #   random_seed: 25
+  #   excel_path: "output/M0/M0_CR/【M0】有投诉风险-首催 - 20260922.xlsx"
+  #   prob_path: "output/M0/M0_CR/【M0】有投诉风险-首催 - 20260922_prob_log.xlsx"
+  #   prob_auto_generate:
+  #     enabled: true
+  #   case_loader:
+  #     type: "xiaoying"
+  #     replace_dir: "datas/suning/not_overdue/cases_replace_M0_CR"
+  #     system_dir: "datas/suning/not_overdue/cases_system_M0_CR"
+  #   case_auto_generate:
+  #     enabled: true
+  #     generator_type: "m0"
+  #     num_cases: 40000
+  #     prompt_system_path: "datas/prompt_agent/M0/M0_0918_有投诉风险.txt"
+  #     prompt_replace_path: "datas/prompt_agent/prompt_template_for_backbone_replace.txt"
+  #     force_regenerate: false
+
+  # # ---------- 6. 易跳票客户（示例，暂时关闭） ----------
+  # - name: "M0_FR"
+  #   enabled: false
+  #   task_name: "M0_FR"
+  #   num_paths: 40000
+  #   random_seed: 26
+  #   excel_path: "output/M0/M0_FR/【M0】易跳票客户-首催 - 20260922.xlsx"
+  #   prob_path: "output/M0/M0_FR/【M0】易跳票客户-首催 - 20260922_prob_log.xlsx"
+  #   prob_auto_generate:
+  #     enabled: true
+  #   case_loader:
+  #     type: "xiaoying"
+  #     replace_dir: "datas/suning/not_overdue/cases_replace_M0_FR"
+  #     system_dir: "datas/suning/not_overdue/cases_system_M0_FR"
+  #   case_auto_generate:
+  #     enabled: true
+  #     generator_type: "m0"
+  #     num_cases: 40000
+  #     prompt_system_path: "datas/prompt_agent/M0/M0_0918_易跳票客户.txt"
+  #     prompt_replace_path: "datas/prompt_agent/prompt_template_for_backbone_replace.txt"
+  #     force_regenerate: false

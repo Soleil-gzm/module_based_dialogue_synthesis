@@ -1,5 +1,5 @@
 """
-配置加载与同步模块（calamine 引擎版）。
+配置加载与同步模块（calamine 引擎版 + 多任务支持）。
 
 数据来源优先级：
   1. prob 表（模块转移概率矩阵）→ modules 的唯一来源
@@ -7,12 +7,16 @@
   3. YAML 配置 → 仅用于覆盖/约束（start_module, terminal_modules, a_set, b_set 等）
 
 调用顺序：load_config() → load_prob_matrix() 得到 modules → sync_config_from_prob()
+
+多任务支持：
+  - load_tasks_config() 从 tasks_*.yaml 读取 base + 任务列表
+  - deep_merge() 递归合并 base 与单个任务
 """
 
 import logging
 import os
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 import yaml
@@ -20,6 +24,9 @@ import yaml
 logger = logging.getLogger("DialogueBuilder")
 
 
+# ============================================================
+# 1. 基础工具
+# ============================================================
 def _parse_repeat_value(value) -> int:
     """
     解析 repeat(次数) 列的值，支持以下格式：
@@ -78,8 +85,11 @@ class Config:
         return self._data.copy()
 
 
+# ============================================================
+# 2. YAML 加载
+# ============================================================
 def load_config(config_path: str) -> Config:
-    """加载 YAML 配置文件并返回 Config 对象"""
+    """加载单个 YAML 配置文件并返回 Config 对象（向后兼容）。"""
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"配置文件不存在: {config_path}")
     with open(config_path, "r", encoding="utf-8") as f:
@@ -87,6 +97,84 @@ def load_config(config_path: str) -> Config:
     return Config(data)
 
 
+def deep_merge(base: dict, override: dict) -> dict:
+    """
+    递归合并两个字典：
+    - dict + dict → 递归合并
+    - 其他类型（list、标量）→ override 直接覆盖 base
+
+    返回一个新的字典，不修改原字典。
+    """
+    result = base.copy()
+    for key, value in override.items():
+        if (
+            key in result
+            and isinstance(result[key], dict)
+            and isinstance(value, dict)
+        ):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def _resolve_base_path(base_rel, config_path: str) -> str:
+    """
+    将 base 字段解析为绝对路径（相对当前配置文件目录）。
+    支持 str 或 list[str]（多 base 依次合并，后者覆盖前者）。
+    """
+    if isinstance(base_rel, list):
+        # 返回列表时，后续在 load_tasks_config 中处理
+        return base_rel
+    if os.path.isabs(base_rel):
+        return base_rel
+    return os.path.join(os.path.dirname(config_path), base_rel)
+
+
+def load_tasks_config(
+    config_path: str,
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """
+    加载多任务配置文件。
+
+    返回 (base_dict, tasks_list)：
+    - base_dict: 基础配置（dict），由 `base` 字段指向的 YAML 加载而来
+    - tasks_list: 任务列表（每个元素是 dict）
+
+    若配置文件不含 `tasks` 字段，返回 ({}, [])，调用方应回退到 load_config()。
+    """
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"配置文件不存在: {config_path}")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+
+    if "tasks" not in raw:
+        return {}, []
+
+    base_rel = raw.pop("base", None)
+    base_dict: Dict[str, Any] = {}
+
+    if base_rel:
+        # 支持单个 base 或 base 列表（多个 base 依次合并）
+        base_paths = base_rel if isinstance(base_rel, list) else [base_rel]
+        for bp in base_paths:
+            bp = _resolve_base_path(bp, config_path)
+            if not os.path.exists(bp):
+                raise FileNotFoundError(f"基础配置文件不存在: {bp}")
+            with open(bp, "r", encoding="utf-8") as f:
+                base_dict = deep_merge(base_dict, yaml.safe_load(f) or {})
+
+    tasks = raw.get("tasks") or []
+    if not isinstance(tasks, list):
+        raise ValueError(f"'tasks' 字段必须是列表，实际为: {type(tasks)}")
+
+    return base_dict, tasks
+
+
+# ============================================================
+# 3. 从 Excel 提取 max_repeat
+# ============================================================
 def extract_max_repeat_from_excel(
     excel_path: str,
     modules: List[str],
@@ -124,6 +212,9 @@ def extract_max_repeat_from_excel(
     return max_repeat
 
 
+# ============================================================
+# 4. 从 prob 同步配置
+# ============================================================
 def sync_config_from_prob(config: Config, prob_modules: List[str]) -> Config:
     """
     以 prob 表 modules 为准，从 Excel 提取 max_repeat，YAML 可覆盖。

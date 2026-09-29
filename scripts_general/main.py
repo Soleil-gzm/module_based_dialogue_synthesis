@@ -1,28 +1,29 @@
 #!/usr/bin/env python3
 """
-多轮对话生成脚本（重构版）
-基于配置驱动、模块化设计，支持通用催收模板。
-统一单进程/多进程代码路径，支持断点续传、流式写入、追踪和自动分析。
+多轮对话生成脚本（单任务 + 多任务批量）。
 
-# 使用默认配置文件
-python scripts_general/main.py
+用法：
+    # 单任务（旧方式，兼容）
+    python scripts_general/main.py -c configs/M0/M0_WN_AN.yaml
 
-# 指定自定义配置文件（短选项）
-python scripts_general/main.py -c configs/xiaoying_v2/general_Xiaoying_0702_3w_debug.yaml
+    # 多任务批量（新方式）
+    python scripts_general/main.py -c configs/M0/tasks_M0.yaml
 
-# 指定自定义配置文件（长选项）
-python scripts_general/main.py --config configs/xiaoying_v2/general_Xiaoying_0702_3w_debug.yaml
+    # 多任务中只跑指定任务
+    python scripts_general/main.py -c configs/M0/tasks_M0.yaml -t M0_WN_AN
 
-# 强制重新生成（忽略断点）
-python scripts_general/main.py -f
+    # 强制重新生成
+    python scripts_general/main.py -c configs/M0/tasks_M0.yaml -f
 
-# 查看帮助信息
-python scripts_general/main.py -h
+日志说明：
+    - 每个任务的详细日志：output/{task_dir}/intermediate/logs/
+    - 批量汇总日志：output/batch_logs/batch_{timestamp}.log
 """
 
 import argparse
 import logging
 import os
+import sys
 from datetime import datetime
 
 import pandas as pd
@@ -31,38 +32,108 @@ from core.data.data_loader import (
     load_prob_matrix,
     load_sheets,
 )
-from core.generation.config import load_config, sync_config_from_prob
+from core.generation.config import (
+    Config,
+    deep_merge,
+    load_config,
+    load_tasks_config,
+    sync_config_from_prob,
+)
 from core.generation.factory import create_case_loader, create_time_generator
 from core.generation.parallel_generator import generate_dialogues
 from core.utils.logger import get_logger, init_logger
 from core.utils.path_generator import PathGenerator
 from core.utils.random_service import RandomService
 
+# ============================================================
+# 日志工具
+# ============================================================
+def _reset_dialogue_logger():
+    """
+    重置 DialogueBuilder logger，使得下一个任务能重新初始化日志文件。
+    需要同时清空 logger.py 中的单例和 logging 模块中的 handlers。
+    """
+    # 1. 清空 logger.py 单例
+    try:
+        import core.utils.logger as logger_module
 
-# ==================== 主函数 ====================
-def main():
-    parser = argparse.ArgumentParser(description="多轮对话生成脚本")
-    parser.add_argument(
-        "-c",
-        "--config",
-        type=str,
-        default="configs/xiaoying_v2/general_Xiaoying_0703_4w.yaml",
-        help="配置文件路径（默认: configs/xiaoying_v2/general_Xiaoying_0703_4w.yaml）",
+        logger_module._logger_instance = None
+    except Exception:
+        pass
+
+    # 2. 清空 DialogueBuilder logger 的所有 handler
+    lg = logging.getLogger("DialogueBuilder")
+    for h in list(lg.handlers):
+        lg.removeHandler(h)
+        try:
+            h.close()
+        except Exception:
+            pass
+    lg.setLevel(logging.NOTSET)
+
+
+def setup_batch_logger(output_root: str) -> logging.Logger:
+    """
+    创建批量汇总日志 logger，写入 output/batch_logs/batch_{timestamp}.log。
+    同时输出到控制台。
+    """
+    batch_log_dir = os.path.join(output_root, "batch_logs")
+    os.makedirs(batch_log_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = os.path.join(batch_log_dir, f"batch_{timestamp}.log")
+
+    batch_logger = logging.getLogger("BatchSummary")
+    batch_logger.setLevel(logging.INFO)
+    batch_logger.propagate = False
+    # 避免重复 handler
+    for h in list(batch_logger.handlers):
+        batch_logger.removeHandler(h)
+        try:
+            h.close()
+        except Exception:
+            pass
+
+    fmt = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(message)s",
+        "%Y-%m-%d %H:%M:%S",
     )
-    parser.add_argument(
-        "-f",
-        "--force",
-        action="store_true",
-        help="强制重新生成，忽略已完成的分片（删除旧分片文件）",
-    )
-    args = parser.parse_args()
 
-    # 1. 加载配置
-    config_path = args.config
-    config = load_config(config_path)
+    fh = logging.FileHandler(log_file, encoding="utf-8")
+    fh.setFormatter(fmt)
+    batch_logger.addHandler(fh)
 
-    # 2. 读取基本参数（兼容旧版 num_paths）
+    ch = logging.StreamHandler()
+    ch.setFormatter(fmt)
+    ch.setLevel(logging.INFO)
+    batch_logger.addHandler(ch)
+
+    batch_logger.info(f"批量日志文件: {log_file}")
+    return batch_logger
+
+
+# ============================================================
+# 单任务执行
+# ============================================================
+def run_single_task(
+    config: Config,
+    force_regenerate: bool = False,
+    batch_logger: logging.Logger = None,
+) -> bool:
+    """
+    执行单个任务的完整流程。
+    返回 True 表示成功，False 表示失败（不抛异常）。
+    """
     task_name = config.get("task_name", "general")
+
+    def _log_info(msg):
+        if batch_logger:
+            batch_logger.info(f"[{task_name}] {msg}")
+
+    def _log_error(msg, exc_info=False):
+        if batch_logger:
+            batch_logger.error(f"[{task_name}] {msg}", exc_info=exc_info)
+
+    # ---------- 路径准备 ----------
     num_dialogues = config.get("num_dialogues", config.get("num_paths", 40000))
     num_paths_to_generate = config.get("num_paths_to_generate", num_dialogues)
     seed = config.get("random_seed", 42)
@@ -70,15 +141,9 @@ def main():
     paths_cache_dir = config.get("paths_cache_dir", "paths")
     checkpoint_interval = config.get("checkpoint_interval", 5000)
 
-    # 多进程配置
     mp_cfg = config.get("multiprocessing", {})
     num_processes = mp_cfg.get("num_processes", 1)
-    if num_processes > 1:
-        print(f"多进程模式启用，进程数: {num_processes}")
-    else:
-        print("单进程模式，进程数: 1")
 
-    # 任务目录
     task_dir_name = f"{task_name}_{num_dialogues}_{seed}"
     task_dir = os.path.join(output_root, task_dir_name)
     intermediate_dir = os.path.join(task_dir, "intermediate")
@@ -90,20 +155,23 @@ def main():
     os.makedirs(traces_dir, exist_ok=True)
     os.makedirs(analysis_dir, exist_ok=True)
 
-    # 3. 初始化日志（主进程）
+    # ---------- 重置并初始化日志 ----------
+    _reset_dialogue_logger()
     init_logger(config, log_dir=logs_dir)
     logger = get_logger()
     for handler in logger.handlers:
         if isinstance(handler, logging.StreamHandler):
             handler.setLevel(logging.INFO)
 
-    logger.info("=== 对话生成系统启动 ===")
-    logger.info(f"配置文件: {config_path}")
+    logger.info("=" * 60)
+    logger.info(f"=== 任务开始: {task_name} ===")
     logger.info(f"任务目录: {task_dir}")
+    logger.info(
+        f"进程数: {num_processes} | seed: {seed} | num_paths: {num_paths_to_generate}"
+    )
+    _log_info(f"开始，日志目录: {logs_dir}")
 
-    # 4. 加载 prob 表 → 提取 modules（唯一来源）
-    #    若启用 prob_auto_generate，则先根据 excel_path 自动生成 prob 文件并覆盖 prob_path；
-    #    否则使用 yaml 中手动指定的 prob_path。
+    # ---------- 加载 prob → modules ----------
     prob_path = config.get("prob_path")
     auto_cfg = config.get("prob_auto_generate") or {}
     if auto_cfg.get("enabled", False):
@@ -124,39 +192,32 @@ def main():
 
     logger.info(f"加载概率矩阵: {prob_path}")
     prob_df, modules = load_prob_matrix(prob_path)
-    logger.info(f"概率矩阵加载完成，共 {len(modules)} 个模块: {modules}")
+    logger.info(f"概率矩阵加载完成，共 {len(modules)} 个模块")
 
-    # 5. 以 modules 为准，从 Excel 同步 max_repeat
     config = sync_config_from_prob(config, modules)
     config_dict = config.to_dict()
 
-    # 6. 随机服务（仅用于路径生成）
     rng = RandomService(seed)
     logger.info(f"随机种子: {seed}")
 
-    # 7. 加载 Excel 模块数据（按 prob 表 modules 校验）
+    # ---------- 加载 Excel 模块 ----------
     logger.info("加载 Excel 模块...")
     excel_path = config.get("excel_path")
     df_dict = load_sheets(excel_path, modules)
 
-    # 8. 加载施压话术表（所有进程共用）
-    #    改用 load_pressure_sheet：自动清理 AutoFilter，且支持 sheet 名回退
+    # ---------- 加载施压话术表 ----------
     pressure_sheet_name = config.get("pressure_sheet_name", "链接话术")
     try:
         pressure_df = load_pressure_sheet(excel_path, sheet_name=pressure_sheet_name)
         if pressure_df.empty:
             logger.warning(f"施压话术表 '{pressure_sheet_name}' 为空，将跳过施压话术")
         else:
-            logger.info(
-                f"加载施压话术表: {pressure_sheet_name}（{len(pressure_df)} 行）"
-            )
+            logger.info(f"加载施压话术表: {pressure_sheet_name}（{len(pressure_df)} 行）")
     except ValueError as e:
         pressure_df = pd.DataFrame()
         logger.warning(f"施压话术表加载失败: {e}，将跳过施压话术")
 
-    # 9. 时间生成器与案例加载
-    #    若启用 case_auto_generate，则先按配置生成 case 文件到 case_loader.replace_dir/system_dir；
-    #    若目录已有足够 case 文件（>= num_cases），则跳过生成直接复用。
+    # ---------- case 自动生成（可选） ----------
     case_auto_cfg = config.get("case_auto_generate") or {}
     if case_auto_cfg.get("enabled", False):
         from core.data.case_generator import generate_cases_if_needed
@@ -186,7 +247,7 @@ def main():
     cases, prompts = case_loader.load(rng=rng, time_gen=time_gen)
     logger.info(f"加载案例数量: {len(cases)}")
 
-    # 10. 路径生成（使用 num_paths_to_generate）
+    # ---------- 路径生成 ----------
     paths_cache_template = config.get(
         "paths_cache", "output/paths/all_paths_{num_paths}_{seed}.json"
     )
@@ -201,7 +262,7 @@ def main():
     all_paths = path_gen.generate(num_paths_to_generate, seed, cache_path=cache_path)
     logger.info(f"路径生成完成，共 {len(all_paths)} 条")
 
-    # 11. 对话生成（委托给 parallel_generator，统一单/多进程 + 断点续传）
+    # ---------- 对话生成 ----------
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     trace_enabled = config.get("trace_enabled", False)
 
@@ -222,22 +283,18 @@ def main():
         trace_enabled=trace_enabled,
         checkpoint_interval=checkpoint_interval,
         logger=logger,
-        force_regenerate=args.force,
+        force_regenerate=force_regenerate,
     )
 
-    # 12. 对话相邻去重（默认开启）
+    # ---------- 对话去重 ----------
     if config.get("dedup.enabled", True):
         try:
             from core.generation.dedup import DialogueDeduplicator
 
-            dedup_threshold = config.get("dedup.threshold", 0.85)
-            dedup_ignore_numbers = config.get("dedup.ignore_numbers", True)
-            dedup_suffix = config.get("dedup.output_suffix", "_dup")
-
             deduplicator = DialogueDeduplicator(
-                threshold=dedup_threshold,
-                ignore_numbers=dedup_ignore_numbers,
-                output_suffix=dedup_suffix,
+                threshold=config.get("dedup.threshold", 0.85),
+                ignore_numbers=config.get("dedup.ignore_numbers", True),
+                output_suffix=config.get("dedup.output_suffix", "_dup"),
             )
             result = deduplicator.deduplicate_file(final_output_file)
             if result is None:
@@ -247,13 +304,12 @@ def main():
                 logger.info(
                     f"对话去重完成: 总{stats['total_dialogues']}条, "
                     f"含重复{stats['duplicate_dialogues']}条, "
-                    f"删除轮对{stats['removed_pairs']}个, "
-                    f"输出 {dup_file}"
+                    f"删除轮对{stats['removed_pairs']}个, 输出 {dup_file}"
                 )
         except Exception as e:
             logger.error(f"对话去重失败: {e}", exc_info=True)
 
-    # 13. 自动分析（如果配置启用且 trace 存在）
+    # ---------- 自动分析 ----------
     if (
         config.get("analysis.enabled", False)
         and trace_file
@@ -290,7 +346,6 @@ def main():
             analyzer.analyze(trace_file, analysis_output)
             logger.info(f"自动分析完成，报告保存在 {analysis_output}")
 
-            # 模块多样性分析
             diversity_modules = config.get("analysis.diversity_modules", [])
             if diversity_modules:
                 from core.analysis.analyzer import ModuleDiversityAnalyzer
@@ -299,7 +354,6 @@ def main():
                 div_analyzer.analyze(trace_file, analysis_output)
                 logger.info(f"模块多样性分析完成，报告保存在 {analysis_output}")
 
-            # 数据检测报告（对照 Excel 模板全集 vs trace 实际使用）
             if config.get("analysis.coverage_enabled", False):
                 from core.analysis.analyze_coverage import analyze_coverage
 
@@ -312,8 +366,124 @@ def main():
                 logger.info(f"数据检测报告已生成: {cov_report}")
         except Exception as e:
             logger.error(f"自动分析失败: {e}", exc_info=True)
-    elif config.get("analysis.enabled", False):
-        logger.warning("trace 文件不存在，跳过自动分析")
+
+    logger.info(f"=== 任务完成: {task_name} ===")
+    logger.info("=" * 60)
+    _log_info("完成")
+    return True
+
+
+# ============================================================
+# 入口
+# ============================================================
+def main():
+    parser = argparse.ArgumentParser(description="多轮对话生成脚本（支持单/多任务）")
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        required=True,
+        help="配置文件路径（单任务 YAML 或 tasks_*.yaml）",
+    )
+    parser.add_argument(
+        "-t",
+        "--task",
+        type=str,
+        default=None,
+        help="只运行指定任务（按 name 匹配），仅多任务模式有效",
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="强制重新生成，忽略已完成的分片",
+    )
+    args = parser.parse_args()
+
+    # ---------- 判定单任务 / 多任务 ----------
+    base_dict, tasks = load_tasks_config(args.config)
+
+    if not tasks:
+        # ========== 单任务模式（向后兼容） ==========
+        print(f"单任务模式: {args.config}")
+        config = load_config(args.config)
+        try:
+            run_single_task(config, force_regenerate=args.force, batch_logger=None)
+        except Exception as e:
+            logging.getLogger("DialogueBuilder").error(
+                f"任务失败: {e}", exc_info=True
+            )
+            print(f"❌ 任务失败: {e}")
+            sys.exit(1)
+        return
+
+    # ========== 多任务模式 ==========
+    output_root = base_dict.get("output_dir", "output")
+    batch_logger = setup_batch_logger(output_root)
+
+    total = len(tasks)
+    # 统计需要执行的任务（先做一遍 enabled 与 -t 过滤，方便日志）
+    run_tasks = []
+    skipped = []
+    for idx, task in enumerate(tasks, 1):
+        name = task.get("name", f"task_{idx}")
+        if not task.get("enabled", True):
+            batch_logger.info(f"[{idx}/{total}] ⏭ 跳过（disabled）: {name}")
+            skipped.append(name)
+            continue
+        if args.task and name != args.task:
+            batch_logger.info(f"[{idx}/{total}] ⏭ 跳过（非指定任务）: {name}")
+            skipped.append(name)
+            continue
+        run_tasks.append((idx, task, name))
+
+    batch_logger.info(
+        f"多任务模式启动：待执行 {len(run_tasks)}，跳过 {len(skipped)}，总计 {total}"
+    )
+
+    succeeded = []
+    failed = []
+
+    for idx, task, name in run_tasks:
+        batch_logger.info(f"[{idx}/{total}] 🚀 开始: {name}")
+
+        # 合并 base + task（去掉辅助字段）
+        task_clean = {
+            k: v for k, v in task.items() if k not in ("name", "enabled")
+        }
+        merged = deep_merge(base_dict, task_clean)
+        config = Config(merged)
+
+        try:
+            run_single_task(
+                config, force_regenerate=args.force, batch_logger=batch_logger
+            )
+            batch_logger.info(f"[{idx}/{total}] ✅ 完成: {name}")
+            succeeded.append(name)
+        except Exception as e:
+            batch_logger.error(
+                f"[{idx}/{total}] ❌ 失败: {name} -> {e}", exc_info=True
+            )
+            failed.append(name)
+            # 错误隔离：继续执行下一个
+            continue
+
+    # ---------- 汇总 ----------
+    batch_logger.info("=" * 60)
+    batch_logger.info(
+        f"全部任务完成: 成功 {len(succeeded)} | 失败 {len(failed)} | 跳过 {len(skipped)}"
+    )
+    if succeeded:
+        batch_logger.info(f"  ✅ 成功: {succeeded}")
+    if failed:
+        batch_logger.error(f"  ❌ 失败: {failed}")
+    if skipped:
+        batch_logger.info(f"  ⏭  跳过: {skipped}")
+    batch_logger.info("=" * 60)
+
+    # 有失败任务时返回非零退出码，便于 CI 判断
+    if failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
