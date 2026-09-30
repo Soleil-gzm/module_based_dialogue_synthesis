@@ -1,4 +1,5 @@
 import logging
+import math
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -62,73 +63,72 @@ class DialogueBuilder:
             "goodbye_termination_prob", 0.7
         )  # 固定概率
 
-        # ---- 话术抽样策略（特定条件优先）----
-        # 候选集中同时存在"通用层"和"特定层"时，以该概率从特定层抽
-        #   0.0 = 完全等概率（旧行为）
-        #   0.7 = 推荐，特定条件明显优先但通用仍保留多样性
-        #   1.0 = 只要有特定行就必从特定行抽
-        self.specific_condition_priority = config.get(
-            "specific_condition_priority", 0.7
-        )
-        # 特定层内部按条件项数加权：权重 = 1 + alpha * (项数 - 2)
-        #   0.0 = 特定层内部等概率
-        #   0.5 = 推荐，越具体越优先
-        self.condition_complexity_alpha = config.get("condition_complexity_alpha", 0.5)
+        # ---- 话术抽样策略：加权混合 ----
+        # 权重公式：w = (1 + alpha * (n_terms - 1)) / sqrt(同类行数)
+        #   - n_terms：该行的条件项数（0=无条件，1=基础条件，2+=特定）
+        #   - 同类行数：稀释数量多的层，避免垄断
+        #   - alpha：控制特定项的放大倍数
+        #     alpha=0.0 → 通用 62.5% / 特定 37.5%（接近旧行为）
+        #     alpha=1.0 → 通用 45.5% / 特定 54.5%（推荐）
+        #     alpha=2.0 → 通用 35.8% / 特定 64.2%（强烈偏好特定）
+        self.condition_complexity_alpha = config.get("condition_complexity_alpha", 1.0)
 
         # 辅助变量（每次 build 时重置）
         self.pressure_count = 0
 
     # ============================================================
-    # 话术抽样：分层（通用 vs 特定） + 复杂度加权
+    # 话术抽样：加权混合（特定条件优先 + 通用多样性保留）
     # ============================================================
     def _pick_row(self, valid_rows: List[pd.Series], node: str) -> pd.Series:
         """
         从满足条件的候选中选择一个当前行。
-        策略：
-        - 按条件项数分"通用层"（0~1 项）和"特定层"（≥2 项）
-        - 两层都有时，按 specific_condition_priority 优先从特定层抽
-        - 特定层内部按条件项数加权（越具体越优先）
-        """
-        generic_rows: List[pd.Series] = []
-        specific_rows: List[pd.Series] = []
 
+        加权混合策略：
+            权重 = (1 + alpha * (n_terms - 1)) / sqrt(同类行数)
+            - n_terms：该行的条件项数（0=无条件，1=基础条件如"逾期"，2+=特定）
+            - 同类行数：用于稀释"数量多"的层，避免通用行垄断
+            - alpha：控制特定项的放大倍数
+
+        效果：
+            - 特定行权重更高（因为 n_terms 大）
+            - 通用行数量多时会被 sqrt 稀释，但仍有基础出场率
+            - 特定行数量少时也不会被反复抽爆
+        """
+        if len(valid_rows) == 1:
+            return valid_rows[0]
+
+        alpha = self.condition_complexity_alpha
+
+        # 1. 解析每行的条件项数
         for r in valid_rows:
             cond_str = str(r.get("conditions(条件)", "")).strip()
             if not cond_str:
                 n_terms = 0
             else:
-                # 按 & 或 | 分割，统计非空项数
                 parts = re.split(r"[&|]", cond_str)
                 n_terms = len([p for p in parts if p.strip()])
             r["_condition_term_count"] = n_terms
+
+        # 2. 统计"通用"（0~1 项）和"特定"（≥2 项）两层的行数
+        n_generic = sum(1 for r in valid_rows if r["_condition_term_count"] <= 1)
+        n_specific = len(valid_rows) - n_generic
+
+        # 3. 计算每行的权重
+        weights = []
+        for r in valid_rows:
+            n_terms = r["_condition_term_count"]
             if n_terms <= 1:
-                generic_rows.append(r)
+                # 通用层：基础权重 1，按通用层总行数做 sqrt 稀释
+                base = 1.0
+                denom = math.sqrt(max(n_generic, 1))
             else:
-                specific_rows.append(r)
+                # 特定层：按项数放大（越具体越大），按特定层总行数做 sqrt 稀释
+                base = 1.0 + alpha * (n_terms - 1)
+                denom = math.sqrt(max(n_specific, 1))
+            weights.append(base / denom)
 
-        # 只有一层时直接返回
-        if not specific_rows:
-            return self.rng.choice(generic_rows)
-        if not generic_rows:
-            return self._weighted_pick_specific(specific_rows)
-
-        # 两层都有：按优先级抽
-        if self.rng.random() < self.specific_condition_priority:
-            return self._weighted_pick_specific(specific_rows)
-        else:
-            return self.rng.choice(generic_rows)
-
-    def _weighted_pick_specific(self, specific_rows: List[pd.Series]) -> pd.Series:
-        """特定层内部按条件项数加权抽取"""
-        if len(specific_rows) == 1:
-            return specific_rows[0]
-        alpha = self.condition_complexity_alpha
-        if alpha == 0.0:
-            return self.rng.choice(specific_rows)
-        weights = [
-            1.0 + alpha * (r["_condition_term_count"] - 2) for r in specific_rows
-        ]
-        return self.rng.choices(specific_rows, weights=weights, k=1)[0]
+        # 4. 按权重抽样
+        return self.rng.choices(valid_rows, weights=weights, k=1)[0]
 
     def _should_terminate(
         self,
@@ -204,8 +204,8 @@ class DialogueBuilder:
         case: Dict[str, Any],
         messages: List[Dict],
         node_counts: Dict[str, int],
-        module_idx: int,  # 新增：当前模块在路径中的索引
-        total_modules: int,  # 新增：路径总模块数
+        module_idx: int,  # 当前模块在路径中的索引
+        total_modules: int,  # 路径总模块数
     ) -> Tuple[bool, str]:
         df_node = self.df_dict.get(node)
         if df_node is None or df_node.empty:
@@ -245,7 +245,7 @@ class DialogueBuilder:
             )
             return False, ""
 
-        # ---- 分层抽样：特定条件优先 + 复杂度加权 ----
+        # ---- 加权混合抽样 ----
         row = self._pick_row(valid_rows, node)
 
         condition_meta = row.get("_condition_meta", {})
@@ -253,7 +253,7 @@ class DialogueBuilder:
         self.trace_collector.set_module_selected_uid(
             self._current_module_trace, row["uid"]
         )
-        # 新增：把 Excel 里的原始条件字符串也记入 trace
+        # 把 Excel 里的原始条件字符串也记入 trace
         self._current_module_trace["condition_text"] = row.get("conditions(条件)", "")
 
         # 提取 flexible_stop 和是否再见的原始值
