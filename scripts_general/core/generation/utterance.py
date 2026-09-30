@@ -42,43 +42,52 @@ def get_ancestors(
 ) -> List[pd.Series]:
     """
     递归获取所有祖先行（从远祖到父的顺序）。
-    如果 parent(继承) 包含多个值（用 / 分隔），则随机选择一个作为父级。
+    如果 parent(继承) 包含多个值（用 / 分隔），先按条件过滤候选父级，
+    再从满足条件的候选中随机选择一个作为父级；全部不满足则中断继承。
     如果提供了 condition_evaluator 和 case，则只返回满足条件的祖先行。
     """
     ancestors = []
     while True:
-        parent_series = df.loc[df["uid"] == uid, "parent(继承)"]
-        if parent_series.empty:
+        parent_col = df.loc[df["uid"] == uid, "parent(继承)"]
+        if parent_col.empty:
             break
-        parent_val = parent_series.values[0]
+        parent_val = parent_col.values[0]
         if pd.isna(parent_val) or parent_val == 0:
             break
 
+        # 解析候选父级 uid 列表
         if isinstance(parent_val, str) and "/" in parent_val:
-            possible_parents = [
+            candidate_uids = [
                 int(p.strip()) for p in parent_val.split("/") if p.strip().isdigit()
             ]
-            if not possible_parents:
-                break
-            parent_uid = rng.choice(possible_parents)
         else:
             try:
-                parent_uid = int(parent_val)
+                candidate_uids = [int(parent_val)]
             except (ValueError, TypeError):
                 break
-
-        parent_row = df[df["uid"] == parent_uid]
-        if parent_row.empty:
+        if not candidate_uids:
             break
 
-        parent_series = parent_row.iloc[0]
+        # 条件解析：参与父级选择的候选行必须先通过条件筛选
+        candidates = []
+        for candidate_uid in candidate_uids:
+            parent_row = df[df["uid"] == candidate_uid]
+            if parent_row.empty:
+                continue
+            row = parent_row.iloc[0]
+            if condition_evaluator is not None and case is not None:
+                cond_str = row.get("conditions(条件)", "")
+                if not condition_evaluator.evaluate(cond_str, case):
+                    continue
+            candidates.append((candidate_uid, row))
 
-        # 如果提供了条件评估器，检查祖先行是否满足条件
-        if condition_evaluator is not None and case is not None:
-            cond_str = parent_series.get("conditions(条件)", "")
-            if not condition_evaluator.evaluate(cond_str, case):
-                break
+        if not candidates:
+            break
 
+        if len(candidates) == 1:
+            parent_uid, parent_series = candidates[0]
+        else:
+            parent_uid, parent_series = rng.choice(candidates)
         ancestors.append(parent_series)
         uid = parent_uid
     return list(reversed(ancestors))

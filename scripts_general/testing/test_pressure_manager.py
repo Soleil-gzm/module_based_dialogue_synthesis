@@ -89,19 +89,19 @@ class TestPressureManager:
     def test_get_pressure_segment_no_data(self, minimal_df, config, rng):
         """使用最小 DataFrame（有列但无数据），初始化成功，获取片段返回空"""
         pm = PressureManager(minimal_df, rng, config)
-        seg, has_first = pm.get_pressure_segment(1, {}, MagicMock())
+        seg, has_first, _ = pm.get_pressure_segment(1, {}, MagicMock())
         assert seg == []
         assert has_first is False
 
     def test_get_pressure_segment_repeat_exceeds_max(self, pressure_df, config, rng):
         pm = PressureManager(pressure_df, rng, config)
-        seg, has_first = pm.get_pressure_segment(10, {}, MagicMock())
+        seg, has_first, _ = pm.get_pressure_segment(10, {}, MagicMock())
         assert seg == []
         assert has_first is False
 
     def test_get_pressure_segment_no_candidates_repeat(self, pressure_df, config, rng):
         pm = PressureManager(pressure_df, rng, config)
-        seg, has_first = pm.get_pressure_segment(99, {}, MagicMock())
+        seg, has_first, _ = pm.get_pressure_segment(99, {}, MagicMock())
         assert seg == []
         assert has_first is False
 
@@ -110,14 +110,14 @@ class TestPressureManager:
     ):
         pm = PressureManager(pressure_df, rng, config)
         case = {"逾期天数": 0}  # 不满足条件
-        seg, has_first = pm.get_pressure_segment(1, case, condition_evaluator_mock)
+        seg, has_first, _ = pm.get_pressure_segment(1, case, condition_evaluator_mock)
         # 应该能选到无条件行，片段非空
         assert len(seg) > 0
 
     # ---------- 继承链测试（模拟内部函数，避免真实调用） ----------
-    @patch("core.pressure_manager.get_ancestors")
-    @patch("core.pressure_manager.get_random_descendant_chain")
-    @patch("core.pressure_manager.sample_utterance")
+    @patch("core.pressure.pressure_manager.get_ancestors")
+    @patch("core.pressure.pressure_manager.get_random_descendant_chain")
+    @patch("core.pressure.pressure_manager.sample_utterance")
     def test_segment_contains_ancestors_current_descendants(
         self,
         mock_sample,
@@ -137,7 +137,7 @@ class TestPressureManager:
         mock_desc2 = MagicMock()
 
         mock_get_anc.return_value = [mock_anc1, mock_anc2]
-        mock_get_desc.return_value = [mock_desc1, mock_desc2]
+        mock_get_desc.return_value = ([mock_desc1, mock_desc2], False)
 
         # sample_utterance 返回字符串
         mock_sample.side_effect = lambda row, is_human, rng: (
@@ -154,7 +154,7 @@ class TestPressureManager:
             rng.choice = MagicMock(return_value=mock_current)
 
             # 调用 get_pressure_segment，但注意传入的 case 任意
-            seg, has_first = pm.get_pressure_segment(1, {}, condition_evaluator_mock)
+            seg, has_first, _ = pm.get_pressure_segment(1, {}, condition_evaluator_mock)
             # 由于我们 mock 了 get_ancestors 等，会按照 mock 构建片段
             # 祖先2个 + 当前1个 + 后代2个 = 5轮
             assert len(seg) == 5
@@ -181,21 +181,28 @@ class TestPressureManager:
         df = pd.DataFrame(data)
         pm = PressureManager(df, rng, config)
 
-        # 让条件始终通过
-        condition_evaluator_mock.evaluate.return_value = True
+        # 让条件始终通过（覆盖 fixture 中的 side_effect）
+        condition_evaluator_mock.evaluate.side_effect = lambda cond_str, case: True
 
-        with patch("core.pressure_manager.get_ancestors", return_value=[]):
+        with patch("core.pressure.pressure_manager.get_ancestors", return_value=[]):
             with patch(
-                "core.pressure_manager.get_random_descendant_chain", return_value=[]
+                "core.pressure.pressure_manager.get_random_descendant_chain",
+                return_value=([], False),
             ):
-                with patch.object(rng, "choice", return_value=df.iloc[0]):
-                    seg, has_first = pm.get_pressure_segment(
-                        1, {}, condition_evaluator_mock
-                    )
-                    assert len(seg) == 1
-                    assert seg[0]["user"] == ""
-                    assert seg[0]["assistant"] == "assistant only"
-                    assert has_first is False
+                with patch(
+                    "core.pressure.pressure_manager.sample_utterance",
+                    side_effect=lambda row, is_human, rng: (
+                        "" if is_human else "assistant only"
+                    ),
+                ):
+                    with patch.object(rng, "choice", return_value=df.iloc[0]):
+                        seg, has_first, _ = pm.get_pressure_segment(
+                            1, {}, condition_evaluator_mock
+                        )
+                        assert len(seg) == 1
+                        assert seg[0]["user"] == ""
+                        assert seg[0]["assistant"] == "assistant only"
+                        assert has_first is False
 
     # ---------- 集成测试（真实调用继承函数，但使用可控数据） ----------
     def test_ancestors_and_descendants_integration(
@@ -210,11 +217,11 @@ class TestPressureManager:
         # 强制条件通过，并且强制 rng.choice 返回该行
         with patch.object(condition_evaluator_mock, "evaluate", return_value=True):
             # mock sample_utterance 避免真实的 Series 布尔歧义
-            with patch("core.pressure_manager.sample_utterance", return_value="mocked"):
+            with patch("core.pressure.pressure_manager.sample_utterance", return_value="mocked"):
                 original_choice = rng.choice
                 rng.choice = MagicMock(return_value=row)
 
-                seg, has_first = pm.get_pressure_segment(
+                seg, has_first, _ = pm.get_pressure_segment(
                     1, {}, condition_evaluator_mock
                 )
 
@@ -233,7 +240,7 @@ class TestPressureManager:
         with patch.object(rng, "choice") as mock_choice:
             # 让 rng.choice 返回列表第一个元素，便于检查
             mock_choice.side_effect = lambda seq: seq[0]
-            seg, has_first = pm.get_pressure_segment(1, case, condition_evaluator_mock)
+            seg, has_first, _ = pm.get_pressure_segment(1, case, condition_evaluator_mock)
             # 应该选中 uid=2 的行（条件"逾期"），其 assistant 为"专员话术2"
             # 检查片段中是否包含"专员话术2"
             assert any("专员话术2" in s["assistant"] for s in seg)
@@ -242,6 +249,57 @@ class TestPressureManager:
         self, pressure_df, config, rng, condition_evaluator_mock
     ):
         pm = PressureManager(pressure_df, rng, config)
-        seg, has_first = pm.get_pressure_segment(99, {}, condition_evaluator_mock)
+        seg, has_first, _ = pm.get_pressure_segment(99, {}, condition_evaluator_mock)
         assert seg == []
         assert has_first is False
+
+    # ---------- 继承链条件解析测试 ----------
+    def test_ancestors_multi_parent_condition_filtering(self, rng):
+        """多父候选（/ 分隔）必须先按条件过滤，再随机选择"""
+        from core.generation.utterance import get_ancestors
+
+        df = pd.DataFrame(
+            {
+                "uid": [2, 3, 10],
+                "parent(继承)": [0, 0, "2/3"],
+                "conditions(条件)": ["逾期", "未逾期", ""],
+            }
+        )
+        # 只有 uid=3 的条件通过
+        mock = MagicMock()
+        mock.evaluate.side_effect = lambda cond, case: "未逾期" in cond
+
+        for _ in range(50):
+            anc = get_ancestors(10, df, rng, condition_evaluator=mock, case={})
+            assert len(anc) == 1
+            assert anc[0]["uid"] == 3
+
+        # 全部不满足 → 祖先链为空
+        mock_none = MagicMock()
+        mock_none.evaluate.return_value = False
+        assert get_ancestors(10, df, rng, condition_evaluator=mock_none, case={}) == []
+
+    def test_ancestor_chain_respects_conditions(self, config, condition_evaluator_mock):
+        """PressureManager 获取祖先/后代链时传递条件评估器：条件不满足的父行被过滤"""
+        df = pd.DataFrame(
+            {
+                "uid": [1, 2],
+                "parent(继承)": [0, 1],
+                "repeat(次数)": ["1", "1"],
+                "conditions(条件)": ["逾期", ""],  # uid=1（父行）条件不满足
+                "human(客户)": ["客户1", "客户2"],
+                "assistant(专员)": ["专员1", "专员2"],
+                "flexible_stop(可选不继承)": [0, 0],
+                "是否再见": [0, 0],
+            }
+        )
+        # fixture mock: 条件含"逾期"才算通过 → 反转，使 uid=1 不通过
+        condition_evaluator_mock.evaluate.side_effect = (
+            lambda cond, case: "逾期" not in cond
+        )
+        pm = PressureManager(df, RandomService(seed=42), config)
+        seg, _, _ = pm.get_pressure_segment(1, {}, condition_evaluator_mock)
+        texts = [t for turn in seg for t in (turn["user"], turn["assistant"])]
+        # uid=2 被选中（唯一候选），其父 uid=1 条件不满足，不应出现在片段中
+        assert any("专员2" in t for t in texts)
+        assert not any("专员1" in t or "客户1" in t for t in texts)

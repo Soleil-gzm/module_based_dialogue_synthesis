@@ -75,10 +75,13 @@ class PressureManager:
 
         row = self.rng.choice(valid_rows)
 
-        # 获取祖先和后代链
-        ancestors = get_ancestors(row["uid"], self.df, self.rng)
+        # 获取祖先和后代链（参与话术选择的部分都要进行条件解析）
+        ancestors = get_ancestors(
+            row["uid"], self.df, self.rng, condition_evaluator=condition_evaluator, case=case
+        )
         descendant_chain, flexible_stopped = get_random_descendant_chain(
-            row["uid"], self.df, self.rng, flexible_stop_prob=self.flexible_stop_prob
+            row["uid"], self.df, self.rng, flexible_stop_prob=self.flexible_stop_prob,
+            condition_evaluator=condition_evaluator, case=case,
         )
 
         # 构建片段轮次列表
