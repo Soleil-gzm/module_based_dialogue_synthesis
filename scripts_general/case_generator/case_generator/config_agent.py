@@ -5,7 +5,7 @@ CONFIG = {
         {
             "name": "M0首催_WN_AN_无意愿无能力",
             "enabled": True,
-            "seed": 45,
+            "seed": 21,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M0-无意愿无能力-4w.json",
             "system_dir": "packages/M0_WN_AN/case/systemM0_WN_AN_4w",
@@ -23,7 +23,7 @@ CONFIG = {
         {
             "name": "M0首催_WN_AY_无意愿有能力",
             "enabled": True,
-            "seed": 46,
+            "seed": 23,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M0-无意愿有能力-4w.json",
             "system_dir": "packages/M0_WN_AY/case/systemM0_WN_AY_4w",
@@ -41,7 +41,7 @@ CONFIG = {
         {
             "name": "M0首催_BP_易跳票客户",
             "enabled": True,
-            "seed": 47,
+            "seed": 26,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M0-易跳票客户-4w.json",
             "system_dir": "packages/M0_BP/case/systemM0_BP_4w",
@@ -59,7 +59,7 @@ CONFIG = {
         {
             "name": "M0首催_WY_AN_有意愿无能力",
             "enabled": True,
-            "seed": 48,
+            "seed": 22,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M0-有意愿无能力-4w.json",
             "system_dir": "packages/M0_WY_AN/case/systemM0_WY_AN_4w",
@@ -77,7 +77,7 @@ CONFIG = {
         {
             "name": "M0首催_WY_AY_有意愿有能力",
             "enabled": True,
-            "seed": 49,
+            "seed": 24,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M0-有意愿有能力-4w.json",
             "system_dir": "packages/M0_WY_AY/case/systemM0_WY_AY_4w",
@@ -95,7 +95,7 @@ CONFIG = {
         {
             "name": "M0首催_CR_有投诉风险",
             "enabled": True,
-            "seed": 50,
+            "seed": 25,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M0-有投诉风险-4w.json",
             "system_dir": "packages/M0_CR/case/systemM0_CR_4w",
@@ -115,7 +115,7 @@ CONFIG = {
         {
             "name": "M0跟催_WN_AN_无意愿无能力",
             "enabled": True,
-            "seed": 51,
+            "seed": 31,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M0-follow-无意愿无能力-2w.json",
             "system_dir": "packages/M0_follow_WN_AN/case/systemM0_follow_WN_AN_2w",
@@ -133,7 +133,7 @@ CONFIG = {
         {
             "name": "M0跟催_WN_AY_无意愿有能力",
             "enabled": True,
-            "seed": 52,
+            "seed": 33,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M0-follow-无意愿有能力-2w.json",
             "system_dir": "packages/M0_follow_WN_AY/case/systemM0_follow_WN_AY_2w",
@@ -151,7 +151,7 @@ CONFIG = {
         {
             "name": "M0跟催_BP_易跳票客户",
             "enabled": True,
-            "seed": 53,
+            "seed": 36,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M0-follow-易跳票客户-2w.json",
             "system_dir": "packages/M0_follow_BP/case/systemM0_follow_BP_2w",
@@ -169,7 +169,7 @@ CONFIG = {
         {
             "name": "M0跟催_WY_AN_有意愿无能力",
             "enabled": True,
-            "seed": 54,
+            "seed": 32,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M0-follow-有意愿无能力-2w.json",
             "system_dir": "packages/M0_follow_WY_AN/case/systemM0_follow_WY_AN_2w",
@@ -187,7 +187,7 @@ CONFIG = {
         {
             "name": "M0跟催_WY_AY_有意愿有能力",
             "enabled": True,
-            "seed": 55,
+            "seed": 34,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M0-follow-有意愿有能力-2w.json",
             "system_dir": "packages/M0_follow_WY_AY/case/systemM0_follow_WY_AY_2w",
@@ -205,7 +205,7 @@ CONFIG = {
         {
             "name": "M0跟催_CR_有投诉风险",
             "enabled": True,
-            "seed": 56,
+            "seed": 35,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M0-follow-有投诉风险-2w.json",
             "system_dir": "packages/M0_follow_CR/case/systemM0_follow_CR_2w",
@@ -225,7 +225,7 @@ CONFIG = {
         {
             "name": "M1首催_WN_AN_无意愿无能力",
             "enabled": True,
-            "seed": 100,
+            "seed": 41,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M1-无意愿无能力-4w.json",
             "system_dir": "packages/M1_WN_AN/case/systemM1_WN_AN_4w",
@@ -243,7 +243,7 @@ CONFIG = {
         {
             "name": "M1首催_WN_AY_无意愿有能力",
             "enabled": True,
-            "seed": 101,
+            "seed": 43,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M1-无意愿有能力-4w.json",
             "system_dir": "packages/M1_WN_AY/case/systemM1_WN_AY_4w",
@@ -261,7 +261,7 @@ CONFIG = {
         {
             "name": "M1首催_BP_易跳票客户",
             "enabled": True,
-            "seed": 102,
+            "seed": 46,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M1-易跳票客户-4w.json",
             "system_dir": "packages/M1_BP/case/systemM1_BP_4w",
@@ -279,7 +279,7 @@ CONFIG = {
         {
             "name": "M1首催_WY_AN_有意愿无能力",
             "enabled": True,
-            "seed": 103,
+            "seed": 42,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M1-有意愿无能力-4w.json",
             "system_dir": "packages/M1_WY_AN/case/systemM1_WY_AN_4w",
@@ -297,7 +297,7 @@ CONFIG = {
         {
             "name": "M1首催_WY_AY_有意愿有能力",
             "enabled": True,
-            "seed": 104,
+            "seed": 44,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M1-有意愿有能力-4w.json",
             "system_dir": "packages/M1_WY_AY/case/systemM1_WY_AY_4w",
@@ -315,7 +315,7 @@ CONFIG = {
         {
             "name": "M1首催_CR_有投诉风险",
             "enabled": True,
-            "seed": 105,
+            "seed": 45,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M1-有投诉风险-4w.json",
             "system_dir": "packages/M1_CR/case/systemM1_CR_4w",
@@ -335,7 +335,7 @@ CONFIG = {
         {
             "name": "M1跟催_WN_AN_无意愿无能力",
             "enabled": True,
-            "seed": 57,
+            "seed": 51,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M1-follow-无意愿无能力-2w.json",
             "system_dir": "packages/M1_follow_WN_AN/case/systemM1_follow_WN_AN_2w",
@@ -353,7 +353,7 @@ CONFIG = {
         {
             "name": "M1跟催_WN_AY_无意愿有能力",
             "enabled": True,
-            "seed": 58,
+            "seed": 53,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M1-follow-无意愿有能力-2w.json",
             "system_dir": "packages/M1_follow_WN_AY/case/systemM1_follow_WN_AY_2w",
@@ -371,7 +371,7 @@ CONFIG = {
         {
             "name": "M1跟催_BP_易跳票客户",
             "enabled": True,
-            "seed": 59,
+            "seed": 56,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M1-follow-易跳票客户-2w.json",
             "system_dir": "packages/M1_follow_BP/case/systemM1_follow_BP_2w",
@@ -389,7 +389,7 @@ CONFIG = {
         {
             "name": "M1跟催_WY_AN_有意愿无能力",
             "enabled": True,
-            "seed": 60,
+            "seed": 52,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M1-follow-有意愿无能力-2w.json",
             "system_dir": "packages/M1_follow_WY_AN/case/systemM1_follow_WY_AN_2w",
@@ -407,7 +407,7 @@ CONFIG = {
         {
             "name": "M1跟催_WY_AY_有意愿有能力",
             "enabled": True,
-            "seed": 61,
+            "seed": 54,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M1-follow-有意愿有能力-2w.json",
             "system_dir": "packages/M1_follow_WY_AY/case/systemM1_follow_WY_AY_2w",
@@ -425,7 +425,7 @@ CONFIG = {
         {
             "name": "M1跟催_CR_有投诉风险",
             "enabled": True,
-            "seed": 62,
+            "seed": 55,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M1-follow-有投诉风险-2w.json",
             "system_dir": "packages/M1_follow_CR/case/systemM1_follow_CR_2w",
@@ -445,7 +445,7 @@ CONFIG = {
         {
             "name": "M2首催_WN_AN_无意愿无能力",
             "enabled": True,
-            "seed": 106,
+            "seed": 61,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M2-无意愿无能力-4w.json",
             "system_dir": "packages/M2_WN_AN/case/systemM2_WN_AN_4w",
@@ -463,7 +463,7 @@ CONFIG = {
         {
             "name": "M2首催_WN_AY_无意愿有能力",
             "enabled": True,
-            "seed": 107,
+            "seed": 63,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M2-无意愿有能力-4w.json",
             "system_dir": "packages/M2_WN_AY/case/systemM2_WN_AY_4w",
@@ -481,7 +481,7 @@ CONFIG = {
         {
             "name": "M2首催_BP_易跳票客户",
             "enabled": True,
-            "seed": 108,
+            "seed": 66,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M2-易跳票客户-4w.json",
             "system_dir": "packages/M2_BP/case/systemM2_BP_4w",
@@ -499,7 +499,7 @@ CONFIG = {
         {
             "name": "M2首催_WY_AN_有意愿无能力",
             "enabled": True,
-            "seed": 109,
+            "seed": 62,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M2-有意愿无能力-4w.json",
             "system_dir": "packages/M2_WY_AN/case/systemM2_WY_AN_4w",
@@ -517,7 +517,7 @@ CONFIG = {
         {
             "name": "M2首催_WY_AY_有意愿有能力",
             "enabled": True,
-            "seed": 110,
+            "seed": 64,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M2-有意愿有能力-4w.json",
             "system_dir": "packages/M2_WY_AY/case/systemM2_WY_AY_4w",
@@ -535,7 +535,7 @@ CONFIG = {
         {
             "name": "M2首催_CR_有投诉风险",
             "enabled": True,
-            "seed": 111,
+            "seed": 65,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M2-有投诉风险-4w.json",
             "system_dir": "packages/M2_CR/case/systemM2_CR_4w",
@@ -555,7 +555,7 @@ CONFIG = {
         {
             "name": "M2跟催_WN_AN_无意愿无能力",
             "enabled": True,
-            "seed": 63,
+            "seed": 71,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M2-follow-无意愿无能力-2w.json",
             "system_dir": "packages/M2_follow_WN_AN/case/systemM2_follow_WN_AN_2w",
@@ -573,7 +573,7 @@ CONFIG = {
         {
             "name": "M2跟催_WN_AY_无意愿有能力",
             "enabled": True,
-            "seed": 64,
+            "seed": 73,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M2-follow-无意愿有能力-2w.json",
             "system_dir": "packages/M2_follow_WN_AY/case/systemM2_follow_WN_AY_2w",
@@ -591,7 +591,7 @@ CONFIG = {
         {
             "name": "M2跟催_BP_易跳票客户",
             "enabled": True,
-            "seed": 65,
+            "seed": 76,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M2-follow-易跳票客户-2w.json",
             "system_dir": "packages/M2_follow_BP/case/systemM2_follow_BP_2w",
@@ -609,7 +609,7 @@ CONFIG = {
         {
             "name": "M2跟催_WY_AN_有意愿无能力",
             "enabled": True,
-            "seed": 66,
+            "seed": 72,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M2-follow-有意愿无能力-2w.json",
             "system_dir": "packages/M2_follow_WY_AN/case/systemM2_follow_WY_AN_2w",
@@ -627,7 +627,7 @@ CONFIG = {
         {
             "name": "M2跟催_WY_AY_有意愿有能力",
             "enabled": True,
-            "seed": 67,
+            "seed": 74,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M2-follow-有意愿有能力-2w.json",
             "system_dir": "packages/M2_follow_WY_AY/case/systemM2_follow_WY_AY_2w",
@@ -645,7 +645,7 @@ CONFIG = {
         {
             "name": "M2跟催_CR_有投诉风险",
             "enabled": True,
-            "seed": 68,
+            "seed": 75,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M2-follow-有投诉风险-2w.json",
             "system_dir": "packages/M2_follow_CR/case/systemM2_follow_CR_2w",
@@ -665,7 +665,7 @@ CONFIG = {
         {
             "name": "M3plus首催_WN_AN_无意愿无能力",
             "enabled": True,
-            "seed": 112,
+            "seed": 81,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M3plus-无意愿无能力-4w.json",
             "system_dir": "packages/M3plus_WN_AN/case/systemM3plus_WN_AN_4w",
@@ -683,7 +683,7 @@ CONFIG = {
         {
             "name": "M3plus首催_WN_AY_无意愿有能力",
             "enabled": True,
-            "seed": 113,
+            "seed": 83,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M3plus-无意愿有能力-4w.json",
             "system_dir": "packages/M3plus_WN_AY/case/systemM3plus_WN_AY_4w",
@@ -701,7 +701,7 @@ CONFIG = {
         {
             "name": "M3plus首催_BP_易跳票客户",
             "enabled": True,
-            "seed": 114,
+            "seed": 86,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M3plus-易跳票客户-4w.json",
             "system_dir": "packages/M3plus_BP/case/systemM3plus_BP_4w",
@@ -719,7 +719,7 @@ CONFIG = {
         {
             "name": "M3plus首催_WY_AN_有意愿无能力",
             "enabled": True,
-            "seed": 115,
+            "seed": 82,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M3plus-有意愿无能力-4w.json",
             "system_dir": "packages/M3plus_WY_AN/case/systemM3plus_WY_AN_4w",
@@ -737,7 +737,7 @@ CONFIG = {
         {
             "name": "M3plus首催_WY_AY_有意愿有能力",
             "enabled": True,
-            "seed": 116,
+            "seed": 84,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M3plus-有意愿有能力-4w.json",
             "system_dir": "packages/M3plus_WY_AY/case/systemM3plus_WY_AY_4w",
@@ -755,7 +755,7 @@ CONFIG = {
         {
             "name": "M3plus首催_CR_有投诉风险",
             "enabled": True,
-            "seed": 117,
+            "seed": 85,
             "total_cases": 20000,
             "combinations_path": "packages/combinations/combinations-M3plus-有投诉风险-4w.json",
             "system_dir": "packages/M3plus_CR/case/systemM3plus_CR_4w",
@@ -775,7 +775,7 @@ CONFIG = {
         {
             "name": "M3_plus跟催_WN_AN_无意愿无能力",
             "enabled": True,
-            "seed": 69,
+            "seed": 91,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M3plus-follow-无意愿无能力-2w.json",
             "system_dir": "packages/M3plus_follow_WN_AN/case/systemM3plus_follow_WN_AN_2w",
@@ -793,7 +793,7 @@ CONFIG = {
         {
             "name": "M3_plus跟催_WN_AY_无意愿有能力",
             "enabled": True,
-            "seed": 70,
+            "seed": 93,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M3plus-follow-无意愿有能力-2w.json",
             "system_dir": "packages/M3plus_follow_WN_AY/case/systemM3plus_follow_WN_AY_2w",
@@ -811,7 +811,7 @@ CONFIG = {
         {
             "name": "M3_plus跟催_BP_易跳票客户",
             "enabled": True,
-            "seed": 71,
+            "seed": 96,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M3plus-follow-易跳票客户-2w.json",
             "system_dir": "packages/M3plus_follow_BP/case/systemM3plus_follow_BP_2w",
@@ -829,7 +829,7 @@ CONFIG = {
         {
             "name": "M3_plus跟催_WY_AN_有意愿无能力",
             "enabled": True,
-            "seed": 72,
+            "seed": 92,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M3plus-follow-有意愿无能力-2w.json",
             "system_dir": "packages/M3plus_follow_WY_AN/case/systemM3plus_follow_WY_AN_2w",
@@ -847,7 +847,7 @@ CONFIG = {
         {
             "name": "M3_plus跟催_WY_AY_有意愿有能力",
             "enabled": True,
-            "seed": 73,
+            "seed": 94,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M3plus-follow-有意愿有能力-2w.json",
             "system_dir": "packages/M3plus_follow_WY_AY/case/systemM3plus_follow_WY_AY_2w",
@@ -865,7 +865,7 @@ CONFIG = {
         {
             "name": "M3_plus跟催_CR_有投诉风险",
             "enabled": True,
-            "seed": 74,
+            "seed": 95,
             "total_cases": 10000,
             "combinations_path": "packages/combinations/combinations-M3plus-follow-有投诉风险-2w.json",
             "system_dir": "packages/M3plus_follow_CR/case/systemM3plus_follow_CR_2w",
