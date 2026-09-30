@@ -25,9 +25,17 @@ class RandomService:
         """从序列中随机选择一个元素"""
         return self._random.choice(seq)
 
-    def choices(self, seq: List[Any], k: int) -> List[Any]:
-        """随机选择多个元素（可重复）"""
-        return self._random.choices(seq, k=k)
+    def choices(
+        self, seq: List[Any], weights: Optional[List[float]] = None, k: int = 1
+    ) -> List[Any]:
+        """
+        随机选择多个元素（可重复）。
+        :param seq: 候选列表
+        :param weights: 权重列表（与 seq 等长）；None 表示等概率
+        :param k: 选取个数
+        :return: 长度为 k 的列表
+        """
+        return self._random.choices(seq, weights=weights, k=k)
 
     def randint(self, a: int, b: int) -> int:
         """返回 [a, b] 之间的随机整数"""
