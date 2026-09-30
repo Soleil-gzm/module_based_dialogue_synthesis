@@ -1,10 +1,35 @@
+import logging
 import random
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 from core.utils.random_service import RandomService
 
+logger = logging.getLogger("DialogueBuilder")
 
+
+# ============================================================
+# 条件解析的安全包装
+# ============================================================
+def _safe_evaluate(condition_evaluator, cond_str, case) -> bool:
+    """
+    条件解析的安全包装：
+    - condition_evaluator 或 case 为 None → 不做过滤，返回 True
+    - 解析异常 → 记录 warning，返回 False（不满足条件）
+    - 正常 → 返回 bool(evaluate(...))
+    """
+    if condition_evaluator is None or case is None:
+        return True
+    try:
+        return bool(condition_evaluator.evaluate(cond_str, case))
+    except Exception as e:
+        logger.warning(f"条件解析失败: {cond_str!r} -> {e}")
+        return False
+
+
+# ============================================================
+# 话术抽样
+# ============================================================
 def sample_utterance(row: pd.Series, is_human: bool, rng: RandomService) -> str:
     """从一行中随机抽取一个话术（用 / 分割），使用注入的随机服务"""
     col = "human(客户)" if is_human else "assistant(专员)"
@@ -37,25 +62,54 @@ def should_stop_by_flexible(
     return flex_stop == 1 and rng.random() <= stop_prob
 
 
+# ============================================================
+# 祖先链
+# ============================================================
 def get_ancestors(
-    uid: int, df: pd.DataFrame, rng: RandomService, condition_evaluator=None, case=None
+    uid: int,
+    df: pd.DataFrame,
+    rng: RandomService,
+    condition_evaluator=None,
+    case=None,
+    max_depth: int = 20,
 ) -> List[pd.Series]:
     """
     递归获取所有祖先行（从远祖到父的顺序）。
-    如果 parent(继承) 包含多个值（用 / 分隔），先按条件过滤候选父级，
-    再从满足条件的候选中随机选择一个作为父级；全部不满足则中断继承。
-    如果提供了 condition_evaluator 和 case，则只返回满足条件的祖先行。
+
+    规则：
+    - 如果 parent(继承) 包含多个值（用 / 分隔），先按条件过滤候选父级，
+      再从满足条件的候选中随机选择一个作为父级；全部不满足则中断继承。
+    - 若提供 condition_evaluator 和 case，则只返回满足条件的祖先行。
+    - 通过 visited 防止 parent 成环导致死循环。
+    - 通过 max_depth 防止超长链导致性能问题。
     """
-    ancestors = []
+    ancestors: List[pd.Series] = []
+    visited = set()
+    depth = 0
+
+    current_uid = uid
     while True:
-        parent_col = df.loc[df["uid"] == uid, "parent(继承)"]
+        # ---- 防环 & 深度上限 ----
+        if current_uid in visited:
+            logger.warning(f"get_ancestors: 检测到 parent 环，中断于 uid={current_uid}")
+            break
+        if depth >= max_depth:
+            logger.warning(
+                f"get_ancestors: 祖先链深度超过上限 {max_depth}，中断于 uid={current_uid}"
+            )
+            break
+        visited.add(current_uid)
+        depth += 1
+
+        # ---- 取当前行的 parent 值 ----
+        parent_col = df.loc[df["uid"] == current_uid, "parent(继承)"]
         if parent_col.empty:
             break
         parent_val = parent_col.values[0]
         if pd.isna(parent_val) or parent_val == 0:
             break
 
-        # 解析候选父级 uid 列表
+        # ---- 解析候选父级 uid 列表 ----
         if isinstance(parent_val, str) and "/" in parent_val:
             candidate_uids = [
                 int(p.strip()) for p in parent_val.split("/") if p.strip().isdigit()
@@ -68,31 +122,37 @@ def get_ancestors(
         if not candidate_uids:
             break
 
-        # 条件解析：参与父级选择的候选行必须先通过条件筛选
-        candidates = []
+        # ---- 条件解析：候选父级先过滤，再随机选 ----
+        candidates: List[Tuple[int, pd.Series]] = []
         for candidate_uid in candidate_uids:
-            parent_row = df[df["uid"] == candidate_uid]
-            if parent_row.empty:
+            parent_rows = df[df["uid"] == candidate_uid]
+            if parent_rows.empty:
                 continue
-            row = parent_row.iloc[0]
-            if condition_evaluator is not None and case is not None:
-                cond_str = row.get("conditions(条件)", "")
-                if not condition_evaluator.evaluate(cond_str, case):
-                    continue
-            candidates.append((candidate_uid, row))
+            candidate_series = parent_rows.iloc[0]
+            cond_str = candidate_series.get("conditions(条件)", "")
+            if not _safe_evaluate(condition_evaluator, cond_str, case):
+                continue
+            candidates.append((candidate_uid, candidate_series))
 
+        # 所有候选父级都不满足条件 → 中断
         if not candidates:
             break
 
+        # ---- 从满足条件的候选中选一个父级 ----
         if len(candidates) == 1:
             parent_uid, parent_series = candidates[0]
         else:
             parent_uid, parent_series = rng.choice(candidates)
+
         ancestors.append(parent_series)
-        uid = parent_uid
+        current_uid = parent_uid
+
     return list(reversed(ancestors))
 
 
+# ============================================================
+# 后代链
+# ============================================================
 def get_random_descendant_chain(
     uid: int,
     df: pd.DataFrame,
@@ -102,6 +162,10 @@ def get_random_descendant_chain(
     condition_evaluator=None,
     case=None,
 ) -> Tuple[List[pd.Series], bool]:
+    """
+    获取从当前行（uid）开始的一条随机后代链。
+    返回 (chain, stopped_by_flexible)，chain 不包含起始行本身。
+    """
     current_rows = df[df["uid"] == uid]
     if current_rows.empty:
         return [], False
@@ -119,12 +183,12 @@ def get_random_descendant_chain(
 
     children = df[df.apply(contains_parent, axis=1)]
 
-    # 如果提供了条件评估器，只保留满足条件的子节点
+    # 条件过滤子节点（使用安全包装）
     if condition_evaluator is not None and case is not None:
         children = children[
             children.apply(
-                lambda row: condition_evaluator.evaluate(
-                    row.get("conditions(条件)", ""), case
+                lambda row: _safe_evaluate(
+                    condition_evaluator, row.get("conditions(条件)", ""), case
                 ),
                 axis=1,
             )
@@ -152,6 +216,9 @@ def get_random_descendant_chain(
     return chain, deeper_stop
 
 
+# ============================================================
+# 占位符填充
+# ============================================================
 def fill_placeholders(text: str, case: Dict[str, Any]) -> str:
     """替换文本中的花括号占位符"""
     if not isinstance(text, str):

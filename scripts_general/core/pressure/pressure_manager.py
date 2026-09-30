@@ -3,9 +3,12 @@ from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 from core.generation.config import Config
-from core.generation.utterance import (get_ancestors,
-                                       get_random_descendant_chain,
-                                       sample_utterance)
+from core.generation.utterance import (
+    _safe_evaluate,
+    get_ancestors,
+    get_random_descendant_chain,
+    sample_utterance,
+)
 from core.utils.random_service import RandomService
 
 logger = logging.getLogger("DialogueBuilder")
@@ -39,16 +42,12 @@ class PressureManager:
         module_name: str = None,
     ) -> Tuple[List[Dict[str, str]], bool, bool]:
         """
-        根据 repeat 次数从施压话术表中抽取一个话术片段（可能包含多轮）。
-        返回 (segment_list, has_customer_first, flexible_stopped), 其中 segment_list 每个元素为 {"user": str, "assistant": str}
-            has_customer_first 表示片段第一轮是否有客户话术（用于外部拼接逻辑）。
-
-        注意：如果请求的 repeat 超过施压话术表支持的最大次数，直接返回空片段，不降级。
+        返回 (segment_list, has_customer_first, flexible_stopped)。
         """
         if self.df.empty:
             return [], False, False
 
-        # 如果请求的 repeat 超过施压话术表最大支持次数，直接返回空（不降级）
+        # repeat 超过施压话术表支持的最大次数：跳过
         if repeat > self.max_repeat:
             if module_name:
                 logger.debug(
@@ -56,7 +55,7 @@ class PressureManager:
                 )
             return [], False, False
 
-        # 筛选 repeat 匹配的行（注意：这里直接使用 repeat，不再降级)
+        # ---- 筛选 repeat ----
         mask = self.df["repeat(次数)"].apply(
             lambda x: (str(repeat) in str(x).split("/") if pd.notna(x) else False)
         )
@@ -64,27 +63,35 @@ class PressureManager:
         if candidates.empty:
             return [], False, False
 
-        # 条件筛选
+        # ---- 条件筛选当前行（安全包装） ----
         valid_rows = []
         for _, row in candidates.iterrows():
             cond_str = row.get("conditions(条件)", "")
-            if condition_evaluator.evaluate(cond_str, case):
+            if _safe_evaluate(condition_evaluator, cond_str, case):
                 valid_rows.append(row)
         if not valid_rows:
             return [], False, False
 
         row = self.rng.choice(valid_rows)
 
-        # 获取祖先和后代链（参与话术选择的部分都要进行条件解析）
+        # ---- 祖先链 + 后代链（均带条件解析） ----
         ancestors = get_ancestors(
-            row["uid"], self.df, self.rng, condition_evaluator=condition_evaluator, case=case
+            row["uid"],
+            self.df,
+            self.rng,
+            condition_evaluator=condition_evaluator,
+            case=case,
         )
         descendant_chain, flexible_stopped = get_random_descendant_chain(
-            row["uid"], self.df, self.rng, flexible_stop_prob=self.flexible_stop_prob,
-            condition_evaluator=condition_evaluator, case=case,
+            row["uid"],
+            self.df,
+            self.rng,
+            flexible_stop_prob=self.flexible_stop_prob,
+            condition_evaluator=condition_evaluator,
+            case=case,
         )
 
-        # 构建片段轮次列表
+        # ---- 构建片段 ----
         segment = []
         for anc in ancestors:
             user = sample_utterance(anc, True, self.rng)
